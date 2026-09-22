@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "node tools/serve.mjs",
-    "test": "node tools/smoke.mjs"
+    "test": "node --test tools/combat.test.mjs && node tools/smoke.mjs",
+    "test:combat": "node --test tools/combat.test.mjs",
+    "test:play": "node tools/combat-playtest.mjs"
   },
   "dependencies": {
     "three": "0.169.0"

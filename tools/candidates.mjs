@@ -7,6 +7,7 @@ try{
  await page.goto('http://localhost:4173/');
  const group=process.argv[2]||'wanderer';
  const groups={wanderer:['game/assets/wanderer.js','work/candidates/wanderer_profile.js','work/candidates/wanderer_panels.js'],gate:['game/assets/old_gate.js','work/candidates/gate_profile.js','work/candidates/gate_timber.js'],pine:['game/assets/pine.js','work/candidates/pine_layers.js','work/candidates/pine_needles.js']};
+ Object.assign(groups,{sword:['game/assets/iron_sword.js','work/candidates/sword_forged.js','work/candidates/sword_profile.js'],axe:['game/assets/bearded_axe.js','work/candidates/axe_blocks.js','work/candidates/axe_sweep.js'],spear:['game/assets/ash_spear.js','work/candidates/spear_diamond.js','work/candidates/spear_lathe.js'],wolf:['game/assets/blighted_wolf.js','work/candidates/wolf_capsules.js','work/candidates/wolf_profiles.js'],shard:['game/assets/blighted_shard.js','work/candidates/shard_octas.js','work/candidates/shard_layers.js']});
  const files=groups[group];if(!files)throw new Error('Unknown candidate group');
  const sources=await Promise.all(files.map(f=>fs.readFile(f,'utf8')));
  const report=await page.evaluate(async sources=>{

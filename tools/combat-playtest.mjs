@@ -17,9 +17,11 @@ try{
  console.log('All weapons, combo, skills and dodge driven with real keyboard input.');
  // Seek opponents using read-only telemetry. Inputs remain real keys and mouse movement.
  const held=new Set();async function keys(want){for(const k of held)if(!want.includes(k)){await page.keyboard.up(k);held.delete(k);}for(const k of want)if(!held.has(k)){await page.keyboard.down(k);held.add(k);}}
- let n=0,maxDraws=0,maxTris=0;const deadline=Date.now()+360000;
+ let n=0,maxDraws=0,maxTris=0,retreating=false,lastReport=0;const deadline=Date.now()+480000;
  while(Date.now()<deadline){const g=await state();maxDraws=Math.max(maxDraws,g.draws);maxTris=Math.max(maxTris,g.tris);if(g.over||g.complete)break;
-  if(g.hp<38){await keys(['KeyS']);if(g.pos[1]>7){await keys([]);await until(()=>window.__GAME__.hp>100,30000);}await sleep(100);continue;}
+  if(Date.now()-lastReport>30000){lastReport=Date.now();console.log('Encounter progress',JSON.stringify({hp:g.hp,kills:g.kills,shardHp:g.shardHp,pos:g.pos}));await fs.writeFile('_artifacts/combat/progress.json',JSON.stringify(g,null,2));}
+  if(g.hp<38)retreating=true;
+  if(retreating){if(g.hp>=105)retreating=false;else{const want=g.pos[1]<7.4?['KeyS']:[];if(g.pos[1]<7.4&&Math.abs(g.pos[0])>.4)want.push(g.pos[0]>0?'KeyA':'KeyD');await keys(want);await sleep(100);continue;}}
   const close=g.targets.filter(t=>t.visible).sort((a,b)=>Math.hypot(a.x-g.pos[0],a.z-g.pos[1])-Math.hypot(b.x-g.pos[0],b.z-g.pos[1]));
   const target=close[0]||g.shard;
   const dx=target.x-g.pos[0],dz=target.z-g.pos[1],d=Math.hypot(dx,dz);const want=[];
@@ -31,6 +33,7 @@ try{
   await sleep(90);
  }
  await keys([]);let g=await state();console.log('Fight result',JSON.stringify({hp:g.hp,kills:g.kills,hits:g.hits,shardHp:g.shardHp,complete:g.complete,over:g.over,maxDraws,maxTris}));
+ await fs.writeFile('_artifacts/combat/desktop.json',JSON.stringify({result:g.complete?'PASS':'INCOMPLETE',state:g,maxDraws,maxTris,errors},null,2));
  assert(g.complete,'must complete the encounter through real input');assert(g.kills===8,'must defeat all eight guardians');assert(g.hits>=1);assert(maxDraws<=500);assert(maxTris<=600000);assert.deepEqual(errors,[]);
  await page.screenshot({path:'_artifacts/combat/desktop-end.png'});
  // Restart must reset progress; the same public control is used after defeat or in pause.

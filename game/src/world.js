@@ -16,7 +16,7 @@ export async function createWorld(scene){
   markers.forEach(([x,z],i)=>{place(stone,x,z,.55+(i%3)*.19,i*1.4);colliders.push({x,z,r:.75});});
   let seed=8404;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
   for(let i=0;i<110;i++){const s=i%2?1:-1,x=s*(7+rand()*25),z=-31+rand()*61,k=.65+rand()*.8;place(pine,x,z,k,rand()*6.28);if(Math.abs(x)<20&&Math.abs(z)<26)colliders.push({x,z,r:.3*k});}
-  for(const z of [9,0,-9,-19])for(const s of [-1,1]){const x=s*2.75;place(lantern,x,z);lanterns.push({x,z});}
+  for(const z of [9,0,-9,-19])for(const s of [-1,1]){const x=s*2.75;place(lantern,x,z);lanterns.push({x,z});colliders.push({x,z,r:.10});}
   for(const {x,z} of lanterns){const light=new T.PointLight(0xffac52,8,8,2);light.position.set(x,1.9,z);scene.add(light);}
   // Small procedural ground cover; built from constructors and clustered by sector.
   const grassmat=Object.assign(new T.MeshStandardMaterial({color:0x46543b,roughness:1,side:T.DoubleSide}),{name:'foliage'});

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111a19"><title>Shards · The Blighted March</title>
+  <link rel="icon" href="data:,"><link rel="stylesheet" href="./style.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
+</head>
+<body>
+  <canvas id="world" aria-label="The Blighted March game world"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+  <header id="brand"><span class="sigil">◇</span><div>SHARDS<small>THE BLIGHTED MARCH</small></div></header>
+  <div id="loading" role="status">Preparing the March…</div>
+  <section id="welcome" hidden>
+    <span class="eyebrow">A JOURNEY INTO THE FORGOTTEN</span>
+    <h1>The light<br>still holds.</h1>
+    <p>Beyond the last hearth, the old stones whisper.<br>Walk the border of a world beginning to break.</p>
+    <button id="startb" class="primary">Enter the March <span>↗</span></button>
+    <div class="intro-controls">WASD to move <i>·</i> Scroll to explore the view<br><span>Touch controls appear on mobile</span></div>
+    <span class="build-label">FIRST LOOK · MOVEMENT & ATMOSPHERE</span>
+  </section>
+  <main id="hud" hidden>
+    <div id="location"><span class="eyebrow">THE BORDERLANDS</span><h2>Hearthstead Approach</h2><span class="location-rule"></span></div>
+    <div id="compass"><span>W</span><b>· &nbsp; · &nbsp; N &nbsp; · &nbsp; ·</b><span>E</span></div>
+    <button id="menu-button" aria-label="Open pause menu">Ⅱ</button>
+    <aside id="objective"><span class="eyebrow">EXPLORE THE MARCH</span><p>Follow the lanterns to the old gate.</p><small>A quiet moment before the journey.</small></aside>
+    <div id="arrival" role="status" hidden><span class="eyebrow">A PLACE REMEMBERED</span><h2>The Old Gate</h2><p>The path beyond will open in a later chapter.</p></div>
+    <div class="bottom"><div class="character"><span class="portrait">◇</span><div><strong>The Wanderer</strong><small>Hearthstead · Safe ground</small></div></div><span id="desktop-help">W A S D <i>Move</i> &nbsp; SCROLL <i>Zoom</i> &nbsp; ESC <i>Pause</i></span></div>
+    <div id="stick" role="group" aria-label="Movement joystick"><div id="stick-knob"></div></div>
+  </main>
+  <section id="pause" class="panel" hidden><span class="eyebrow">TAKE A BREATH</span><h2>The March can wait.</h2><button id="resume" class="primary">Resume journey <span>↗</span></button><label>Visual quality <select id="quality"><option value="low">Low · recommended</option><option value="high">High</option></select></label><p>Stage 1 · Explore the environment and movement.<br>Combat and progression arrive in later stages.</p><button id="reset-view">Return to the starting point</button></section>
+  <div id="error" class="panel" role="alert" hidden><h2>The March could not load.</h2><p id="error-detail"></p><button onclick="location.reload()">Try again</button></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

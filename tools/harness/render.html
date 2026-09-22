@@ -1,0 +1,227 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>asset check</title>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+<style>body{margin:0;background:#22262b}canvas{display:block}</style>
+</head>
+<body>
+<script type="module">
+/**
+ * Render one asset module from four sides under fixed camera and lighting, and
+ * measure each side.
+ *
+ * The four-way view is the point. A generator that has only seen the object
+ * from the front will happily produce something beautiful from +Z and a blank
+ * box from every other direction, and a single hero screenshot will never tell
+ * you. Comparing detail across the four sides catches it automatically.
+ *
+ * Query params:
+ *   src   module URL to load (required)
+ *   size  pixel size of each view (default 320)
+ */
+import * as THREE from 'three';
+
+const q = new URLSearchParams(location.search);
+const src = q.get('src');
+const size = +(q.get('size') || 320);
+// Four axis-aligned views to compare, plus one three-quarter view to LOOK at.
+// A recessed shopfront, a reveal or any opening cut into a wall reads as a flat
+// rectangle from dead ahead and only shows itself at an angle, which is also the
+// angle a game will actually show it from. The fifth view is excluded from the
+// side comparison below; it is there for your eyes, not for the metric.
+const VIEWS = ['front', 'right', 'back', 'left'];
+const EXTRA_VIEW = 'three-quarter';
+const ALL_VIEWS = [...VIEWS, EXTRA_VIEW];
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(size * ALL_VIEWS.length, size, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const BG = 0x22262b;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(BG);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x556677, 2.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.9);
+sun.position.set(5, 9, 7);
+scene.add(sun);
+
+/**
+ * Silhouette coverage and interior edge density for one view.
+ *
+ * Edge density is the signal that matters: a flat untextured face has almost no
+ * interior edges, so a side that is dramatically smoother than the others is a
+ * side the generator never modelled.
+ */
+function measure(ctx, x0, w, h) {
+  const d = ctx.getImageData(x0, 0, w, h).data;
+  const bg = [(BG >> 16) & 255, (BG >> 8) & 255, BG & 255];
+  const lum = new Float32Array(w * h);
+  const on = new Uint8Array(w * h);
+  let filled = 0;
+  for (let i = 0; i < w * h; i++) {
+    const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+    lum[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (Math.abs(r - bg[0]) + Math.abs(g - bg[1]) + Math.abs(b - bg[2]) > 18) { on[i] = 1; filled++; }
+  }
+  // INTERIOR edges only: both pixels of the pair have to be on the object.
+  //
+  // Counting a pixel against the background as an edge measures the silhouette,
+  // not the modelling, and it wrecks the comparison for anything thin. Seen
+  // edge-on, a 30mm sign board is a sliver in which almost every pixel touches
+  // the background, so it scored 0.6 while its fully modelled front scored 0.14
+  // and the gate reported the front as the unmodelled face. One asset here was
+  // "fixed" by painting its back the same colour as its frame, which removed a
+  // stripe from the sliver and satisfied the metric by making the object
+  // marginally plainer. That is a sign the measurement was wrong, not the asset.
+  let edges = 0;
+  for (let y = 1; y < h; y++) {
+    for (let x = 1; x < w; x++) {
+      const i = y * w + x;
+      if (!on[i]) continue;
+      if (on[i - 1] && Math.abs(lum[i] - lum[i - 1]) > 8) { edges++; continue; }
+      if (on[i - w] && Math.abs(lum[i] - lum[i - w]) > 8) edges++;
+    }
+  }
+  return {
+    coverage: +(filled / (w * h)).toFixed(4),
+    edgeDensity: filled ? +(edges / filled).toFixed(4) : 0,
+  };
+}
+
+let info = { ok: false, error: null };
+try {
+  const mod = await import(src);
+  const fn = mod.default || mod.build || mod.create;
+  if (typeof fn !== 'function') throw new Error('no default export function');
+  const obj = fn(THREE);
+  if (!obj || !obj.isObject3D) throw new Error('did not return an Object3D');
+  scene.add(obj);
+  obj.updateMatrixWorld(true);
+
+  // Box3.setFromObject unions each mesh's own bounding box after transform, so a
+  // rotated part reports the box of its box. A four-segment cylinder turned 45
+  // degrees measured 0.9 m against a true 0.45 m, which fails an asset on size
+  // for a rotation that is visually correct. Measure the vertices instead.
+  const box = new THREE.Box3();
+  const _v = new THREE.Vector3();
+  obj.updateMatrixWorld(true);
+  //
+  // An InstancedMesh has to be expanded here too. Its geometry is ONE prototype
+  // and its copies live only in the instance matrices, so walking the vertices
+  // and ignoring those measures a single copy: ten slabs stacked into a 2m
+  // column reported 0.1m tall, and then the size test, the ground test, the
+  // centring test and the camera framing all went wrong together. This file
+  // already counts instanced TRIANGLES correctly a few lines below, which is
+  // how the mistake survived a reading.
+  const _m = new THREE.Matrix4();
+  const _im = new THREE.Matrix4();
+  obj.traverse((n) => {
+    const pos = n.isMesh && n.geometry && n.geometry.attributes.position;
+    if (!pos) return;
+    if (n.isInstancedMesh) {
+      for (let c = 0; c < n.count; c++) {
+        n.getMatrixAt(c, _im);
+        _m.multiplyMatrices(n.matrixWorld, _im);
+        for (let i = 0; i < pos.count; i++) {
+          _v.fromBufferAttribute(pos, i).applyMatrix4(_m);
+          box.expandByPoint(_v);
+        }
+      }
+      return;
+    }
+    for (let i = 0; i < pos.count; i++) {
+      _v.fromBufferAttribute(pos, i).applyMatrix4(n.matrixWorld);
+      box.expandByPoint(_v);
+    }
+  });
+  if (box.isEmpty()) box.setFromObject(obj);
+  if (!isFinite(box.min.x) || box.isEmpty()) throw new Error('empty or non-finite bounding box');
+  const dim = box.getSize(new THREE.Vector3());
+  const ctr = box.getCenter(new THREE.Vector3());
+
+  let meshes = 0, tris = 0, materials = new Set();
+  obj.traverse((o) => {
+    if (!o.isMesh || !o.geometry) return;
+    meshes++;
+    const g = o.geometry;
+    const t = (g.index ? g.index.count : (g.attributes.position?.count || 0)) / 3;
+    tris += t * (o.isInstancedMesh ? o.count : 1);
+    for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
+      if (m) materials.add(m.uuid);
+    }
+  });
+
+  // Four sides at a fixed elevation, orbiting the object's centre.
+  //
+  // The distance comes from the field of view, so the whole object fits. Sizing
+  // the orbit off the largest dimension instead crops everything big: at 34
+  // degrees the frame holds about 0.85 of what that pushed away, so a 13m
+  // apartment block lost its roof and its ground floor while a dumpster sat
+  // comfortably inside. Fitting the bounding SPHERE rather than one dimension
+  // also frames every object and every side identically, which is the whole
+  // premise of putting them in one sheet.
+  const FOV = 34;
+  const ELEV = 0.43;                                 // radians, about 25 degrees
+  const radius = 0.5 * Math.hypot(dim.x, dim.y, dim.z);
+  const dist = (radius / Math.sin((FOV / 2) * (Math.PI / 180))) * 1.05;
+  ALL_VIEWS.forEach((name, i) => {
+    // The fifth is offset half a quadrant and lifted, so it sees two faces and
+    // the top at once.
+    const a = name === EXTRA_VIEW ? Math.PI / 4 : (i * Math.PI) / 2;
+    const elev = name === EXTRA_VIEW ? 0.62 : ELEV;
+    const cam = new THREE.PerspectiveCamera(FOV, 1, dist * 0.01, dist * 10);
+    cam.position.set(
+      ctr.x + Math.sin(a) * dist * Math.cos(elev),
+      ctr.y + dist * Math.sin(elev),
+      ctr.z + Math.cos(a) * dist * Math.cos(elev),
+    );
+    cam.lookAt(ctr);
+    renderer.setViewport(i * size, 0, size, size);
+    renderer.setScissor(i * size, 0, size, size);
+    renderer.setScissorTest(true);
+    renderer.render(scene, cam);
+  });
+
+  // Read the finished canvas once, then measure each view out of it.
+  const c2 = document.createElement('canvas');
+  c2.width = renderer.domElement.width;
+  c2.height = renderer.domElement.height;
+  const ctx = c2.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(renderer.domElement, 0, 0);
+  const px = renderer.domElement.width / ALL_VIEWS.length;
+  const sides = {};
+  VIEWS.forEach((v, i) => { sides[v] = measure(ctx, i * px, px, renderer.domElement.height); });
+
+  // An asset may declare a face it mounts against, so the gate can stop calling
+  // a wall lamp's flat back a modelling failure. Read it off the returned group.
+  const mounts = obj.userData && obj.userData.mounts ? obj.userData.mounts : null;
+
+  info = {
+    ok: true,
+    mounts,
+    meshes,
+    tris: Math.round(tris),
+    materials: materials.size,
+    size: [+dim.x.toFixed(3), +dim.y.toFixed(3), +dim.z.toFixed(3)],
+    groundOffset: +box.min.y.toFixed(3),
+    centreOffset: [+ctr.x.toFixed(3), +ctr.z.toFixed(3)],
+    sides,
+    error: null,
+  };
+} catch (e) {
+  info.error = String(e && e.message ? e.message : e).slice(0, 300);
+}
+
+window.__INFO__ = info;
+window.__DONE__ = true;
+</script>
+</body>
+</html>

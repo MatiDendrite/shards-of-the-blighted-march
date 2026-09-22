@@ -1,0 +1,25 @@
+import puppeteer from 'puppeteer';
+import fs from 'node:fs/promises';
+const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});
+try{
+ const page=await browser.newPage();await page.setViewport({width:1440,height:900});
+ await page.setRequestInterception(true);page.on('request',r=>r.url().endsWith('/src/main.js')?r.respond({status:200,contentType:'text/javascript',body:''}):r.continue());
+ await page.goto('http://localhost:4173/');
+ const group=process.argv[2]||'wanderer';
+ const groups={wanderer:['game/assets/wanderer.js','work/candidates/wanderer_profile.js','work/candidates/wanderer_panels.js'],gate:['game/assets/old_gate.js','work/candidates/gate_profile.js','work/candidates/gate_timber.js'],pine:['game/assets/pine.js','work/candidates/pine_layers.js','work/candidates/pine_needles.js']};
+ const files=groups[group];if(!files)throw new Error('Unknown candidate group');
+ const sources=await Promise.all(files.map(f=>fs.readFile(f,'utf8')));
+ const report=await page.evaluate(async sources=>{
+  const T=await import('three');document.body.innerHTML='';document.body.style.background='#303936';
+  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(1440,900);renderer.setPixelRatio(1);renderer.setClearColor(0x303936);renderer.setScissorTest(true);renderer.toneMapping=T.ACESFilmicToneMapping;document.body.append(renderer.domElement);
+  const rows=[];
+  for(let i=0;i<sources.length;i++){
+   const mod=await import(URL.createObjectURL(new Blob([sources[i]],{type:'text/javascript'})));const model=mod.default(T);const scene=new T.Scene();scene.add(model);scene.add(new T.HemisphereLight(0xddeaff,0x524734,2.5));const sun=new T.DirectionalLight(0xffe1b6,3);sun.position.set(3,5,4);scene.add(sun);
+   const bounds=new T.Box3().setFromObject(model),size=bounds.getSize(new T.Vector3());let tris=0;model.traverse(o=>{if(o.isMesh)tris+=(o.geometry.index?.count||o.geometry.attributes.position.count)/3;});rows.push({candidate:i,size:size.toArray(),base:bounds.min.y,tris});
+   const center=bounds.getCenter(new T.Vector3()),dist=Math.max(size.y*1.75,size.x*.8);
+   for(let v=0;v<5;v++){const angles=[0,Math.PI/2,Math.PI,-Math.PI/2,Math.PI/4];const cam=new T.PerspectiveCamera(35,480/180,.1,100);cam.position.set(Math.sin(angles[v])*dist,center.y+size.y*.12,Math.cos(angles[v])*dist);cam.lookAt(center);renderer.setViewport(i*480,(4-v)*180,480,180);renderer.setScissor(i*480,(4-v)*180,480,180);renderer.render(scene,cam);}
+  }
+  return rows;
+ },sources);
+ await fs.mkdir('_artifacts',{recursive:true});await page.screenshot({path:`_artifacts/${group}-candidates.png`});await fs.writeFile(`_artifacts/${group}-candidates.json`,JSON.stringify(report,null,2));console.log(report);
+}finally{await browser.close();}

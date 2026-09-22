@@ -1,0 +1,2 @@
+// Independent alternative: revolved, scalloped canopy tiers.
+export default function generate(T){const g=new T.Group(),bark=new T.MeshStandardMaterial({color:0x49382d}),leaf=new T.MeshStandardMaterial({color:0x34463a,roughness:1});const trunk=new T.Mesh(new T.CylinderGeometry(.06,.22,6,8),bark);trunk.position.y=3;g.add(trunk);for(let i=0;i<6;i++){const pts=[new T.Vector2(0,1.7),new T.Vector2(.3,1.2),new T.Vector2(1.6-i*.2,0),new T.Vector2(.3,.16)];const mesh=new T.Mesh(new T.LatheGeometry(pts,11),leaf);mesh.position.y=1+i*.75;g.add(mesh);}return g;}

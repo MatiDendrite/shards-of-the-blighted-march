@@ -1,6 +1,6 @@
 export default function generate(T){
  const g=new T.Group(),fur=Object.assign(new T.MeshStandardMaterial({color:0x444a48,roughness:1}),{name:'fabric'}),dark=Object.assign(new T.MeshStandardMaterial({color:0x252b2a,roughness:.95}),{name:'fabric'}),eye=new T.MeshStandardMaterial({color:0xefcd84,emissive:0xb58b35,emissiveIntensity:.7});
- const ell=(parent,m,x,y,z,a,b,c)=>{const o=new T.Mesh(new T.SphereGeometry(1,10,7),m);o.position.set(x,y,z);o.scale.set(a,b,c);parent.add(o);return o;};
+ const ell=(parent,m,x,y,z,a,b,c)=>{const o=new T.Mesh(new T.SphereGeometry(1,14,9),m);o.position.set(x,y,z);o.scale.set(a,b,c);parent.add(o);return o;};
  ell(g,fur,0,.72,-.03,.27,.32,.58);ell(g,fur,0,.84,.30,.32,.36,.29);
  const head=new T.Group();head.name='head';head.position.set(0,.99,.53);g.add(head);ell(head,fur,0,0,.05,.19,.19,.25);ell(head,fur,0,-.085,.28,.12,.09,.22);ell(head,dark,0,-.06,.44,.095,.065,.06);
  for(const side of [-1,1]){const ear=new T.Mesh(new T.ConeGeometry(.095,.25,4),dark);ear.position.set(side*.125,.20,.005);ear.rotation.z=-side*.12;head.add(ear);ell(head,eye,side*.143,.028,.21,.025,.023,.033);}

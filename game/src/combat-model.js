@@ -41,14 +41,14 @@ export class Combat {
     p.stamina-=d.cost;p.angle=angle;
     if(basic){p.combo=this.time<=p.comboUntil?p.combo%3+1:1;this.attacks++;this.weaponsUsed[p.weapon]++;}
     else{p.cooldowns[kind]=d.cooldown;this.skillsUsed[kind]++;}
-    p.action={...d,kind,weapon:p.weapon,age:0,angle,hits:new Set(),applied:false,combo:basic?p.combo:0,damage:d.damage*(basic&&p.combo===3?1.5:1)*(p.buff>0?1.35:1)};
+    p.action={...d,kind,weapon:p.weapon,age:0,angle,hits:new Set(),applied:false,combo:basic?p.combo:0,damage:(d.damage>0?d.damage+(p.damageBonus||0):0)*(p.damageMultiplier||1)*(basic&&p.combo===3?1.5:1)*(p.buff>0?1.35:1)};
     this.emit('attack',{kind,weapon:p.weapon,combo:p.combo});return true;
   }
   dodge(x,z){const p=this.player;if(this.dead||p.dodge>0||p.dodgeCD>0||p.stamina<25||this.phase==='active')return false;
     const length=Math.hypot(x,z);p.dodgeX=length>.05?x/length:Math.sin(p.angle);p.dodgeZ=length>.05?z/length:Math.cos(p.angle);
     p.action=null;p.stamina-=25;p.dodge=.34;p.dodgeAge=0;p.dodgeCD=.65;p.invulnerable=.24;this.dodges++;this.emit('dodge');return true;
   }
-  hurtPlayer(amount){const p=this.player;if(this.dead||p.invulnerable>0)return false;p.hp=Math.max(0,p.hp-amount);p.invulnerable=.28;this.damageTaken+=amount;this.emit('hurt',{amount});if(this.dead){p.action=null;p.dodge=0;this.emit('death');}return true;}
+  hurtPlayer(amount){const p=this.player;if(this.dead||p.invulnerable>0)return false;amount=Math.max(1,amount-(p.armor||0));p.hp=Math.max(0,p.hp-amount);p.invulnerable=.28;this.damageTaken+=amount;this.emit('hurt',{amount});if(this.dead){p.action=null;p.dodge=0;this.emit('death');}return true;}
   damageEnemy(e,amount,stagger=.22){if(e.hp<=0)return;e.hp=Math.max(0,e.hp-amount);e.stagger=stagger;e.flash=.14;this.hits++;this.emit('hit',{id:e.id,x:e.x,z:e.z,amount});if(e.hp<=0){e.phase='dead';this.kills++;this.emit('kill',{id:e.id});}}
   damageShard(amount){const s=this.shard;if(s.hp<=0)return;s.hp=Math.max(0,s.hp-amount);this.hits++;this.emit('hit',{id:'shard',x:s.x,z:s.z,amount});
     const stage=s.hp<=0?3:s.hp<=s.maxHp/3?2:s.hp<=s.maxHp*2/3?1:0;

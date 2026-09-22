@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#111a19"><title>Shards · The Blighted March</title>
-  <link rel="icon" href="data:,"><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./combat.css">
+  <link rel="icon" href="data:,"><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./combat.css"><link rel="stylesheet" href="./rpg.css">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
 </head>
 <body>
@@ -23,6 +23,8 @@
     <div id="location"><span class="eyebrow">THE BORDERLANDS</span><h2>Hearthstead Approach</h2><span class="location-rule"></span></div>
     <div id="compass"><span>W</span><b>· &nbsp; · &nbsp; N &nbsp; · &nbsp; ·</b><span>E</span></div>
     <button id="menu-button" aria-label="Open pause menu">Ⅱ</button>
+    <div id="utility"><button id="bag-button" aria-label="Open inventory"><b>I</b> Gear</button><button id="potion-button" aria-label="Drink healing potion"><b>Q · <span id="potion-count">3</span></b> Heal</button><button id="smith-button" aria-label="Speak to nearby smith"><b>E</b> Smith</button></div>
+    <div id="progress-hud"><span id="level-text">LV 1 · 60 gold</span><div id="xp-track"><div id="xp-fill"></div></div><small id="save-state">Not saved yet</small></div>
     <aside id="objective"><span class="eyebrow">BREAK THE BLIGHT</span><p id="objective-text">Destroy the shard beyond the lanterns.</p><small id="objective-detail">Return south to recover your health.</small></aside>
     <div id="arrival" role="status" hidden></div>
     <div id="vitals"><div class="meter-row"><span>HEALTH</span><span id="hp-text">120 / 120</span></div><div class="meter"><div id="hp-fill"></div></div><div class="meter-row"><span>STAMINA</span><span id="stamina-text">100</span></div><div class="meter stamina"><div id="stamina-fill"></div></div><span id="status-text">Safe ground · health recovers here</span></div>
@@ -34,6 +36,7 @@
   </main>
   <section id="pause" class="panel" hidden><span class="eyebrow">TAKE A BREATH</span><h2>The March can wait.</h2><button id="resume" class="primary">Resume journey <span>↗</span></button><label>Visual quality <select id="quality"><option value="low">Low · recommended</option><option value="high">High</option></select></label><label class="setting">Sound <input id="sound" type="checkbox" checked></label><label class="setting">Camera shake <input id="shake" type="checkbox" checked></label><p>Sword: balanced combos. Axe: wide, heavy strikes.<br>Spear: long reach, precise thrusts.<br>Gold attack warnings give you time to dodge.<br>R: weapon · 1 / 2 / 3: skills · Space: dodge.</p><button id="reset-view">Restart encounter</button></section>
   <section id="defeat" class="panel" hidden><span class="eyebrow">THE MARCH ENDURES</span><h2>You have fallen.</h2><p>Watch the attack warnings. Keep enough stamina to dodge, and retreat south to recover.</p><button id="retry" class="primary">Try again <span>↗</span></button></section>
+  <section id="inventory" class="panel" role="dialog" aria-modal="true" aria-labelledby="bag-title" hidden><header><div><span class="eyebrow">THE WANDERER’S JOURNAL</span><h2 id="bag-title">Your equipment</h2></div><button id="bag-close" aria-label="Close inventory">Close ×</button></header><p id="bag-intro"></p><div id="bag-money"></div><div id="item-list"></div><button id="buy-potion" hidden>Buy healing draught · 25 gold</button><p id="rpg-message" role="status"></p></section>
   <section id="victory" class="panel" hidden><span class="eyebrow">THE FIRST LIGHT RETURNS</span><h2>The blight is broken.</h2><p id="victory-stats"></p><button id="replay" class="primary">Fight again <span>↗</span></button><button id="explore">Stay in the clearing</button></section>
   <div id="error" class="panel" role="alert" hidden><h2>The March could not load.</h2><p id="error-detail"></p><button onclick="location.reload()">Try again</button></div>
   <script type="module" src="./src/main.js"></script>

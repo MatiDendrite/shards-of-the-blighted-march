@@ -1,12 +1,17 @@
+// Curved bough planes retain a 3D silhouette; the game applies an original alpha texture.
 export default function generate(T){
-  const g=new T.Group(), bark=Object.assign(new T.MeshStandardMaterial({color:0x49382d,roughness:1}),{name:'timber'}), leaf=Object.assign(new T.MeshStandardMaterial({color:0x34463a,roughness:1}),{name:'foliage'});
-  const trunk=new T.Mesh(new T.CylinderGeometry(.09,.23,6,9),bark);trunk.position.y=3;g.add(trunk);
-  // Individual downward-angled boughs, not stacked cones.
-  for(let tier=0;tier<7;tier++)for(let b=0;b<7;b++){
-    const a=b/7*Math.PI*2+tier*1.37, len=1.8-tier*.19, y=1.7+tier*.64;
-    const branch=new T.Mesh(new T.CylinderGeometry(.018,.055,len,5),bark);
-    branch.position.set(Math.sin(a)*len*.42,y-.18,Math.cos(a)*len*.42);branch.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(Math.sin(a),-.3,Math.cos(a)).normalize());g.add(branch);
-    for(let k=0;k<3;k++){const t=(k+1)/3;const needles=new T.Mesh(new T.IcosahedronGeometry(1,0),leaf);needles.scale.set(len*(.40-t*.13),.25,len*.37);needles.position.set(Math.sin(a)*len*t*.85,y-.24*t,Math.cos(a)*len*t*.85);needles.rotation.y=a;needles.rotation.z=Math.sin(a)*.20;needles.rotation.x=Math.cos(a)*.20;g.add(needles);}
+ const root=new T.Group(),bark=Object.assign(new T.MeshStandardMaterial({color:0x574638,roughness:1}),{name:'timber'}),needles=Object.assign(new T.MeshStandardMaterial({color:0x3c5140,roughness:1,side:T.DoubleSide}),{name:'needles'});
+ const trunk=new T.Mesh(new T.CylinderGeometry(.055,.22,6.3,10,5),bark);trunk.position.y=3.15;root.add(trunk);
+ for(let tier=0;tier<9;tier++)for(let j=0;j<7;j++){
+  const a=j*Math.PI*2/7+tier*2.399,len=(2.05-tier*.19)*(1+.13*Math.sin(j*5+tier)),y=1.15+tier*.57;
+  const group=new T.Group();group.position.y=y;group.rotation.y=a;root.add(group);
+  const limb=new T.Mesh(new T.CylinderGeometry(.012,.043,len,5),bark);limb.position.set(0,-.13,len*.43);limb.rotation.x=Math.PI/2+.16;group.add(limb);
+  for(let cross=0;cross<2;cross++){
+   const geo=new T.PlaneGeometry(len*.91,len,2,4),p=geo.attributes.position;
+   for(let i=0;i<p.count;i++){const x=p.getX(i),t=p.getY(i)/len+.5;p.setXYZ(i,x,t*len,.12*t+.19*t*t-Math.abs(x)*.12);}geo.computeVertexNormals();
+   const spray=new T.Mesh(geo,needles);spray.rotation.x=Math.PI/2;spray.rotation.y=cross*.35-.16;spray.position.z=.03;group.add(spray);
   }
-  const tip=new T.Mesh(new T.ConeGeometry(.37,1.2,7),leaf);tip.position.y=6;g.add(tip);return g;
+ }
+ for(let i=0;i<3;i++){const tip=new T.Mesh(new T.PlaneGeometry(.9,1.5,1,3),needles);tip.position.y=5.9;tip.rotation.y=i*Math.PI/3;root.add(tip);}
+ const box=new T.Box3(),v=new T.Vector3();root.updateMatrixWorld(true);root.traverse(o=>{if(o.isMesh){const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++)box.expandByPoint(v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld));}});const c=box.getCenter(new T.Vector3());root.children.forEach(o=>{o.position.x-=c.x;o.position.z-=c.z;o.position.y-=box.min.y;});return root;
 }

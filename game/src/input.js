@@ -4,7 +4,7 @@ export function createInput(canvas) {
   const isTouch=matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0;
   document.body.classList.toggle('touch',isTouch);
   if(isTouch)document.querySelector('.intro-controls').textContent='Move with the left joystick. Hold Attack to strike. Use the right-side buttons to dodge, switch weapons and cast skills.';
-  const mapped={Space:'dodge',Digit1:'cleave',Digit2:'slam',Digit3:'cry',KeyR:'weapon'};
+  const mapped={Space:'dodge',Digit1:'cleave',Digit2:'slam',Digit3:'cry',KeyR:'weapon',KeyQ:'potion'};
   window.addEventListener('keydown',e=>{
     if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;
     if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyF',...Object.keys(mapped)].includes(e.code))e.preventDefault();

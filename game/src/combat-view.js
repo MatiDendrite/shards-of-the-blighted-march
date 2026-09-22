@@ -6,7 +6,7 @@ export function mergeJoints(root){const nodes=[],owned=[];root.traverse(n=>{if(n
 
 export async function createCombatView(scene,hero,model,audio){
  const ids={sword:'iron_sword',axe:'bearded_axe',spear:'ash_spear',wolf:'blighted_wolf',shard:'blighted_shard'};
- const assets={};await Promise.all(Object.entries(ids).map(async([id,file])=>{const asset=await ASSET(new URL(`../assets/${file}.js`,import.meta.url).href,{keepHierarchy:id==='wolf'});let count=0;asset.traverse(o=>{if(o.isMesh)count++;});if(!count)throw Error(`Missing combat asset: ${file}`);assets[id]=asset;}));
+ const assets={};await Promise.all(Object.entries(ids).map(async([id,file])=>{const asset=await ASSET(new URL(`../assets/${file}.js`,import.meta.url).href,{keepHierarchy:id==='wolf',surfaces:true});let count=0;asset.traverse(o=>{if(o.isMesh)count++;});if(!count)throw Error(`Missing combat asset: ${file}`);assets[id]=asset;}));
  const joints=hero.userData.joints,weaponMount=new T.Group();weaponMount.position.set(0,-.53,.04);weaponMount.rotation.x=Math.PI/2;joints.rightArm.add(weaponMount);
  let weapon='';const views=new Map(),labels=document.querySelector('#enemy-labels'),effects=[],numbers=[];
  const shard=assets.shard;shard.position.set(model.shard.x,.05,model.shard.z);scene.add(shard);

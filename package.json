@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node tools/serve.mjs",
-    "test": "node --test tools/combat.test.mjs && node tools/smoke.mjs",
+    "test": "node --test tools/combat.test.mjs tools/progression.test.mjs && node tools/smoke.mjs",
+    "test:rpg": "node --test tools/progression.test.mjs",
     "test:combat": "node --test tools/combat.test.mjs",
     "test:play": "node tools/combat-playtest.mjs"
   },

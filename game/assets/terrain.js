@@ -1,15 +1,14 @@
 export default function generate(T){
-  const g=new T.Group();
-  const ground=Object.assign(new T.MeshStandardMaterial({color:0x494c3d,roughness:1}),{name:'ground'});
-  const geo=new T.PlaneGeometry(90,90,100,100);geo.rotateX(-Math.PI/2);const p=geo.attributes.position;
-  for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i),fade=Math.min(1,Math.max(0,(Math.abs(x)-20)/7));p.setY(i,fade*(.5+.5*Math.sin(x*.3+z*.18))*1.7-.10);}
-  geo.computeVertexNormals();for(let i=0;i<geo.attributes.uv.count;i++)geo.attributes.uv.setY(i,geo.attributes.uv.getY(i)*34.6);const terrain=new T.Mesh(geo,ground);g.add(terrain);
-  const paving=[0x74776b,0x656d65,0x83867b].map(color=>Object.assign(new T.MeshStandardMaterial({color,roughness:.95}),{name:'stone'}));
-  for(let r=0;r<64;r++)for(let c=0;c<5;c++){
-    const z=r*.68-26, x=(c-2)*.62+Math.sin(z*.15)*.6;
-    const shape=new T.Shape();for(let j=0;j<7;j++){const a=j/7*Math.PI*2,rad=.27+Math.sin(j*4+r*7+c)*.035;const u=Math.cos(a)*rad,v=Math.sin(a)*rad;j?shape.lineTo(u,v):shape.moveTo(u,v);}shape.closePath();
-    const stone=new T.ExtrudeGeometry(shape,{depth:.055,bevelEnabled:true,bevelThickness:.015,bevelSize:.02,bevelSegments:1,steps:1});stone.rotateX(-Math.PI/2);
-    const slab=new T.Mesh(stone,paving[(r+c)%3]);slab.position.set(x,.015+Math.sin(r*3+c)*.015,z);slab.rotation.y=Math.sin(r*4+c*8)*.25;g.add(slab);
-  }
-  g.children.forEach(o=>{o.position.y+=.1;});return g;
+ const g=new T.Group(),ground=Object.assign(new T.MeshStandardMaterial({color:0x706d58,roughness:1}),{name:'ground'});
+ const geo=new T.PlaneGeometry(90,90,48,48);geo.rotateX(-Math.PI/2);const p=geo.attributes.position;
+ for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i),fade=Math.min(1,Math.max(0,(Math.abs(x)-20)/7));p.setY(i,fade*(.5+.5*Math.sin(x*.3+z*.18))*1.7);}geo.computeVertexNormals();g.add(new T.Mesh(geo,ground));
+ const paving=[0x9b9a89,0x8b9184,0xa9a799,0x81887a].map(color=>Object.assign(new T.MeshStandardMaterial({color,roughness:.96}),{name:'stone'}));
+ let seed=4404;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+ for(let r=0;r<83;r++)for(let c=0;c<7;c++){
+  if(rand()<.045)continue;const z=r*.55-27+(rand()-.5)*.12,x=(c-3)*.49+Math.sin(z*.15)*.38+(r%2)*.2+(rand()-.5)*.10;
+  const w=.19+rand()*.055,h=.22+rand()*.055,s=new T.Shape(),corners=8;
+  for(let j=0;j<corners;j++){const a=(j+.5)/corners*Math.PI*2,rad=.84+rand()*.18,u=Math.cos(a)*w*rad,v=Math.sin(a)*h*rad;j?s.lineTo(u,v):s.moveTo(u,v);}s.closePath();
+  const rock=new T.ExtrudeGeometry(s,{depth:.045,bevelEnabled:true,bevelThickness:.016,bevelSize:.018,bevelSegments:2,steps:1});rock.rotateX(-Math.PI/2);
+  const slab=new T.Mesh(rock,paving[(r+c)%4]);slab.position.set(x,.06+rand()*.018,z);slab.rotation.set((rand()-.5)*.07,rand()*.45,(rand()-.5)*.07);g.add(slab);
+ }return g;
 }

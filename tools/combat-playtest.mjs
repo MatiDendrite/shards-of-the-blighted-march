@@ -4,10 +4,17 @@ import fs from 'node:fs/promises';
 const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));await fs.mkdir('_artifacts/combat',{recursive:true});
 try{
- const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+ const errors=[];
+ if(!process.argv.includes('--mobile-only')){
+ const page=await browser.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.setViewport({width:640,height:480,deviceScaleFactor:1});await page.goto('http://localhost:4173/',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.__READY__,{timeout:60000});await page.click('#startb');
  const state=()=>page.evaluate(()=>window.__GAME__);
  async function until(predicate,ms=20000){await page.waitForFunction(predicate,{timeout:ms,polling:50});}
+ // Walk to the smith and spend actual starter resources through the public UI.
+ await page.keyboard.down('KeyA');await until(()=>window.__GAME__.rpg.nearSmith);await page.keyboard.up('KeyA');await page.keyboard.press('KeyE');await page.waitForSelector('#inventory:not([hidden])');
+ await page.click('[data-item-action="upgrade"][data-id="1"]');await until(()=>window.__GAME__.rpg.items[0].upgrade===1);assert.equal((await state()).rpg.gold,20);
+ await page.click('#bag-close');await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.__READY__,{timeout:60000});await page.click('#startb');assert.equal((await state()).rpg.items[0].upgrade,1);
+ console.log('Smith upgrade and reload persistence: PASS');
  await page.keyboard.down('KeyF');await until(()=>window.__GAME__.combo===3);await page.keyboard.up('KeyF');await until(()=>window.__GAME__.attackPhase==='idle');
  await page.keyboard.press('KeyR');await until(()=>window.__GAME__.weapon==='axe');await page.keyboard.down('KeyF');await until(()=>window.__GAME__.weaponsUsed.axe>=1);await page.keyboard.up('KeyF');await until(()=>window.__GAME__.attackPhase==='idle');
  await page.keyboard.press('KeyR');await until(()=>window.__GAME__.weapon==='spear');await page.keyboard.down('KeyF');await until(()=>window.__GAME__.weaponsUsed.spear>=1);await page.keyboard.up('KeyF');await until(()=>window.__GAME__.attackPhase==='idle');
@@ -36,12 +43,23 @@ try{
  await fs.writeFile('_artifacts/combat/desktop.json',JSON.stringify({result:g.complete?'PASS':'INCOMPLETE',state:g,maxDraws,maxTris,errors},null,2));
  assert(g.complete,'must complete the encounter through real input');assert(g.kills===8,'must defeat all eight guardians');assert(g.hits>=1);assert(maxDraws<=500);assert(maxTris<=600000);assert.deepEqual(errors,[]);
  await page.screenshot({path:'_artifacts/combat/desktop-end.png'});
+ // Explore and collect the real drops before starting the next hunt.
+ await page.click('#explore');const lootDeadline=Date.now()+180000;
+ while(Date.now()<lootDeadline){const s=await state();if(s.rpg.drops.length===0)break;const target=[...s.rpg.drops].sort((a,b)=>Math.hypot(a.x-s.pos[0],a.z-s.pos[1])-Math.hypot(b.x-s.pos[0],b.z-s.pos[1]))[0],dx=target.x-s.pos[0],dz=target.z-s.pos[1],want=[];if(Math.abs(dx)>.35)want.push(dx>0?'KeyD':'KeyA');if(Math.abs(dz)>.35)want.push(dz>0?'KeyS':'KeyW');await keys(want);await sleep(100);}
+ await keys([]);let loot=await state();assert(loot.rpg.items.length>4);assert(loot.rpg.level>=2);assert.equal(loot.rpg.drops.length,0);assert(loot.rpg.gold>20);
+ await page.keyboard.press('KeyI');await page.waitForSelector('#inventory:not([hidden])');const item=loot.rpg.items.find(i=>i.id>4&&i.kind!=='armor');assert(item);await page.click(`[data-item-action="equip"][data-id="${item.id}"]`);await page.screenshot({path:'_artifacts/combat/inventory.png'});await page.click('#bag-close');
+ await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.__READY__,{timeout:60000});await page.click('#startb');await until(()=>window.__GAME__.complete);let restored=await state();assert.equal(restored.rpg.loadout[item.kind],item.id);assert.equal(restored.rpg.level,loot.rpg.level);assert.equal(restored.rpg.gold,loot.rpg.gold);assert.equal(restored.rpg.drops.length,0);
+ console.log('Loot pickup, level, equipment and completed-world reload: PASS');
+ await fs.writeFile('_artifacts/combat/progression.json',JSON.stringify({result:'PASS',beforeReload:loot.rpg,restored:restored.rpg},null,2));
  // Restart must reset progress; the same public control is used after defeat or in pause.
  if(g.over)await page.click('#retry');else if(g.complete)await page.click('#replay');else{await page.click('#menu-button');await page.click('#reset-view');}
- await until(()=>window.__GAME__.hp===120&&window.__GAME__.kills===0&&window.__GAME__.shardHp===250);
+ await until(()=>window.__GAME__.hp===window.__GAME__.maxHp&&window.__GAME__.kills===0&&window.__GAME__.shardHp===250);
  await fs.writeFile('_artifacts/combat/desktop.json',JSON.stringify({result:'PASS',state:g,maxDraws,maxTris,errors},null,2));
  await page.close();
- const mobile=await browser.newPage();mobile.on('pageerror',e=>errors.push(e.message));mobile.on('console',m=>{if(m.type()==='error')errors.push(m.text());});await mobile.setViewport({width:390,height:844,isMobile:true,hasTouch:true,deviceScaleFactor:1});await mobile.goto('http://localhost:4173/',{waitUntil:'domcontentloaded'});await mobile.waitForFunction(()=>window.__READY__,{timeout:60000});
+ console.log('Desktop combat and progression: PASS');
+ }
+ if(!process.argv.includes('--desktop-only')){
+ const mobileContext=await browser.createBrowserContext(),mobile=await mobileContext.newPage();mobile.on('pageerror',e=>errors.push(e.message));mobile.on('console',m=>{if(m.type()==='error')errors.push(m.text());});await mobile.setViewport({width:390,height:844,isMobile:true,hasTouch:true,deviceScaleFactor:1});await mobile.goto('http://localhost:4173/',{waitUntil:'domcontentloaded'});await mobile.waitForFunction(()=>window.__READY__,{timeout:60000});
  async function center(selector){return mobile.$eval(selector,e=>{const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};});}
  let b=await center('#startb');await mobile.touchscreen.tap(b.x,b.y);
  const stick=await center('#stick'),attack=await center('#attack');const cdp=await mobile.createCDPSession();
@@ -56,4 +74,5 @@ try{
  await mobile.screenshot({path:'_artifacts/combat/mobile-controls.png'});
  assert.deepEqual(errors,[]);console.log('Mobile simultaneous joystick + attack, weapon switch and dodge: PASS');
  await fs.writeFile('_artifacts/combat/mobile.json',JSON.stringify(await mobile.evaluate(()=>window.__GAME__),null,2));
+ }
 }finally{await browser.close();}

@@ -1,13 +1,16 @@
 import * as T from 'three';
 import { ASSET, bakeStatic } from '../lib/assetlib.js';
+import { SMITH } from './progression.js';
 
-export async function createWorld(scene){
+export async function createWorld(scene,art){
   const names=['terrain','old_gate','standing_stone','pine','lantern'];
-  const models=await Promise.all(names.map(n=>ASSET(new URL(`../assets/${n}.js`,import.meta.url).href,{surfaces:true})));
+  const models=await Promise.all(names.map(n=>ASSET(new URL(`../assets/${n}.js`,import.meta.url).href,{surfaces:n!=='pine'})));
   models.forEach((m,i)=>{let meshes=0;m.traverse(o=>{if(o.isMesh)meshes++;});if(!meshes)throw new Error(`Required asset did not load: ${names[i]}`);});
+  models.forEach(art.apply);
   const [terrain,gate,stone,pine,lantern]=models,colliders=[],lanterns=[];
+  colliders.push({x:SMITH.x,z:SMITH.z,r:.4});
   const ground=terrain.clone(); // Loader centres/grounds scenery; terrain keeps its authored path coordinates below.
-  ground.position.y=-.15;scene.add(ground);
+  ground.position.y=-.025;scene.add(ground);
   const sectors=new Map();
   function place(proto,x,z,scale=1,rotation=0){const obj=proto.clone();obj.position.set(x,0,z);obj.scale.setScalar(scale);obj.rotation.y=rotation;const key=`${Math.floor(x/12)},${Math.floor(z/12)}`;if(!sectors.has(key))sectors.set(key,new T.Group());sectors.get(key).add(obj);return obj;}
   place(gate,0,-17,1,0);
@@ -20,7 +23,7 @@ export async function createWorld(scene){
   for(const {x,z} of lanterns){const light=new T.PointLight(0xffac52,8,8,2);light.position.set(x,1.9,z);scene.add(light);}
   // Small procedural ground cover; built from constructors and clustered by sector.
   const grassmat=Object.assign(new T.MeshStandardMaterial({color:0x46543b,roughness:1,side:T.DoubleSide}),{name:'foliage'});
-  const blade=new T.ConeGeometry(.065,.43,3,1);
+  const blade=new T.ConeGeometry(.017,.31,3,1);
   for(let i=0;i<900;i++){const x=(rand()-.5)*48,z=(rand()-.5)*58;if(Math.abs(x)<2.2)continue;const tuft=new T.Group();for(let b=0;b<3;b++){const m=new T.Mesh(blade,grassmat);m.position.set((rand()-.5)*.22,.15,(rand()-.5)*.22);m.rotation.z=(rand()-.5)*.4;tuft.add(m);}place(tuft,x,z,.5+rand(),rand()*6.28);}
   for(const sector of sectors.values())scene.add(bakeStatic(sector));
   const dustGeo=new T.BufferGeometry(),points=[];

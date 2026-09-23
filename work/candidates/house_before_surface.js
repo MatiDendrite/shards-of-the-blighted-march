@@ -11,11 +11,8 @@ export default function generate(T){
  for(const z of [-2.3,2.3]){const s=new T.Shape();s.moveTo(-2.7,3.6);s.lineTo(2.7,3.6);s.lineTo(0,6.1);s.closePath();const o=new T.Mesh(new T.ExtrudeGeometry(s,{depth:.15,bevelEnabled:false}),plaster);o.position.z=z-.075;g.add(o);}
  const slope=Math.atan2(2.6,3.1);
  for(const side of [-1,1]){const under=box(roof,side*1.55,4.82,0,4.05,.1,5.65);under.rotation.z=-side*slope;}
- // Six-sided shingle outlines expose clipped, uneven lower corners. Three
- // shared profiles add variation without hundreds of unique geometries.
- const shingles=Array.from({length:3},(_,i)=>{const s=new T.Shape(),cut=.035+i*.018;s.moveTo(-.285,-.28);s.lineTo(.285-cut,-.28);s.lineTo(.285,-.28+cut);s.lineTo(.285,.28-cut);s.lineTo(.285-cut,.28);s.lineTo(-.285,.28);s.closePath();const geo=new T.ExtrudeGeometry(s,{depth:.065,bevelEnabled:false});geo.rotateX(-Math.PI/2);return geo;});
  for(const side of [-1,1])for(let row=0;row<8;row++)for(let col=0;col<11;col++){
-   const t=(row+.5)/8,o=new T.Mesh(shingles[(row+col)%3],roof);o.position.set(side*t*3.1,6.17-t*2.6,(col-5)*.5+(row%2)*.1);o.quaternion.setFromAxisAngle(new T.Vector3(0,0,1),-side*slope);if(side<0)o.quaternion.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI));g.add(o);
+   const t=(row+.5)/8,o=box(roof,side*t*3.1,6.17-t*2.6,(col-5)*.5+(row%2)*.1,.57,.09,.56);o.rotation.z=-side*slope;
  }
  for(const z of [-2.62,2.62])for(const side of [-1,1]){const o=box(wood,side*1.55,4.88,z,4.14,.16,.18);o.rotation.z=-side*slope;}
  box(wood,0,6.2,0,.18,.2,5.6);box(stone,1.6,5.25,-.6,.7,2.3,.7);box(stone,1.6,6.45,-.6,.85,.16,.85);
@@ -61,29 +58,6 @@ export default function generate(T){
  // Iron tie heads are geometry, not a painted marking on a blank beam.
  const pegGeo=new T.CylinderGeometry(.04,.04,.025,4);pegGeo.rotateX(Math.PI/2);
  for(const z of [-2.49,2.49])for(const x of [-2.72,0,2.72])for(const y of [.65,3.6]){const peg=new T.Mesh(pegGeo,dark);peg.position.set(x,y,z);g.add(peg);}
- // King-post roof trusses and attic shutters give both gables a human scale.
- for(const side of [-1,1]){
-  const z=side*2.43;box(wood,0,4.86,z,.15,2.4,.17);box(wood,0,4.34,z,3.65,.13,.17);
-  for(const direction of [-1,1]){const brace=box(wood,direction*.91,4.84,z,2.17,.12,.15);brace.rotation.z=direction*-.56;}
-  box(dark,0,4.32,z+side*.07,.86,1.04,.09);
-  for(let i=0;i<5;i++)box(wood,(i-2)*.153,4.32,z+side*.14,.139,.9,.08);
-  for(const y of [4.05,4.58])box(dark,0,y,z+side*.2,.74,.045,.025);
-  box(stone,0,3.79,z+side*.12,1.05,.12,.28);
-  // Carved lintels, drip hoods and individually separated shutter slats.
-  for(const x of [-1.8,1.8]){
-   const hood=box(wood,x,2.7,side*2.59,1.21,.09,.37);hood.rotation.x=side*.12;
-   for(const edge of [-1,1])for(let i=0;i<3;i++)box(wood,x+edge*.45+(i-1)*.086,2,side*2.565,.07,1.13,.04);
-   for(const edge of [-1,1])box(stone,x+edge*.45,1.27,side*2.48,.12,.24,.15);
-  }
- }
- // Corner eave brackets and rain gutters read in the high gameplay camera.
- const gutterGeo=new T.CylinderGeometry(.085,.085,5.6,8,1,true,Math.PI/2,Math.PI);gutterGeo.rotateX(Math.PI/2);
- for(const side of [-1,1]){
-  const gutter=new T.Mesh(gutterGeo,dark);gutter.position.set(side*3.08,3.61,0);g.add(gutter);
-  for(const z of [-2.25,2.25]){const bracket=box(wood,side*2.82,3.38,z,.13,.62,.14);bracket.rotation.z=side*-.56;}
- }
- // Chimney cap with a dark flue inset, not an undifferentiated stone block.
- box(dark,1.6,6.544,-.6,.48,.035,.48);
  // Centre the full footprint, including steps, without changing the authored scale.
  const b=new T.Box3(),v=new T.Vector3();g.updateMatrixWorld(true);g.traverse(o=>{if(o.isMesh){const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++)b.expandByPoint(v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld));}});const c=b.getCenter(new T.Vector3());g.children.forEach(o=>{o.position.x-=c.x;o.position.y-=b.min.y;o.position.z-=c.z;});return g;
 }

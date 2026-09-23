@@ -3,12 +3,7 @@ export default function generate(T){
  const box=(m,x,y,z,w,h,d)=>{const a=new T.Mesh(new T.BoxGeometry(w,h,d),m);a.position.set(x,y,z);g.add(a);return a;};
  for(const x of [-1.5,1.5])for(const z of [-.8,.8])box(wood,x,1.3,z,.13,2.6,.13);
  for(const z of [-.82,.82])box(wood,0,2.5,z,3.25,.12,.12);
- // Sewn canvas sags between its supported edges instead of rigid roof slabs.
- for(const side of [-1,1]){
-  const geo=new T.PlaneGeometry(1.75,2,12,12),p=geo.attributes.position;
-  for(let i=0;i<p.count;i++){const u=(p.getX(i)+.875)/1.75,z=p.getY(i),sag=Math.sin(u*Math.PI)*.105*(1-z*z);p.setXYZ(i,side*u*1.75,3.1-u*.65-sag+Math.sin(z*19)*Math.sin(u*Math.PI)*.017,z);}
-  geo.computeVertexNormals();const canvas=new T.Mesh(geo,cloth);g.add(canvas);
- }
+ for(const side of [-1,1]){const shape=new T.Shape();shape.moveTo(0,3.1);shape.lineTo(side*1.75,2.45);shape.lineTo(side*1.75,2.35);shape.lineTo(0,3);shape.closePath();const m=new T.Mesh(new T.ExtrudeGeometry(shape,{depth:2,bevelEnabled:false}),cloth);m.position.z=-1;g.add(m);}
  for(let i=0;i<12;i++)box(wood,(i-5.5)*.25,.55,.7,.24,1.1,.12);box(wood,0,1.15,.58,3.15,.13,.75);
  for(const z of [-.8,.2])for(const x of [-1,1]){box(wood,x,.3,z,.6,.6,.5);for(const y of [.1,.5])box(iron,x,y,z+.26,.62,.06,.04);}
  for(let i=0;i<5;i++){const bottle=new T.Mesh(new T.LatheGeometry([new T.Vector2(.13,0),new T.Vector2(.16,.08),new T.Vector2(.13,.3),new T.Vector2(.06,.36),new T.Vector2(.06,.48)],8),iron);bottle.position.set((i-2)*.32,1.22,.6);g.add(bottle);}
@@ -18,9 +13,5 @@ export default function generate(T){
  for(const z of [-.8,.2])for(const x of [-1,1])for(let j=0;j<4;j++){box(wood,x+(j-1.5)*.145,.32,z+.28,.12,.53,.035);box(wood,x,.13+j*.14,z-.27,.61,.11,.035);}
  const profile=[[.15,0],[.2,.08],[.24,.3],[.25,.35],[.2,.35],[.19,.28],[.16,.08]].map(([x,y])=>new T.Vector2(x,y));
  for(const x of [-1.1,1.1]){const pot=new T.Mesh(new T.LatheGeometry(profile,12),ceramic);pot.position.set(x,1.22,.5);g.add(pot);for(let j=0;j<5;j++){const apple=new T.Mesh(new T.SphereGeometry(.085,7,5),fruit);apple.position.set(x+Math.sin(j*2.4)*.12,1.53+Math.cos(j*3)*.03,.5+Math.cos(j*2.4)*.12);g.add(apple);}}
- for(const x of [-1.5,1.5])for(const z of [-.8,.8])for(const y of [.16,2.38])box(iron,x,y,z,.16,.09,.16);
- // Thin seam bindings and a slatted shelf are real geometry, shared by stalls.
- for(const z of [-.96,0,.96])for(const side of [-1,1]){const seam=box(wood,side*.85,2.78,z,1.82,.025,.025);seam.rotation.z=-side*Math.atan2(.65,1.75);}
- for(let i=0;i<5;i++)box(wood,0,.34,(i-2)*.19,2.8,.065,.16);
  const bounds=new T.Box3(),v=new T.Vector3();g.updateMatrixWorld(true);g.traverse(o=>{if(o.isMesh){const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++)bounds.expandByPoint(v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld));}});const center=bounds.getCenter(new T.Vector3());g.children.forEach(o=>{o.position.x-=center.x;o.position.z-=center.z;o.position.y-=bounds.min.y;});return g;
 }

@@ -9,7 +9,7 @@ import {Campaign} from '../game/src/campaign.js';
 import {sceneryLayout,canStandIn} from '../game/src/region-layout.js';
 import {groundHeight} from '../game/src/terrain-height.js';
 import {travelFixture} from './travel-fixture.mjs';
-const out='_artifacts/terrain/play';await fs.mkdir(out,{recursive:true});
+const surfaceReview=process.argv.includes('--surfaces'),out=surfaceReview?'_artifacts/surface-detail/play':'_artifacts/terrain/play';await fs.mkdir(out,{recursive:true});
 const model=new Combat(),progress=new Progression(),campaign=new Campaign(progress,model);progress.restore(model);
 for(let r=0;r<4;r++){if(r)travelFixture(campaign,r);model.damageShard(999);for(let i=0;i<100;i++)model.update(1/60);for(const e of model.enemies)model.damageEnemy(e,999);progress.events(model.consume(),model);campaign.observe();progress.data.drops=[];}
 travelFixture(campaign,0);const fixture=progress.snapshot(model);assert(validSave(fixture));
@@ -43,7 +43,7 @@ try{for(const mobile of [false,true]){
   await down(axis,dir);await page.waitForFunction(({axis,target,dir})=>dir*(window.__GAME__.pos[axis]-target)>=0,{}, {axis,target,dir});await up(axis,dir);
   const samples=await page.evaluate(()=>{window.sampleTerrain=false;return window.terrainSamples;});assert(samples.length>5);assert(samples.every(s=>Math.abs(s.foot-.06)<1e-6));assert(samples.every(s=>s.draws<500&&s.tris<600000));return samples;
  };
- for(let region=0;region<4;region++){
+ for(let region=0;region<(surfaceReview?1:4);region++){
   if(region){await page.evaluate(r=>window.terrainFixture.go(r),region);await page.waitForFunction(r=>window.__GAME__.campaign.region===r,{},region);}
   if(mobile&&(region===1||region===3))continue;
   const route=routes[region];await place(route.from);await page.screenshot({path:`${out}/${prefix}-slope-${region}-start.png`});

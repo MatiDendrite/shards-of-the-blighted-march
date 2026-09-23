@@ -8,6 +8,7 @@ import {applyScenerySurfaces} from './art.js';
 import {cameraTemplate,placeCameraObstacle} from './camera-obstacles.js';
 import {beachWeight,waterDistance,onCrossing} from './geography.js';
 import {createGeographyView} from './geography-view.js';
+import {createMeadowView} from './meadow-view.js';
 import {TERRAIN_SIZE,TERRAIN_SEGMENTS,terrainHeight,groundHeight,groundGradient} from './terrain-height.js';
 
 export async function createWorld(host,art){
@@ -78,24 +79,15 @@ export async function createWorld(host,art){
     for(const p of layout.props)place(prototypes[p.kind],p.x,p.z,p.sx,p.sy,p.sz,p.rotation).position.y=p.y||0;
     for(const {x,z,y,lit} of lanterns)if(lit){const light=new T.PointLight(style.light,8,8,2);light.position.set(x,y+1.9,z);scene.add(light);}
     const rand=seeded(9404+region*331),grassmat=Object.assign(new T.MeshStandardMaterial({color:style.grass,roughness:1,side:T.DoubleSide,vertexColors:true}),{name:'foliage'});
-    const tufts=[];
-    for(let variant=0;variant<4;variant++){
-      const tuft=new T.Group();
-      for(let b=0;b<10;b++){const geo=new T.PlaneGeometry(.055,.38+(b%3)*.06,1,3),p=geo.attributes.position,colors=new Float32Array(p.count*3),height=.38+(b%3)*.06;
-        for(let i=0;i<p.count;i++){const t=p.getY(i)/height+.5;p.setXYZ(i,p.getX(i)*Math.sin(Math.PI*t),t*height,t*t*(.18+variant*.035));const shade=.5+t*.5;colors.set([shade,shade,shade],i*3);}geo.computeVertexNormals();geo.setAttribute('color',new T.BufferAttribute(colors,3));
-        const leaf=new T.Mesh(geo,grassmat);leaf.rotation.y=b*2.399+variant*.7;leaf.position.set(Math.sin(b*2.399)*.12,0,Math.cos(b*2.399)*.12);tuft.add(leaf);
-      }tufts.push(bakeStatic(tuft));
-    }
-    for(let i=0;i<style.cover;i++){
+    for(let i=0;i<Math.floor(style.cover/37);i++){
       const x=(rand()-.5)*120,z=(rand()-.5)*120;
       const onRoad=Math.hypot(x,z-8)<10||distanceToRoad(region,x,z)<1.6||(region===3&&Math.hypot(x-MAPS[3].shard.x,z-MAPS[3].shard.z)<12);
       if(onRoad||beachWeight(region,x,z)>.2||onCrossing(region,x,z,1)||!canStandIn(colliders,x,z))continue;
       // Organic patches with breathing space, rather than an even dotted carpet.
       if(region<2&&Math.sin(x*.37+Math.cos(z*.29))*Math.cos(z*.41)<-.35&&rand()>.2)continue;
       if(inTown(x,z)&&rand()>.28)continue;
-      const k=.55+rand()*.75;place(tufts[i%4],x,z,k,k,k,rand()*6.28,true);
       // Low stones along verges reuse the authored standing-stone constructor.
-      if(i%37===0&&!inTown(x,z))place(prototypes.stone,x+.35,z,.08+rand()*.08,.045,.09+rand()*.06,rand()*6.28,true);
+      if(!inTown(x,z))place(prototypes.stone,x+.35,z,.08+rand()*.08,.045,.09+rand()*.06,rand()*6.28,true);
     }
     // Small wildflower islands reuse a tiny geometry cluster and never block combat.
     const flowerMats=[0xc5bca0,region===2?0xc4a070:0x9c83ba].map(color=>Object.assign(new T.MeshStandardMaterial({color,roughness:1,side:T.DoubleSide}),{name:'petals'}));
@@ -108,13 +100,15 @@ export async function createWorld(host,art){
     // Distance fading shrinks plants into their own hill, not the old y=0 plane.
     scene.traverse(o=>{if(o.isMesh&&['foliage','petals'].includes(o.material.name)){const p=o.geometry.attributes.position,base=new Float32Array(p.count);for(let i=0;i<p.count;i++)base[i]=groundHeight(region,p.getX(i),p.getZ(i));o.geometry.setAttribute('groundBase',new T.BufferAttribute(base,1));}});
     art.finish(scene);
+    // Instanced geometry must stay outside bakeStatic, which expands instances.
+    const meadow=createMeadowView(scene,region,style,colliders);
     const effects=createLandscapeEffects(scene,layout.props,region);
     const geography=createGeographyView(scene,region);
     const dustGeo=new T.BufferGeometry(),points=[];
     for(let i=0;i<300;i++){const x=(rand()-.5)*120,z=(rand()-.5)*120;points.push(x,groundHeight(region,x,z)+.4+rand()*5,z);}
     dustGeo.setAttribute('position',new T.Float32BufferAttribute(points,3));
     const dust=new T.Points(dustGeo,new T.PointsMaterial({color:style.dust,size:region===1?.05:.035,transparent:true,opacity:.6}));scene.add(dust);
-    return {root:scene,colliders,cameraObstacles,dust,effects,geography,coverChunks};
+    return {root:scene,colliders,cameraObstacles,dust,effects,geography,meadow,coverChunks};
   }
   zones[0]=build(0);host.add(zones[0].root);
   return {
@@ -123,6 +117,6 @@ export async function createWorld(host,art){
     setRegion(region){const created=!zones[region];if(created)zones[region]=build(region);if(region!==active){host.remove(zones[active].root);host.add(zones[region].root);}active=region;return created;},
     canStand(x,z){return canStandIn(zones[active].colliders,x,z);},
     heightAt(x,z){return groundHeight(active,x,z);},
-    update(dt,player={x:0,z:11}){art.update(dt,player);zones[active].effects.update(dt);zones[active].geography.update(dt);for(const c of zones[active].coverChunks)c.root.visible=Math.hypot(c.x-player.x,c.z-player.z)<42;},
+    update(dt,player={x:0,z:11}){art.update(dt,player);zones[active].effects.update(dt);zones[active].geography.update(dt);zones[active].meadow.update(dt,player);for(const c of zones[active].coverChunks)c.root.visible=Math.hypot(c.x-player.x,c.z-player.z)<42;},
   };
 }

@@ -1,6 +1,6 @@
 # Shards of the Blighted March
 
-Single-player dark fantasy RPG for the 404 game jam. The expanded four-region adventure, M atlas, living-world scenery, improved character models, bottom MMO-style character dock and visible ground equipment are in place. Publication remains the user's responsibility.
+Single-player dark fantasy RPG for the 404 game jam. The expanded four-region adventure, M atlas, living-world scenery, bottom MMO-style character dock and visible ground equipment are in place. Publication remains the user's responsibility.
 
 ## Run locally
 
@@ -13,7 +13,9 @@ Open http://localhost:4173. Use a local HTTP server, not `file://`. The self-con
 
 The development server listens on all interfaces to allow a phone on the same trusted network to connect to `http://<computer-LAN-IP>:4173`. Use your editor's port forwarding when this workspace is remote. There is no deployment, account, telemetry service or external runtime request.
 
-Desktop: WASD / arrows to move relative to the camera, mouse to aim, hold left click or F for a three-hit combo, Space to dodge, R to cycle sword / axe / spear, 1 / 2 / 3 for Cleave / Ground Slam / Battle Cry. **Hold the right mouse button and drag to orbit/tilt the camera; wheel zooms; C or View below the minimap restores the default camera.** Escape pauses. Mobile: left joystick plus right-side attack, dodge, weapon and skill buttons; attacks assist aiming at nearby targets. **Drag an unobstructed part of the world view to rotate the camera**, including while another finger holds the joystick. View resets the camera. The pause menu has a separate Restore default camera button, render quality, sound and camera-shake toggles; camera reset never restarts the expedition or changes saved progress. The minimap and M atlas stay north-up.
+Desktop: WASD / arrows to move relative to the camera, mouse to aim, hold left click or F for a three-hit combo, Space to dodge, R to cycle sword / axe / spear, **1 / 2 / 3** for the selected class's abilities. **K**, or clicking the class name in the bottom dock, opens class selection and illustrated skill descriptions. **Hold the right mouse button and drag to orbit/tilt the camera; wheel zooms; C or View below the minimap restores the default camera.** Escape pauses. Mobile: left joystick plus right-side attack, dodge, weapon and illustrated skill buttons; offensive abilities assist aiming at nearby targets. Tap the class name to inspect all skills or change class in a settlement. **Drag an unobstructed part of the world view to rotate the camera**, including while another finger holds the joystick. View resets the camera. The pause menu has render quality, sound and camera-shake controls; resetting the camera never changes progress. Both maps stay north-up.
+
+Choose a class on the welcome screen or change in any settlement. Warrior uses Cleave, Ground Slam and Battle Cry; Mage uses Firebolt, Frost Nova and Blink; Ninja uses Shadow Cut, Venom Knives and Smoke Veil; Dwarf uses Forge Blow, Cinder Bomb and Iron Ward. Each has a distinct appearance, skill mechanics and illustrated action bar. All classes retain the same equipped weapons and armour; damaging skills benefit from weapon upgrades. Skills spend stamina. Class switching preserves level, gear, gold and quests, carries over remaining cooldowns and does not refill health or stamina. Old saves default to Warrior. Blink and lunges cannot cross solid scenery or water; projectiles stop at obstacles. Changing class is unavailable during attacks, dodges or unresolved projectile, bomb or poison effects.
 
 Cleanse the shards in Hearthstead Approach, Thornwood Reach and Ashen Causeway, then defeat the Fallen Warden in his court. Each region has one automatically tracked quest. Clear its shard and all **24 guardians** to unlock the next road: twenty start on the map, and four answer the shard's two waves. Hunt the western/eastern fields, side roads, southern pasture and shard sanctuary; M shows surviving enemies. The HUD and journal show the required kill count. Walk to the northern portal and press **E** to continue. A blue southern portal returns to the previous region, including from an unfinished region when no enemy is nearby. **J** (Journal) only records quests and regional progress; it cannot teleport you. Regions are separate scenes, not a seamless open world. The Warden remains one boss, alternating a gold axe sweep and a violet ground slam, and enraging at half health. Return to the central settlement to recover health. Three weapons and all skills are unlocked; level and equipment improve their effectiveness.
 
@@ -46,6 +48,8 @@ npm run test:dodge
 npm run test:camera
 npm run test:services
 npm run test:geography
+npm run test:classes
+npm run test:classes:balance
 npm run test:balance
 npm run test:performance
 npm run test:journey:ci

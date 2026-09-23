@@ -11,6 +11,7 @@ try{await fs.mkdir('_artifacts/hud-loot',{recursive:true});const page=await brow
   assert(layout.panels.every(p=>p.y>=layout.dock.y&&p.bottom<=height&&p.width>0),`${width}: panels in dock`);
   for(let i=0;i<layout.panels.length;i++)for(let j=i+1;j<layout.panels.length;j++){const a=layout.panels[i],b=layout.panels[j];assert(!(a.x<b.right&&a.right>b.x&&a.y<b.bottom&&a.bottom>b.y),`${width}: ${a.id}/${b.id} overlap`);}
   assert(layout.buttons.every(b=>b.hit&&b.x>=0&&b.right<=width&&b.bottom<=height),`${width}: controls reachable`);
+  for(let i=0;i<layout.buttons.length;i++)for(let j=i+1;j<layout.buttons.length;j++){const a=layout.buttons[i],b=layout.buttons[j];assert(!(a.x<b.right&&a.right>b.x&&a.y<b.bottom&&a.bottom>b.y),`${width}: ${a.id}/${b.id} buttons overlap`);}
  }
  console.log('All seven desktop/phone/landscape HUD layouts: PASS');
 }finally{await browser.close();}

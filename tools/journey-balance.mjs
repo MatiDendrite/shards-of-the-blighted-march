@@ -8,10 +8,13 @@ import {Campaign} from '../game/src/campaign.js';
 import {EXIT} from '../game/src/world-map.js';
 import {sceneryLayout,canStandIn} from '../game/src/region-layout.js';
 import {route} from './navigation.mjs';
+import {CLASS_IDS} from '../game/src/class-data.js';
 let obstacles=sceneryLayout(0).colliders;
 const weapon=process.argv.find(a=>a.startsWith('--weapon='))?.slice(9)||'spear';assert(WEAPONS[weapon]);const reach=WEAPONS[weapon].range,weaponId={sword:1,axe:2,spear:3}[weapon];
-const model=new Combat((x,z)=>canStandIn(obstacles,x,z)&&(model.shard.hp<=0||Math.hypot(x-model.shard.x,z-model.shard.z)>1.12));
+const classId=process.argv.find(a=>a.startsWith('--class='))?.slice(8)||'warrior';assert(CLASS_IDS.includes(classId));
+const model=new Combat((x,z)=>canStandIn(obstacles,x,z)&&(model.shard.hp<=0||Math.hypot(x-model.shard.x,z-model.shard.z)>1.12),(x,z)=>canStandIn(obstacles,x,z));
 const progress=new Progression(),campaign=new Campaign(progress,model);progress.restore(model);
+if(classId!=='warrior')assert(progress.chooseClass(classId,model));
 const reports=[];let frames=0,waypoints=[],pathKey='',lastRoute=-10,stuck=0;
 function simulate(x=0,z=0,attack=false,aim=model.player.angle){
  const p=model.player,before=[p.x,p.z];model.update(1/60,{x,z,attack,aim});const events=model.consume();progress.events(events,model);progress.tick(1/60);progress.collect(p);campaign.observe();frames++;
@@ -48,18 +51,31 @@ for(let region=0;region<4;region++){
    const v=d<5.2?{x:-dx/(d||1),z:-dz/(d||1)}:{x:0,z:0};if(d<4.2)model.dodge(v.x,v.z);simulate(v.x,v.z,false,aim);continue;
   }
   let move={x:0,z:0};if(d>reach-.55){move=d>6||stuck>20?walk(target,Math.max(1.6,reach-.9)):{x:dx/(d||1),z:dz/(d||1)};}
-  if(d<3&&p.stamina>65&&p.cooldowns.cry<=0)model.requestAttack('cry',aim);
-  if(d<3&&p.stamina>50&&p.cooldowns.slam<=0)model.requestAttack('slam',aim);
+  if(classId==='warrior'){
+   if(d<3&&p.stamina>65&&p.cooldowns.cry<=0)model.requestAttack('cry',aim);
+   if(d<3&&p.stamina>50&&p.cooldowns.slam<=0)model.requestAttack('slam',aim);
+  }else if(classId==='mage'){
+   if(d<10&&p.stamina>55&&p.cooldowns.firebolt<=0)model.requestAttack('firebolt',aim);
+   if(d<3.8&&p.stamina>60&&p.cooldowns.frostnova<=0)model.requestAttack('frostnova',aim);
+  }else if(classId==='ninja'){
+   if(d<8&&p.stamina>55&&p.cooldowns.venom<=0)model.requestAttack('venom',aim);
+   if(d<3.7&&p.stamina>60&&p.cooldowns.shadowcut<=0)model.requestAttack('shadowcut',aim);
+   if(d<3&&p.stamina>75&&p.cooldowns.smoke<=0)model.requestAttack('smoke',aim);
+  }else{
+   if(d<2.9&&p.stamina>55&&p.cooldowns.forgeblow<=0)model.requestAttack('forgeblow',aim);
+   if(d<6.5&&d>3&&p.stamina>70&&p.cooldowns.cinderbomb<=0)model.requestAttack('cinderbomb',aim);
+   if(d<3&&p.stamina>75&&p.cooldowns.ironward<=0)model.requestAttack('ironward',aim);
+  }
   simulate(move.x,move.z,d<reach+.25,aim);
  }
  assert(model.complete,`region ${region} timed out: ${JSON.stringify({pos:[model.player.x,model.player.z],kills:model.kills,hp:model.shard.hp,enemies:model.telemetry().enemies})}`);
  assert(campaign.data.cleared[region]);
- const combatSeconds=frames/60-start,damage=model.damageTaken;
+ const combatSeconds=frames/60-start,damage=model.damageTaken,skillsUsed={...model.skillsUsed};
  while(progress.data.drops.length){const p=model.player,drop=[...progress.data.drops].sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0];walkUntil(drop,1.4);progress.collect(model.player);}
  for(let i=0;i<120&&(model.player.action||model.player.dodge>0);i++)simulate();
  for(const kind of ['armor',weapon]){const best=progress.data.items.filter(i=>i.kind===kind).sort((a,b)=>itemPower(b)-itemPower(a))[0];assert(progress.equip(best.id,model));}
  const snapshot=progress.snapshot(model);assert(validSave(snapshot));progress.data=structuredClone(snapshot);progress.restore(model);assert(model.complete);assert(campaign.data.cleared[region]);
- reports.push({weapon,region,combatSeconds:Math.round(combatSeconds),withLootSeconds:Math.round(frames/60-start),level:progress.data.level,hpStart,damageTaken:damage,weaponPower:itemPower(progress.equipped(weapon)),armor:itemPower(progress.equipped('armor')),potions:progress.data.potions});console.log(reports.at(-1));
+ assert.equal(model.player.classId,classId);reports.push({classId,weapon,region,combatSeconds:Math.round(combatSeconds),withLootSeconds:Math.round(frames/60-start),level:progress.data.level,hpStart,damageTaken:damage,weaponPower:itemPower(progress.equipped(weapon)),armor:itemPower(progress.equipped('armor')),potions:progress.data.potions,skillsUsed});console.log(reports.at(-1));
  if(region<3){walkUntil(EXIT,2.4);assert(campaign.travel(region+1));obstacles=sceneryLayout(region+1).colliders;waypoints=[];pathKey='';}
 }
-assert(campaign.complete);await fs.mkdir('_artifacts/performance/balance',{recursive:true});await fs.writeFile(`_artifacts/performance/balance/${weapon}.json`,JSON.stringify({result:'PASS',kind:'deterministic simulation, not browser input',seconds:Math.round(frames/60),reports},null,2));
+assert(campaign.complete);await fs.mkdir('_artifacts/performance/balance',{recursive:true});await fs.writeFile(`_artifacts/performance/balance/${classId}-${weapon}.json`,JSON.stringify({result:'PASS',kind:'deterministic simulation, not browser input',seconds:Math.round(frames/60),reports},null,2));

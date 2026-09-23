@@ -19,6 +19,8 @@ import { setLandscapeLighting,applyLandscapePalette } from './landscape-lighting
 import {inTown,WORLD_LIMIT,EXIT,MAPS} from './world-map.js';
 import {createFrameClock} from './frame-clock.js';
 import {CameraOrbit,cameraRelative,cameraHeading} from './camera-orbit.js';
+import {createClassView} from './class-view.js';
+import {classInfo,skillForSlot,SLOT_IDS} from './class-data.js';
 
 const $=s=>document.querySelector(s);
 window.__READY__=false;
@@ -36,43 +38,50 @@ async function boot(){
   const ring=new T.Mesh(new T.RingGeometry(.40,.425,40),new T.MeshBasicMaterial({color:0xc9c4a0,transparent:true,opacity:.32,depthWrite:false}));ring.rotation.x=-Math.PI/2;scene.add(ring);
   const orbit=new CameraOrbit();
   const input=createInput(canvas,{canPlay:()=>window.__READY__===true&&started&&!paused&&!model.dead}),look=new T.Vector3(),desired=new T.Vector3(),ray=new T.Raycaster(),plane=new T.Plane(new T.Vector3(0,1,0),0),aim=new T.Vector3();
-  const model=new Combat((x,z)=>world.canStand(x,z)&&(model.shard.hp<=0||Math.hypot(x-model.shard.x,z-model.shard.z)>1.12));
+  const model=new Combat((x,z)=>world.canStand(x,z)&&(model.shard.hp<=0||Math.hypot(x-model.shard.x,z-model.shard.z)>1.12),(x,z)=>world.canStand(x,z));
   const clearInput=input.clear;input.clear=()=>{clearInput();orbit.stop();model.clearBufferedInput();};
   const audio=createAudio(),combatView=await createCombatView(scene,hero,model,audio,{assets:combatAssets,prepare:root=>rig.refresh(root)});
   const store=saveStore({getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value)}),saved=store.load();
   let progress=new Progression(saved);const campaign=new Campaign(progress,model);progress.restore(model);world.setRegion(campaign.region);diagnosticObstacles=snapshotObstacles();if(campaign.region!==0)rig.setTime(world.atmosphere);
+  await combatView.loadClass(progress.data.classId);combatView.setClass(progress.data.classId);
   const save=()=>store.write(progress.snapshot(model));
   // Inventory photographs are only needed when its opaque, paused panel opens.
   // Do not force four GPU readbacks before the player can enter the world.
-  let portraitCache;const portraits=()=>portraitCache??=createItemPortraits(renderer,combatView.portraitModels);
+  const portraitCache=new Map();const portraits=()=>{const id=progress.data.classId;if(!portraitCache.has(id))portraitCache.set(id,createItemPortraits(renderer,{...combatView.portraitModels,character:combatView.characterPortrait()}));return portraitCache.get(id);};
   const rpgView=await createRpgView(scene,progress,model,store,save,portraits,combatView.portraitModels);
   const campaignView=createCampaignView(scene,campaign);
   const frameSeconds=createFrameClock();
   let started=false,paused=false,elapsed=0,acc=0,fps=60,hitStop=0,won=false,ended=false,saveTimer=0,actualSpeed=0,inventoryStill=0,renderDirty=true;
-  let atlas;
-  const townView=await createTownView(scene,model,progress,campaign,{open(){if(!started||model.dead||!$('#pause').hidden||!$('#victory').hidden)return false;atlas?.close(false);closeBag();closeJournal();paused=true;input.clear();return true;},close(){paused=false;input.clear();},journal:openJournal,trade:()=>openBag('merchant'),save});
-  atlas=createAtlasView(model,progress,campaign,{open(){if(!started||model.dead||!$('#pause').hidden||!$('#victory').hidden)return false;townView.close();closeBag();closeJournal();paused=true;input.clear();return true;},close(){paused=false;input.clear();}});
+  let atlas,classView;
+  const townView=await createTownView(scene,model,progress,campaign,{open(){if(!started||model.dead||classView?.busy||!$('#pause').hidden||!$('#victory').hidden)return false;classView?.close(false);atlas?.close(false);closeBag();closeJournal();paused=true;input.clear();return true;},close(){paused=false;input.clear();},journal:openJournal,trade:()=>openBag('merchant'),save});
+  atlas=createAtlasView(model,progress,campaign,{open(){if(!started||model.dead||classView?.busy||!$('#pause').hidden||!$('#victory').hidden)return false;classView?.close(false);townView.close();closeBag();closeJournal();paused=true;input.clear();return true;},close(){paused=false;input.clear();}});
+  classView=createClassView(model,progress,{
+    open(){if(!window.__READY__||model.dead||!$('#pause').hidden||!$('#victory').hidden)return false;townView.close();atlas.close(false);closeBag();closeJournal();paused=true;input.clear();$('#welcome').inert=$('#hud').inert=true;return true;},
+    close(resume){$('#welcome').inert=$('#hud').inert=false;if(resume)paused=false;input.clear();renderDirty=true;},
+    async apply(id){await combatView.loadClass(id);if(!progress.chooseClass(id,model))return false;combatView.setClass(id);renderDirty=true;inventoryStill=0;save();combatView.notice(`${classInfo(id).name} · your journey is kept`);return true;},
+  });
   if(saved)$('#startb').firstChild.textContent='Continue journey ';
   function closeBag(){if($('#inventory').hidden)return;$('#inventory').hidden=true;paused=false;input.clear();document.activeElement?.blur();}
-  function openBag(mode){townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden)closeJournal();if(!$('#inventory').hidden){closeBag();return;}if(mode==='smith'&&!progress.nearSmith(model.player)){combatView.notice('Borin upgrades equipment at Hearthstead market. M marks his forge; southern portals lead back.');return;}if(mode==='merchant'&&!progress.nearMerchant(model.player))return;paused=true;input.clear();rpgView.open(mode);}
+  function openBag(mode){if(classView?.busy)return;classView?.close();townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden)closeJournal();if(!$('#inventory').hidden){closeBag();return;}if(mode==='smith'&&!progress.nearSmith(model.player)){combatView.notice('Borin upgrades equipment at Hearthstead market. M marks his forge; southern portals lead back.');return;}if(mode==='merchant'&&!progress.nearMerchant(model.player))return;paused=true;input.clear();rpgView.open(mode);}
   function closeJournal(){if($('#journal').hidden)return;$('#journal').hidden=true;paused=false;input.clear();document.activeElement?.blur();}
-  function openJournal(){townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden){closeJournal();return;}if(!$('#inventory').hidden)closeBag();paused=true;input.clear();campaignView.open();save();}
-  function regionChanged(){atlas?.close(false);combatView.reset();rpgView.clearDrops();if(world.setRegion(campaign.region))rig.refresh(scene);diagnosticObstacles=snapshotObstacles();setLandscapeLighting(rig,world.atmosphere);input.clear();hitStop=0;acc=0;actualSpeed=0;inventoryStill=0;hero.rotation.set(0,Math.PI,0);hero.position.set(model.player.x,.06,model.player.z);$('#journal').hidden=true;$('#defeat').hidden=true;$('#victory').hidden=true;paused=ended=false;won=campaign.complete;save();combatView.notice(REGIONS[campaign.region].name);document.activeElement?.blur();}
+  function openJournal(){if(classView?.busy)return;classView?.close();townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden){closeJournal();return;}if(!$('#inventory').hidden)closeBag();paused=true;input.clear();campaignView.open();save();}
+  function regionChanged(){classView?.close(false);classView?.refresh();combatView.setClass(model.player.classId);atlas?.close(false);combatView.reset();rpgView.clearDrops();if(world.setRegion(campaign.region))rig.refresh(scene);diagnosticObstacles=snapshotObstacles();setLandscapeLighting(rig,world.atmosphere);input.clear();hitStop=0;acc=0;actualSpeed=0;inventoryStill=0;hero.rotation.set(0,Math.PI,0);hero.position.set(model.player.x,.06,model.player.z);$('#journal').hidden=true;$('#defeat').hidden=true;$('#victory').hidden=true;paused=ended=false;won=campaign.complete;save();combatView.notice(REGIONS[campaign.region].name);document.activeElement?.blur();}
   function travel(region){if(!started||paused||model.dead)return;if(campaign.travel(region))regionChanged();else combatView.notice('Approach an unlocked portal and leave combat before travelling.');}
   $('#journal-button').onclick=openJournal;$('#journal-close').onclick=closeJournal;$('#gate-button').onclick=()=>{if(!paused&&campaign.nearPortal)travel(campaign.nearPortal.destination);};
   $('#bag-button').onclick=()=>openBag('inventory');$('#smith-button').onclick=()=>openBag('smith');$('#bag-close').onclick=closeBag;
   $('#potion-button').onclick=()=>{if(started&&!paused&&progress.potion(model)){save();combatView.notice('Healing draught · +65 health');}};
   addEventListener('keydown',e=>{if(e.repeat||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;if(e.code==='KeyJ'){e.preventDefault();openJournal();}if(e.code==='KeyI'){e.preventDefault();openBag('inventory');}if(e.code==='KeyE'){e.preventDefault();if(!paused&&campaign.nearPortal)travel(campaign.nearPortal.destination);else if(!paused){if(progress.nearSmith(model.player))openBag('smith');else if(!townView.open())combatView.notice('Approach a townsfolk, blacksmith or portal to interact.');}}});
   addEventListener('pagehide',()=>{if(started)save();});
+  addEventListener('keydown',e=>{if(e.code==='KeyK'&&!e.repeat&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)){e.preventDefault();if(!$('#class-dialog').hidden)classView.close();else classView.open();}});
   addEventListener('keydown',e=>{if(e.code==='KeyM'&&!e.repeat&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)){e.preventDefault();atlas.open();}});
   function resize(){input.clear();inventoryStill=0;renderDirty=true;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);rig.resize(innerWidth,innerHeight);}
   addEventListener('resize',resize);
   function resetCamera(){if(!started)return;input.clearCamera();orbit.reset(paused);inventoryStill=0;renderDirty=true;document.activeElement?.blur();}
   $('#camera-reset').onclick=()=>{if(!paused&&!model.dead)resetCamera();};$('#camera-defaults').onclick=resetCamera;
-  function pause(value){if(!$('#atlas-dialog').hidden){atlas.close();return;}if(!$('#town-dialog').hidden){townView.close();return;}if(!started||model.dead||!$('#victory').hidden)return;if(!$('#journal').hidden){closeJournal();return;}if(!$('#inventory').hidden){closeBag();return;}paused=value;$('#pause').hidden=!value;input.clear();if(!value)audio.unlock();else save();}
+  function pause(value){if(!$('#class-dialog').hidden){classView.close();return;}if(!$('#atlas-dialog').hidden){atlas.close();return;}if(!$('#town-dialog').hidden){townView.close();return;}if(!started||model.dead||!$('#victory').hidden)return;if(!$('#journal').hidden){closeJournal();return;}if(!$('#inventory').hidden){closeBag();return;}paused=value;$('#pause').hidden=!value;input.clear();if(!value)audio.unlock();else save();}
   $('#menu-button').onclick=()=>pause(true);$('#resume').onclick=()=>pause(false);
   addEventListener('keydown',e=>{if(e.code==='Escape')pause(!paused);});
-  addEventListener('blur',()=>{if($('#inventory').hidden&&$('#journal').hidden&&$('#town-dialog').hidden&&$('#atlas-dialog').hidden)pause(true);});document.addEventListener('visibilitychange',()=>{if(document.hidden){if(started)save();if($('#inventory').hidden&&$('#journal').hidden&&$('#town-dialog').hidden&&$('#atlas-dialog').hidden)pause(true);}});
+  addEventListener('blur',()=>{if($('#class-dialog').hidden&&$('#inventory').hidden&&$('#journal').hidden&&$('#town-dialog').hidden&&$('#atlas-dialog').hidden)pause(true);});document.addEventListener('visibilitychange',()=>{if(document.hidden){if(started)save();if($('#class-dialog').hidden&&$('#inventory').hidden&&$('#journal').hidden&&$('#town-dialog').hidden&&$('#atlas-dialog').hidden)pause(true);}});
   $('#quality').onchange=e=>{renderer.setPixelRatio(e.target.value==='high'?Math.min(devicePixelRatio,1.5):1);resize();};
   function reset(fresh=false){if(fresh===true){progress.data.campaign=freshCampaign();model.reset();progress.potionCD=0;progress.messages.length=0;progress.sync(model,true);}else progress.nextRun(model);for(const id of ['#pause','#defeat','#victory','#inventory','#journal','#town-dialog'])$(id).hidden=true;regionChanged();orbit.reset(true);orbit.distance=0;audio.unlock();}
   function restart(){if(confirm('Restart all four quests and remove uncollected loot? Your equipment, level and gold are kept.'))reset();}
@@ -97,10 +106,11 @@ async function boot(){
     if(input.pointer.active&&!input.isTouch){ray.setFromCamera(input.pointer,camera);if(ray.ray.intersectPlane(plane,aim))angle=Math.atan2(aim.x-p.x,aim.z-p.z);}
     const actions=input.consume();
     if(input.isTouch&&(m.attack||actions.some(a=>['attack','cleave','slam'].includes(a)))){
-      const candidates=[...model.enemies.filter(e=>e.hp>0),...(model.shard.hp>0?[model.shard]:[])].filter(e=>Math.hypot(e.x-p.x,e.z-p.z)<4.2).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z));
+      const ranged=(p.classId==='mage'&&actions.includes('cleave'))||(p.classId==='ninja'&&actions.includes('slam'))||(p.classId==='dwarf'&&actions.includes('slam'));
+      const candidates=[...model.enemies.filter(e=>e.hp>0),...(model.shard.hp>0?[model.shard]:[])].filter(e=>Math.hypot(e.x-p.x,e.z-p.z)<(ranged?p.classId==='dwarf'?5.5:10:4.2)).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z));
       if(candidates.length)angle=Math.atan2(candidates[0].x-p.x,candidates[0].z-p.z);
     }
-    for(const action of actions){if(action==='weapon'){model.cycleWeapon();progress.sync(model);}else if(action==='potion'){if(progress.potion(model))save();}else if(action==='dodge')model.dodge(m.x,m.z);else model.requestAttack(action==='attack'?'basic':action,angle);}
+    for(const action of actions){if(action==='weapon'){model.cycleWeapon();progress.sync(model);}else if(action==='potion'){if(progress.potion(model))save();}else if(action==='dodge')model.dodge(m.x,m.z);else model.requestAttack(action==='attack'?'basic':SLOT_IDS.includes(action)?skillForSlot(p.classId,action):action,angle);}
     const oldX=p.x,oldZ=p.z;model.update(dt,{...m,aim:angle});actualSpeed=Math.hypot(p.x-oldX,p.z-oldZ)/dt;hero.position.set(p.x,.06,p.z);hero.rotation.y=p.angle;
     const revision=progress.revision,events=model.consume();progress.events(events,model);progress.tick(dt);progress.collect(p);const questCompleted=campaign.observe();if(questCompleted){campaignView.celebrate();audio.play('quest');}combatView.process(events);if(events.some(e=>e.type==='hit'))hitStop=events.some(e=>e.type==='hit'&&e.heavy)?.06:.03;
     if(progress.messages.length){if(!questCompleted)combatView.notice(progress.messages.at(-1));progress.messages.length=0;}
@@ -135,6 +145,7 @@ async function boot(){
     // A copied, read-only diagnostic map lets input tests route around scenery.
     window.__GAME__.obstacles=diagnosticObstacles;
     window.__GAME__.camera=orbit.telemetry();
+    window.__GAME__.classId=model.player.classId;window.__GAME__.classSkills=[...classInfo(model.player.classId).skills];window.__GAME__.classEffects={projectiles:model.projectiles.length,bombs:model.bombs.length,smoke:model.player.smoke,ward:model.player.ward};
     requestAnimationFrame(frame);
   }
   camera.position.set(13,12,18);camera.lookAt(0,0,-4);resize();

@@ -1,0 +1,32 @@
+/* Illustrated abilities retain their keyboard labels, cost and readable cooldown. */
+#action-bar #combat-controls #skills button{position:relative;isolation:isolate;overflow:hidden;height:88px;min-height:88px;padding:55px 2px 3px;gap:2px;background:#15201d;opacity:1}
+#action-bar #skills .skill-art{position:absolute;inset:2px 2px auto;width:calc(100% - 4px);height:52px;object-fit:cover;z-index:-2;border-bottom:1px solid #b99c6170}
+#action-bar #skills .skill-shade{position:absolute;top:2px;left:2px;right:2px;height:calc(var(--cooldown,0%) * .6);background:#070c13bc;z-index:-1;pointer-events:none}
+#action-bar #combat-controls #skills b{position:absolute;top:3px;left:4px;font:700 12px Georgia;text-shadow:0 1px 2px #000;background:#08120ecc;border:1px solid #ae966e77;border-radius:2px;min-width:15px;padding:1px}
+#action-bar #combat-controls #skills span{font-size:8px;line-height:10px;white-space:nowrap}
+#action-bar #combat-controls #skills small{font-size:8px;line-height:11px;color:#e6c994}
+#action-bar #skills button.unavailable .skill-art{filter:saturate(.45) brightness(.65)}
+#action-bar #combat-controls #skills button:focus-visible{outline:2px solid #f3d895;outline-offset:2px}
+#class-button{padding:0;min-height:38px;min-width:70px;text-align:left;color:#e6d7b8;border:0;background:none;line-height:1.3;cursor:pointer}.touch #class-button{min-height:44px}
+#class-button strong{display:block}#class-button em{display:block;font:8px Arial;color:#adbdad;margin:3px 0;font-style:normal}
+#welcome-class{display:block;margin:15px 0;color:#d9c698;background:#14211de8;border:1px solid #baa77477;padding:11px 16px;font:12px Georgia}
+#class-dialog{z-index:30;width:min(760px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:24px;background:linear-gradient(135deg,#1c2b26fa,#0b1715fc);border:1px solid #aa9666;box-shadow:0 20px 80px #000c;color:#ddd5bd}
+#class-dialog header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}#class-dialog h2{margin:8px 0 18px;font-size:27px}#class-dialog button{cursor:pointer}#class-close{background:none;border:1px solid #b3a17866;color:#ddd3bb;padding:10px}
+#class-choices{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+#class-choices button{display:grid;justify-items:center;gap:6px;padding:13px 4px;border:1px solid #73807966;background:#101b18;color:#dcd3bd}
+#class-choices button[aria-pressed=true]{border-color:var(--class-color);background:#334238;box-shadow:inset 0 0 18px #d0b47615}
+#class-choices img{border:1px solid var(--class-color);border-radius:50%;object-fit:cover}#class-choices strong{font:17px Georgia}#class-choices small{font:10px Arial;color:#aebead}
+#class-description{font:14px/1.6 Georgia;margin:16px 0;color:#ddd0b5}
+#class-skills{display:grid;gap:9px}#class-skills article{display:flex;align-items:center;gap:13px;background:#08120d80;border:1px solid #7b897a44;padding:10px}
+#class-skills img{border:1px solid #a89262;flex-shrink:0;border-radius:3px;object-fit:cover}#class-skills h3{font:16px Georgia;margin:0 0 4px;color:#f1dbae}#class-skills kbd{font:11px Arial;border:1px solid #bdab6f55;padding:1px 5px;color:#aabda7;margin-right:3px}
+#class-skills small{font:10px Arial;color:#b9ac87}#class-skills p{font:12px/1.5 Arial;margin:6px 0 0;color:#c0cab9}#class-message{font:11px/1.6 Arial;color:#b7c5b3;min-height:30px}#class-confirm{width:100%;margin-top:8px}#class-confirm:disabled{opacity:.55;cursor:default}
+.class-equipment-note{font:10px/1.5 Arial!important;color:#94a697!important;margin:12px 0 0!important}
+html[data-player-class=mage] #stamina-fill{background:linear-gradient(#a6afe0,#626cb0)}
+html[data-player-class=ninja] #stamina-fill{background:linear-gradient(#a0d9c2,#42785d)}
+html[data-player-class=dwarf] #stamina-fill{background:linear-gradient(#e0c294,#a06b3c)}
+@media(max-width:760px) and (min-height:541px){
+ #action-bar{height:306px}#action-bar #combat-controls #skills button{height:80px;min-height:80px;padding-top:49px}#action-bar #skills .skill-art{height:46px}#action-bar #combat-controls #skills span{font-size:7px}#class-button em{font-size:7px}
+ #class-dialog{padding:17px;width:calc(100vw - 24px);max-height:calc(100dvh - 24px)}#class-dialog h2{font-size:23px}#class-choices{gap:5px}#class-choices img{width:46px;height:46px}#class-choices strong{font-size:13px}#class-choices small{font-size:8px}#class-choices button{padding:10px 2px}#class-skills img{width:48px;height:48px}#class-skills article{gap:9px;padding:9px}#class-skills h3{font-size:14px}#class-skills p{font-size:11px}
+}
+@media(max-height:540px){#action-bar #combat-controls #skills button{height:78px;min-height:78px;padding-top:47px}#action-bar #skills .skill-art{height:44px}#action-bar #combat-controls #skills span{font-size:7px}#class-dialog{max-height:calc(100dvh - 16px)}#class-choices img{width:40px;height:40px}#class-choices button{padding:7px 3px}#class-choices small{display:none}}
+@media(max-height:540px) and (min-width:600px) and (max-width:660px){#action-bar #combat-controls #weapon-button{bottom:76px;height:30px;min-height:30px;padding:3px;gap:6px}}

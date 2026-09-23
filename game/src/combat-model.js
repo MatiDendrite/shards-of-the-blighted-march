@@ -1,16 +1,14 @@
 // Deterministic combat rules, independent of rendering and browser input.
 import {MAPS,inTown} from './world-map.js';
 import {FIELD_PATROLS,guardianCount} from './campaign-data.js';
+import {CLASS_IDS,classInfo,SKILLS} from './class-data.js';
+import {activateClassSkill,classHit,updateClassEffects,clearPath} from './class-combat.js';
+export {SKILLS} from './class-data.js';
 export const DODGE_DURATION=.34;
 export const WEAPONS = {
   sword: { name:'Iron Sword', damage:22, range:2.1, arc:1.8, windup:.16, active:.13, recovery:.23, cost:8 },
   axe: { name:'Bearded Axe', damage:36, range:2.25, arc:2.5, windup:.34, active:.19, recovery:.34, cost:14 },
   spear: { name:'Ash Spear', damage:19, range:3.25, arc:.62, windup:.12, active:.12, recovery:.22, cost:7 },
-};
-export const SKILLS = {
-  cleave:{name:'Cleave',cost:20,cooldown:6,windup:.23,active:.15,recovery:.30,damage:42,range:3.4,arc:3.1},
-  slam:{name:'Ground Slam',cost:30,cooldown:9,windup:.5,active:.18,recovery:.34,damage:32,range:3.5,arc:Math.PI*2},
-  cry:{name:'Battle Cry',cost:25,cooldown:12,windup:.18,active:.1,recovery:.18,damage:0,range:5,arc:Math.PI*2},
 };
 const ENEMIES={wolf:{hp:58,speed:2.45,range:1.4,damage:12,windup:.65,recovery:.9,radius:.48},raider:{hp:100,speed:1.65,range:1.9,damage:20,windup:.9,recovery:1.05,radius:.42},boss:{hp:640,radius:.7}};
 // Rendering and damage share these numbers: the warning is the actual danger zone.
@@ -27,11 +25,11 @@ export function inArc(origin,target,range,arc,angle=origin.angle){
 }
 
 export class Combat {
-  constructor(canStand=()=>true){this.canStand=canStand;this.reset();}
+  constructor(canStand=()=>true,canPass=canStand){this.canStand=canStand;this.canPass=canPass;this.reset();}
   reset(region=0){
     this.region=region;
-    this.time=0;this.nextId=0;this.events=[];this.enemies=[];this.attacks=0;this.hits=0;this.kills=0;this.dodges=0;this.damageTaken=0;this.skillsUsed={cleave:0,slam:0,cry:0};this.weaponsUsed={sword:0,axe:0,spear:0};
-    this.player={x:0,z:11,angle:Math.PI,hp:120,maxHp:120,stamina:100,weapon:'sword',action:null,queued:null,dodge:0,dodgeAge:0,dodgeCD:0,invulnerable:0,buff:0,combo:0,comboUntil:0,cooldowns:{cleave:0,slam:0,cry:0},moving:false,walk:0,gait:0};
+    this.time=0;this.nextId=0;this.events=[];this.enemies=[];this.projectiles=[];this.bombs=[];this.effectSerial=0;this.attacks=0;this.hits=0;this.kills=0;this.dodges=0;this.damageTaken=0;this.skillsUsed=Object.fromEntries(Object.keys(SKILLS).map(k=>[k,0]));this.weaponsUsed={sword:0,axe:0,spear:0};
+    this.player={classId:'warrior',x:0,z:11,angle:Math.PI,hp:120,maxHp:120,stamina:100,weapon:'sword',action:null,queued:null,dodge:0,dodgeAge:0,dodgeCD:0,invulnerable:0,buff:0,smoke:0,ward:0,wardTime:0,combo:0,comboUntil:0,cooldowns:Object.fromEntries(Object.keys(SKILLS).map(k=>[k,0])),moving:false,walk:0,gait:0};
     this.shard={id:'shard',x:0,z:-10.5,hp:250,maxHp:250,radius:.8,stage:0,blast:0,exploded:false};
     this.player.region=region;
     Object.assign(this.shard,MAPS[region].shard);
@@ -48,16 +46,23 @@ export class Combat {
   equip(name){const p=this.player;if(this.dead||p.action||p.dodge>0||!WEAPONS[name])return false;p.weapon=name;p.combo=0;this.emit('equip',{weapon:name});return true;}
   cycleWeapon(){const keys=Object.keys(WEAPONS);return this.equip(keys[(keys.indexOf(this.player.weapon)+1)%keys.length]);}
   requestAttack(kind='basic',angle=this.player.angle){
-    const p=this.player,a=p.action;if(this.dead||p.dodge>0||!(kind==='basic'||SKILLS[kind]))return false;
+    const p=this.player,a=p.action;if(this.dead||p.dodge>0||!(kind==='basic'||classInfo(p.classId).skills.includes(kind)))return false;
     if(!a)return this.startAttack(kind,angle);
     // A single late input is held briefly, never a whole automatic combo.
     if(a.windup+a.active+a.recovery-a.age>.20)return false;
     p.queued={kind,angle,until:this.time+.24};return true;
   }
   clearBufferedInput(){this.player.queued=null;}
+  canChangeClass(){const p=this.player;return !this.dead&&inTown(p.x,p.z)&&!p.action&&!p.dodge&&!this.projectiles.length&&!this.bombs.length&&!this.enemies.some(e=>e.hp>0&&e.poison>0);}
+  changeClass(id){
+    const p=this.player;if(!CLASS_IDS.includes(id)||id===p.classId||!this.canChangeClass())return false;
+    // Do not turn class switching into free healing, fresh cooldowns or stacked buffs.
+    const remaining=Math.max(...Object.values(p.cooldowns));for(const key of Object.keys(p.cooldowns))p.cooldowns[key]=Math.max(p.cooldowns[key],remaining);
+    p.classId=id;p.buff=p.smoke=p.ward=p.wardTime=p.combo=0;p.queued=null;this.emit('classChange',{classId:id});return true;
+  }
   startAttack(kind='basic',angle=this.player.angle){
     const p=this.player;if(this.dead||p.action||p.dodge>0)return false;
-    const basic=kind==='basic',d=basic?WEAPONS[p.weapon]:SKILLS[kind];if(!d)return false;
+    const basic=kind==='basic',d=basic?WEAPONS[p.weapon]:SKILLS[kind];if(!d||!basic&&!classInfo(p.classId).skills.includes(kind))return false;
     if(p.stamina<d.cost){this.emit('notice',{text:'Not enough stamina'});return false;}
     if(!basic&&p.cooldowns[kind]>0)return false;
     p.queued=null;p.stamina-=d.cost;p.angle=Number.isFinite(angle)?angle:p.angle;angle=p.angle;
@@ -70,7 +75,7 @@ export class Combat {
     const length=Math.hypot(x,z);p.dodgeX=length>.05?x/length:Math.sin(p.angle);p.dodgeZ=length>.05?z/length:Math.cos(p.angle);
     p.action=null;p.queued=null;p.stamina-=25;p.dodge=DODGE_DURATION;p.dodgeAge=0;p.dodgeCD=.65;p.invulnerable=.24;this.dodges++;this.emit('dodge');return true;
   }
-  hurtPlayer(amount){const p=this.player;if(this.dead||p.invulnerable>0)return false;amount=Math.max(1,amount-(p.armor||0));p.hp=Math.max(0,p.hp-amount);p.invulnerable=.28;this.damageTaken+=amount;this.emit('hurt',{amount});if(this.dead){p.action=null;p.queued=null;p.dodge=0;this.emit('death');}return true;}
+  hurtPlayer(amount){const p=this.player;if(this.dead||p.invulnerable>0)return false;amount=Math.max(1,amount-(p.armor||0))*(p.smoke>0?.5:1);const absorbed=Math.min(p.ward,amount);p.ward-=absorbed;amount-=absorbed;p.hp=Math.max(0,p.hp-amount);p.invulnerable=.28;this.damageTaken+=amount;if(absorbed)this.emit('absorb',{amount:absorbed});if(amount)this.emit('hurt',{amount});if(this.dead){p.action=null;p.queued=null;p.dodge=0;this.projectiles.length=this.bombs.length=0;this.emit('death');}return true;}
   damageEnemy(e,amount,stagger=.22,feedback={}){if(e.hp<=0)return;const interrupted=e.kind!=='boss'&&e.phase==='windup';e.hp=Math.max(0,e.hp-amount);e.stagger=stagger;e.flash=.18;this.hits++;this.emit('hit',{id:e.id,x:e.x,z:e.z,amount,target:e.kind,interrupted,...feedback});if(e.hp<=0){e.phase='dead';this.kills++;this.emit('kill',{id:e.id});}}
   damageShard(amount,feedback={}){const s=this.shard;if(s.hp<=0)return;s.hp=Math.max(0,s.hp-amount);this.hits++;this.emit('hit',{id:'shard',x:s.x,z:s.z,amount,target:'shard',...feedback});
     const stage=s.hp<=0?3:s.hp<=s.maxHp/3?2:s.hp<=s.maxHp*2/3?1:0;
@@ -86,13 +91,14 @@ export class Combat {
     if(e.phase==='recovery'){e.timer-=dt;if(e.timer<=0)e.phase='idle';return;}
     const aggro=!inTown(p.x,p.z)&&dist(e,p)<15&&Math.hypot(e.x-e.homeX,e.z-e.homeZ)<18,target=aggro?p:{x:e.homeX,z:e.homeZ},distance=dist(e,target);
     if(aggro&&distance<3.15){e.attackKind=e.attackCount++%2?'slam':'sweep';e.phase='windup';e.timer=enemyAttack(e).windup;e.angle=bearing(e,p);this.emit('enemyWindup',{id:e.id});return;}
-    if(distance>.2){const a=bearing(e,target),speed=e.enraged?2.4:1.9;e.angle+=angleDelta(a,e.angle)*Math.min(1,dt*7);this.move(e,Math.sin(a)*speed*dt,Math.cos(a)*speed*dt);e.walk+=dt*speed*2.5;}
+    if(distance>.2){const a=bearing(e,target),speed=(e.enraged?2.4:1.9)*(e.slow>0?e.slowFactor:1);e.angle+=angleDelta(a,e.angle)*Math.min(1,dt*7);this.move(e,Math.sin(a)*speed*dt,Math.cos(a)*speed*dt);e.walk+=dt*speed*2.5;}
   }
   update(dt,input={x:0,z:0,attack:false,aim:this.player.angle}){
     this.time+=dt;const p=this.player,s=this.shard;
     for(const key of Object.keys(p.cooldowns))p.cooldowns[key]=Math.max(0,p.cooldowns[key]-dt);
     p.buff=Math.max(0,p.buff-dt);p.invulnerable=Math.max(0,p.invulnerable-dt);p.dodgeCD=Math.max(0,p.dodgeCD-dt);
     if(this.dead)return;
+    updateClassEffects(this,dt);
     p.stamina=Math.min(100,p.stamina+dt*(p.action||p.dodge>0?4:23));
     if(inTown(p.x,p.z))p.hp=Math.min(p.maxHp,p.hp+dt*8);
     if(p.queued&&this.time>p.queued.until)p.queued=null;
@@ -101,22 +107,22 @@ export class Combat {
     const moving=Math.hypot(input.x,input.z)>.05;p.moving=moving;
     if(moving)p.walk+=dt*9;p.gait+=((moving?1:0)-p.gait)*(1-Math.exp(-dt*18));
     if(p.dodge>0){const dodgeDt=Math.min(dt,p.dodge);this.move(p,p.dodgeX*7.8*dodgeDt,p.dodgeZ*7.8*dodgeDt);p.dodge=Math.max(0,p.dodge-dt);p.dodgeAge=Math.min(DODGE_DURATION,p.dodgeAge+dodgeDt);}
-    else{const speed=p.action?1.25:3.4;this.move(p,input.x*speed*dt,input.z*speed*dt);if(!p.action){const target=Number.isFinite(input.aim)?input.aim:moving?Math.atan2(input.x,input.z):p.angle;p.angle+=angleDelta(target,p.angle)*Math.min(1,dt*16);}}
+    else{const speed=(p.action?1.25:3.4)*(p.smoke>0?1.35:1);this.move(p,input.x*speed*dt,input.z*speed*dt);if(!p.action){const target=Number.isFinite(input.aim)?input.aim:moving?Math.atan2(input.x,input.z):p.angle;p.angle+=angleDelta(target,p.angle)*Math.min(1,dt*16);}}
     const a=p.action;
     if(a){
       a.age+=dt;p.angle=a.angle;
       if(a.age>=a.windup&&a.age<a.windup+a.active){
-        if(!a.applied){a.applied=true;this.emit('swing',{kind:a.kind,weapon:a.weapon,x:p.x,z:p.z,angle:p.angle,combo:a.combo,arc:a.arc,range:a.range});if(a.kind==='cry'){p.buff=6;for(const e of this.enemies)if(e.hp>0&&dist(p,e)<5)e.stagger=1.8;}}
+        if(!a.applied){a.applied=true;activateClassSkill(this,a);this.emit('swing',{kind:a.kind,weapon:a.weapon,x:p.x,z:p.z,angle:p.angle,combo:a.combo,arc:a.arc,range:a.range});if(a.kind==='cry'){p.buff=6;for(const e of this.enemies)if(e.hp>0&&e.kind!=='boss'&&dist(p,e)<5)e.stagger=1.8;}}
         const feedback={heavy:a.combo===3||a.kind==='slam'||a.kind==='cleave',finisher:a.combo===3,weapon:a.weapon};
-        if(a.damage>0){for(const e of this.enemies)if(e.hp>0&&!a.hits.has(e.id)&&inArc(p,e,a.range,a.arc,a.angle)){a.hits.add(e.id);this.damageEnemy(e,a.damage,a.kind==='slam'?1.1:a.weapon==='axe'?.5:.18,feedback);const d=dist(p,e)||1;this.move(e,(e.x-p.x)/d*.16,(e.z-p.z)/d*.16);}
-          if(s.hp>0&&!a.hits.has('shard')&&inArc(p,s,a.range,a.arc,a.angle)){a.hits.add('shard');this.damageShard(a.damage,feedback);}}
+        if(a.damage>0&&!['projectile','bomb'].includes(a.effect)){for(const e of this.enemies)if(e.hp>0&&!a.hits.has(e.id)&&inArc(p,e,a.range,a.arc,a.angle)&&(!a.effect||clearPath(this,p,e))){a.hits.add(e.id);classHit(this,a,e);const d=dist(p,e)||1;this.move(e,(e.x-p.x)/d*.16,(e.z-p.z)/d*.16);}
+          if(s.hp>0&&!a.hits.has('shard')&&inArc(p,s,a.range,a.arc,a.angle)&&(!a.effect||clearPath(this,p,s))){a.hits.add('shard');this.damageShard(a.damage,feedback);}}
       }
       if(a.age>=a.windup+a.active+a.recovery){p.action=null;p.comboUntil=this.time+.85;}
     }
     for(const e of this.enemies){
       e.flash=Math.max(0,e.flash-dt);if(e.hp<=0)continue;
       if(e.kind==='boss'){this.updateBoss(e,dt);continue;}
-      const d=enemyAttack(e);
+      const d=enemyAttack(e);d.speed*=e.slow>0?e.slowFactor:1;
       if(e.stagger>0){e.stagger-=dt;e.phase='idle';continue;}
       if(e.phase==='windup'){e.timer-=dt;if(e.timer<=0){e.phase='recovery';e.timer=d.recovery;if(inArc(e,{...p,radius:.28},d.range,d.arc,e.angle))this.hurtPlayer(d.damage*(1+this.region*.15));this.emit('enemyStrike',{id:e.id});}continue;}
       if(e.phase==='recovery'){e.timer-=dt;if(e.timer<=0)e.phase='idle';continue;}

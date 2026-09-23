@@ -5,10 +5,11 @@ import { mergeJoints } from './combat-view.js';
 import { WEAPONS } from './combat-model.js';
 import { createGroundLoot } from './ground-loot.js';
 import { createTextWriter } from './hud-bindings.js';
+import {classInfo} from './class-data.js';
 export async function createRpgView(scene,progress,combat,store,onChange,portraitSource,lootModels){
  const $=s=>document.querySelector(s),text=createTextWriter(),panel=$('#inventory'),list=$('#item-list'),drops=new Map();let mode='inventory',rendered=-1,selected=1,filter='all',pendingSale=null;
  const kindNames={sword:'Sword',axe:'Axe',spear:'Spear',armor:'Armour'};
- let portraits;
+ let portraits,portraitClass;
  const smith=await ASSET(new URL('../assets/wanderer.js',import.meta.url).href,{keepHierarchy:true,height:1.85,surfaces:true});mergeJoints(smith);smith.position.set(SMITH.x,.07,SMITH.z);smith.rotation.y=1.7;smith.traverse(o=>{if(o.isMesh){o.material=o.material.clone();if(o.material.name==='fabric')o.material.color.setHex(0x57472f);}});scene.add(smith);
  const glow=new T.PointLight(0xffc07c,9,6,2);glow.position.set(SMITH.x,2,SMITH.z);scene.add(glow);
  const smithLabel=document.createElement('div');smithLabel.className='smith-label';smithLabel.textContent='BORIN · BLACKSMITH · UPGRADES';$('#enemy-labels').append(smithLabel);
@@ -44,7 +45,7 @@ export async function createRpgView(scene,progress,combat,store,onChange,portrai
   else button(active?'Equipped':equipped?'Use weapon':'Equip item','equip',active);
   detail.append(tier,title,preview,stats,compare,note,actions);
  }
- function render(){if(!portraits){portraits=typeof portraitSource==='function'?portraitSource():portraitSource;$('#character-preview').src=portraits.armor;}const scroll=panel.scrollTop;rendered=progress.revision;const d=progress.data,p=combat.player;
+ function render(){if(!portraits||portraitClass!==progress.data.classId){portraits=typeof portraitSource==='function'?portraitSource():portraitSource;portraitClass=progress.data.classId;$('#character-preview').src=portraits.character||portraits.armor;$('#character-preview').alt=`${classInfo(portraitClass).name} character model`;$('.paperdoll-caption').textContent=classInfo(portraitClass).name.toUpperCase();}const scroll=panel.scrollTop;rendered=progress.revision;const d=progress.data,p=combat.player;
   const shown=d.items.filter(i=>filter==='all'||(filter==='armor'?i.kind==='armor':i.kind!=='armor'));
   if(!shown.some(i=>i.id===selected))selected=shown[0]?.id;
   $('#bag-title').textContent=mode==='smith'?'Borin’s forge':mode==='merchant'?'Mara’s equipment trade':'Equipment & inventory';$('#bag-intro').textContent=mode==='smith'?'Reforge your equipment up to +3. Salvage spare gear for ore.':mode==='merchant'?'Select spare equipment to sell. Items in your loadout are protected.':'Steel for the road. A place for everything you carry.';

@@ -1,6 +1,7 @@
 import { encounterComplete, emptyEncounter, freshCampaign, guardianCount, FIELD_PATROLS, ENCOUNTER_VERSION } from './campaign-data.js';
 import {WORLD_LIMIT,NPCS} from './world-map.js';
 import {sceneryLayout,canStandIn} from './region-layout.js';
+import {CLASS_IDS,classInfo} from './class-data.js';
 export const SAVE_KEY='shards.journey.v1';
 export const KINDS=['sword','axe','spear','armor'];
 export const RARITIES=['common','uncommon','rare'];
@@ -19,6 +20,7 @@ export function validEncounter(s,region=0,version=ENCOUNTER_VERSION){
  const w=s.world;return !!w&&Number.isFinite(w.shardHp)&&w.shardHp>=0&&w.shardHp<=250&&typeof w.exploded==='boolean'&&(!w.exploded||w.shardHp===0)&&typeof s.shardReward==='boolean'&&(region!==3||(w.exploded&&w.shardHp===0));
 }
 export function validSave(s){
+ if(s?.classId!==undefined&&!CLASS_IDS.includes(s.classId))return false;
  if(s?.layoutVersion!==undefined&&s.layoutVersion!==2)return false;
  if(s?.geographyVersion!==undefined&&s.geographyVersion!==1)return false;
  const encounterVersion=s?.encounterVersion===undefined?1:s.encounterVersion;if(![1,2,ENCOUNTER_VERSION].includes(encounterVersion))return false;
@@ -50,11 +52,12 @@ export class Progression{
    const migrate=(state,region)=>{if(state&&region!==3&&encounterComplete(state,region,oldVersion))state.claimed.push(...FIELD_PATROLS.filter(e=>e.id>guardianCount(region,oldVersion)).map(e=>e.id));};
    migrate(d,d.campaign?.region||0);d.campaign?.regions.forEach((state,region)=>migrate(state,region));d.encounterVersion=ENCOUNTER_VERSION;
   }
-  this.revision=0;this.messages=[];this.potionCD=0;
+  d.classId??='warrior';this.revision=0;this.messages=[];this.potionCD=0;
  }
  touch(message){this.revision++;if(message)this.messages.push(message);}
  equipped(kind){return this.data.items.find(i=>i.id===this.data.loadout[kind]);}
- sync(combat,heal=false){const p=combat.player,d=this.data,old=p.maxHp;p.maxHp=120+(d.level-1)*12;p.hp=heal?p.maxHp:p.hp<=0?0:Math.min(p.maxHp,p.hp+Math.max(0,p.maxHp-old));p.damageBonus=itemPower(this.equipped(p.weapon));p.damageMultiplier=1+(d.level-1)*.08;p.armor=itemPower(this.equipped('armor'));d.weapon=p.weapon;}
+ sync(combat,heal=false){const p=combat.player,d=this.data,old=p.maxHp;p.classId=d.classId;p.maxHp=120+(d.level-1)*12;p.hp=heal?p.maxHp:p.hp<=0?0:Math.min(p.maxHp,p.hp+Math.max(0,p.maxHp-old));p.damageBonus=itemPower(this.equipped(p.weapon));p.damageMultiplier=1+(d.level-1)*.08;p.armor=itemPower(this.equipped('armor'));d.weapon=p.weapon;}
+ chooseClass(id,combat){if(!combat.changeClass(id))return false;this.data.classId=id;this.touch(`${classInfo(id).name} · your equipment and journey are kept`);return true;}
  restore(combat){const d=this.data,w=d.world;if(d.layoutVersion!==2){for(const encounter of [d,...(d.campaign?.regions||[]).filter(Boolean)])encounter.drops.forEach((drop,i)=>{drop.x=(i%3-1)*1.2;drop.z=15+Math.floor(i/3)*.8;});d.layoutVersion=2;}if(d.geographyVersion!==1){const migrate=(state,region)=>{if(!state)return;const {colliders}=sceneryLayout(region);state.drops.forEach((drop,i)=>{if(!canStandIn(colliders,drop.x,drop.z)){drop.x=(i%3-1)*1.2;drop.z=15+Math.floor(i/3)*.8;}});};migrate(d,d.campaign?.region||0);d.campaign?.regions.forEach(migrate);d.geographyVersion=1;}combat.reset(d.campaign?.region||0);combat.player.weapon=d.weapon;if(w.shardHp<250)combat.damageShard(250-w.shardHp);if(w.exploded){combat.shard.exploded=true;combat.shard.blast=0;}for(const e of combat.enemies)if(d.claimed.includes(e.id)){e.hp=0;e.phase='dead';}combat.kills=d.claimed.length;combat.consume();this.sync(combat,true);}
  snapshot(combat){this.data.layoutVersion=2;this.data.world={shardHp:combat.shard.hp,exploded:combat.shard.exploded};this.data.weapon=combat.player.weapon;return structuredClone(this.data);}
  experience(amount){const d=this.data;if(d.level>=8)return;d.xp+=amount;while(d.level<8&&d.xp>=xpNeeded(d.level)){d.xp-=xpNeeded(d.level);d.level++;this.touch(`Level ${d.level} · health and damage increased`);}if(d.level===8)d.xp=0;}

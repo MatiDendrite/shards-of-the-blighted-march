@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="./polish.css">
   <link rel="stylesheet" href="./hud.css">
   <link rel="stylesheet" href="./camera.css">
+  <link rel="stylesheet" href="./classes.css">
 </head>
 <body>
   <canvas id="world" aria-label="The Blighted March game world"></canvas>
@@ -21,6 +22,7 @@
     <span class="eyebrow">A JOURNEY INTO THE FORGOTTEN</span>
     <h1>The light<br>still holds.</h1>
     <p>Beyond the last hearth, the old stones whisper.<br>Take up your weapon. Break what corrupts the March.</p>
+    <button id="welcome-class">Choose your class · <strong id="welcome-class-name">Warrior</strong> ▸</button>
     <button id="startb" class="primary">Enter the March <span>↗</span></button>
     <div class="intro-controls">WASD to move <i>·</i> Hold left click to attack<br><span>Right drag: camera · Scroll: zoom · C: reset view<br>Space to dodge · R to switch weapon · 1 / 2 / 3 skills</span></div>
     <span class="build-label">THREE SHARDS. ONE FALLEN WARDEN. YOUR JOURNEY.</span>
@@ -37,7 +39,7 @@
     <div id="enemy-labels" aria-hidden="true"></div><div id="damage-flash" aria-hidden="true"></div>
     <div id="notice" role="status" hidden></div>
     <section id="action-bar" aria-label="Character and combat bar">
-    <div id="character-hud"><div class="character"><span class="level-medallion" aria-label="Character level"><small>LV</small><b id="character-level">1</b></span><div><strong>The Wanderer</strong><small id="weapon-name">Iron Sword</small></div></div><div id="progress-hud"><span id="level-text">LV 1 · 60 gold</span><div id="xp-track"><div id="xp-fill"></div></div><span id="xp-text">0 / 100 XP</span><small id="save-state">Not saved yet</small></div></div>
+    <div id="character-hud"><div class="character"><span class="level-medallion" aria-label="Character level"><small>LV</small><b id="character-level">1</b></span><div><button id="class-button"><strong id="class-name">Warrior</strong><em>K · Classes & skills</em></button><small id="weapon-name">Iron Sword</small></div></div><div id="progress-hud"><span id="level-text">LV 1 · 60 gold</span><div id="xp-track"><div id="xp-fill"></div></div><span id="xp-text">0 / 100 XP</span><small id="save-state">Not saved yet</small></div></div>
     <div id="vitals"><div class="meter-row"><span>HEALTH</span><span id="hp-text">120 / 120</span></div><div class="meter"><div id="hp-fill"></div></div><div class="meter-row"><span>STAMINA</span><span id="stamina-text">100</span></div><div class="meter stamina"><div id="stamina-fill"></div></div><span id="status-text">Safe ground · health recovers here</span></div>
     <div id="combat-controls"><button id="weapon-button" data-action="weapon" aria-label="Switch weapon"><b>R</b><span>Iron Sword</span></button><div id="skills"><button id="cleave" data-action="cleave"><b>1</b><span>Cleave</span><small></small></button><button id="slam" data-action="slam"><b>2</b><span>Ground Slam</span><small></small></button><button id="cry" data-action="cry"><b>3</b><span>Battle Cry</span><small></small></button></div><div id="physical-actions"><button id="dodge" data-action="dodge"><b>↝</b><span>Dodge</span></button><button id="attack" data-action="attack"><b>⚔</b><span>Attack</span></button></div></div>
     <span id="desktop-help">WASD <i>Move</i> · LMB / F <i>Attack</i> · SPACE <i>Dodge</i> · RMB drag <i>Camera</i> · C <i>Reset view</i></span>
@@ -69,6 +71,12 @@
         <aside class="atlas-sidebar"><h3>PLACES & SERVICES</h3><div id="atlas-locations"></div><div class="atlas-legend" aria-label="Map legend"><span><b>▲</b> You</span><span><b>A M R S</b> <br>Services</span><span><b class="hostile">● / !</b> Foes / boss</span><span><b class="quest">◆</b> Shard</span><span><b class="gold">↑</b> Next portal</span><span><b style="color:#80cddd">↓</b> Return portal</span><span><b class="gold">+</b> Loot</span><span><b style="color:#80cddd">▰</b> Water</span><span><b style="color:#d6b384">═</b> Bridge</span></div></aside>
       </div>
     </div>
+  </section>
+  <section id="class-dialog" class="panel" role="dialog" aria-modal="true" aria-labelledby="class-title" hidden>
+    <header><div><span class="eyebrow">CHOOSE YOUR CALLING · GAME PAUSED</span><h2 id="class-title">Classes & skills</h2></div><button id="class-close">Close ×</button></header>
+    <div id="class-choices" role="group" aria-label="Character classes"></div><p id="class-description"></p><div id="class-skills" aria-label="Class abilities"></div>
+    <p id="class-message" role="status"></p><button id="class-confirm" class="primary">Current class</button>
+    <p class="class-equipment-note">All classes use your equipped weapons and armour. Weapon upgrades strengthen damaging skills. Aim with the mouse or face a direction; touch skills aim at nearby enemies.</p>
   </section>
   <script type="module" src="./src/main.js"></script>
 </body>

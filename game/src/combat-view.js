@@ -3,10 +3,14 @@ import {inTown} from './world-map.js';
 import { ASSET, bakeStatic } from '../lib/assetlib.js';
 import { WEAPONS,enemyAttack,windupProgress } from './combat-model.js';
 import { REGIONS } from './campaign-data.js';
-import { attackPose,createHeroMotion } from './combat-motion.js';
+import { attackPose } from './combat-motion.js';
 import { createCombatEffects } from './combat-effects.js';
 import { createCombatRings } from './combat-rings.js';
 import { createTextWriter } from './hud-bindings.js';
+import {SKILLS,classInfo} from './class-data.js';
+import {createSkillHud} from './class-view.js';
+import {createClassActors} from './class-actors.js';
+import {createClassEffects} from './class-effects.js';
 
 export function mergeJoints(root){const nodes=[],owned=[];root.traverse(n=>{if(n.isGroup)nodes.push(n);});for(const node of nodes){const meshes=node.children.filter(n=>n.isMesh);if(meshes.length<2)continue;const rigid=new T.Group();meshes.forEach(m=>rigid.add(m));const baked=bakeStatic(rigid);baked.traverse(o=>{if(o.isMesh)owned.push(o.geometry);});node.add(baked);}return owned;}
 
@@ -34,8 +38,8 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  // are not animation state and would otherwise duplicate large JSON trees on clone.
  assets.raider.traverse(o=>{delete o.userData.joints;});
  const impacts=createCombatEffects(scene),rings=createCombatRings(scene,prepare),text=createTextWriter();
- const joints=hero.userData.joints,weaponMount=new T.Group();weaponMount.position.set(0,-.53,.04);weaponMount.rotation.x=Math.PI/2;joints.rightArm.add(weaponMount);
- const animateHero=createHeroMotion(hero);
+ let joints=hero.userData.joints;const weaponMount=new T.Group();weaponMount.name='heroWeaponMount';weaponMount.position.set(0,-.53,.04);weaponMount.rotation.x=Math.PI/2;joints.rightArm.add(weaponMount);
+ const actors=createClassActors(hero,weaponMount,{mergeJoints,cloneActor,prepare}),skillHud=createSkillHud(),classEffects=createClassEffects(scene);
  let weapon='';const views=new Map(),labels=document.querySelector('#enemy-labels'),numbers=[];
  const shard=assets.shard;shard.position.set(model.shard.x,.05,model.shard.z);scene.add(shard);
  const shardLight=new T.PointLight(0x9972e0,9,10,2);shardLight.position.set(model.shard.x,1.8,model.shard.z);scene.add(shardLight);
@@ -60,7 +64,11 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  const ring=rings.pulse;
  function notice(text,duration=3.5){document.querySelector('#notice').textContent=text;document.querySelector('#notice').hidden=false;noticeTimer=duration;}
  function process(events){for(const e of events){
-  if(e.type==='swing'){audio.play(e.kind==='cry'?'cry':e.weapon==='axe'?'heavySwing':'swing');if(e.kind==='slam'||e.kind==='cry')ring(e.x,e.z,e.kind==='cry'?'#c3c992':'#d1ad70',e.kind==='cry'?5:3.5);else rings.swing(e);}
+  if(e.type==='swing'){const s=SKILLS[e.kind];audio.play(e.kind==='cry'?'cry':e.weapon==='axe'?'heavySwing':'swing');if(['projectile','bomb','blink'].includes(s?.effect))ring(e.x,e.z,s.color,.7);else if(['frost','smoke','ward'].includes(s?.effect))ring(e.x,e.z,s.color,s.range);else if(e.kind==='slam'||e.kind==='cry')ring(e.x,e.z,e.kind==='cry'?'#c3c992':'#d1ad70',e.kind==='cry'?5:3.5);else rings.swing(e);}
+  if(e.type==='classImpact'){ring(e.x,e.z,e.color,e.radius);audio.play('hit');}
+  if(e.type==='classMove'){ring(e.from.x,e.from.z,e.color,.8);ring(e.to.x,e.to.z,e.color,.8);audio.play('dodge');}
+  if(e.type==='absorb')ring(model.player.x,model.player.z,SKILLS.ironward.color,1);
+  if(e.type==='classChange')notice(`${classInfo(e.classId).name} · abilities on 1 / 2 / 3`);
   if(e.type==='hit'){audio.play(e.heavy?'heavyHit':'hit');impacts.burst(e);const el=document.createElement('div');el.className='damage-number'+(e.heavy?' heavy':'');el.textContent=`${Math.round(e.amount)}${e.finisher?' · FINISHER':e.interrupted?' · INTERRUPT':''}`;labels.append(el);numbers.push({el,x:e.x,z:e.z,y:e.target==='boss'?3.45:e.target==='shard'?3.85:e.target==='wolf'?1.95:2.5,age:0});shake=e.heavy?.085:.04;}
   if(e.type==='hurt'){audio.play('hurt');flash=.5;shake=.13;}
   if(e.type==='dodge'){audio.play('dodge');ring(model.player.x,model.player.z,0xc1d6c5,.65);}
@@ -76,7 +84,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  function positionLabel(label,x,y,z,camera){projected.set(x,y,z).project(camera);const sx=(projected.x*.5+.5)*innerWidth,sy=(-projected.y*.5+.5)*innerHeight;const behindHud=label.fill&&hudBounds.some(r=>sx+45>r.left&&sx-45<r.right&&sy>r.top&&sy-32<r.bottom);const visible=projected.z>-1&&projected.z<1&&Math.abs(projected.x)<1.2&&Math.abs(projected.y)<1.2&&!behindHud;label.el.hidden=!visible;if(visible){label.el.style.left=`${sx}px`;label.el.style.top=`${sy}px`;}}
  function update(dt,camera){
   equip();const p=model.player,a=p.action;impacts.update(dt);hudBounds=hudPanels.map(el=>el.getBoundingClientRect()).filter(r=>r.width&&r.height);
-  animateHero(p,model.time);
+  actors.animate(p,model.time);joints=actors.joints;classEffects.update(model);
   for(const e of model.enemies){const near=(e.x-p.x)**2+(e.z-p.z)**2<44**2;let v=views.get(e.id);if(!v){if(e.hp<=0||!near)continue;v=createEnemy(e);}v.root.position.set(e.x,.06,e.z);v.root.rotation.set(0,e.angle,0);
     if(e.hp<=0){v.deathAge+=dt;v.root.rotation.z=Math.min(Math.PI/2,v.deathAge*3);v.root.position.y=.06-Math.max(0,v.deathAge-1)*.5;v.root.visible=v.deathAge<2.8;v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
     v.root.visible=near;if(!near){v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
@@ -90,7 +98,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
     if(e.kind==='boss'){v.telegraph.geometry=e.attackKind==='slam'?v.slam:v.sweep;v.telegraph.material.color.setHex(e.attackKind==='slam'?0xb889f0:0xe0a949);}
     v.telegraph.visible=v.edge.visible=e.phase==='windup';v.telegraph.position.set(e.x,.11,e.z);v.telegraph.rotation.z=e.angle;v.telegraph.material.opacity=.12+charge*.30;
     v.edge.geometry=e.kind==='boss'&&e.attackKind==='slam'?v.slamEdge:v.edgeGeometry;v.edge.material.color.setHex(d.color);v.edge.position.set(e.x,.115,e.z);v.edge.rotation.z=e.angle;v.edge.material.opacity=.55+charge*.4;
-    const title=e.phase==='windup'?`${d.name} · ${Math.max(0,e.timer).toFixed(1)}s`:v.name;if(v.label.el.firstChild.textContent!==title)v.label.el.firstChild.textContent=title;
+    const title=e.phase==='windup'?`${d.name} · ${Math.max(0,e.timer).toFixed(1)}s`:`${v.name}${e.poison>0?' · Poisoned':e.slow>0?' · Chilled':''}`;if(v.label.el.firstChild.textContent!==title)v.label.el.firstChild.textContent=title;
     positionLabel(v.label,e.x,e.kind==='boss'?3.1:e.kind==='wolf'?1.55:2.1,e.z,camera);v.label.fill.style.width=`${e.hp/e.maxHp*100}%`;
     // The dedicated boss HUD already shows health and cast timing. A second
     // world-space name overlaps it when the Warden is north of the player.
@@ -101,6 +109,8 @@ export async function createCombatView(scene,hero,model,audio,options={}){
     joints.rightArm.rotation.y=slam||cry?0:thrust?-.12:pose.twist*1.25;
     joints.torso.rotation.y=slam||cry?0:pose.twist*.32;weaponMount.position.z=thrust?-.12*pose.lift+pose.thrust*.72:.04;
     if(cry||slam)joints.leftArm.rotation.x=-1.5*pose.lift+1.2*pose.cut;
+    if(['projectile','frost','ward','smoke','blink'].includes(a.effect)){joints.rightArm.rotation.set(-1.25*pose.lift,0,-.18*pose.lift);joints.leftArm.rotation.x=-1.1*pose.lift;joints.torso.rotation.y=0;weaponMount.position.z=.04;}
+    if(a.kind==='forgeblow'){joints.rightArm.rotation.x=-2.4*pose.lift+2.1*pose.cut;joints.leftArm.rotation.x=-1.4*pose.lift+1.1*pose.cut;joints.torso.rotation.y=0;}
   }
   else{joints.rightArm.rotation.y=0;joints.torso.rotation.y=0;weaponMount.position.z=.04;}
   if(!p.dodge){if(joints.leftForearm)joints.leftForearm.rotation.x=p.moving?-.12:0;if(joints.rightForearm)joints.rightForearm.rotation.x=a?-.22:0;}
@@ -113,11 +123,11 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   noticeTimer-=dt;if(noticeTimer<=0)document.querySelector('#notice').hidden=true;
   document.querySelector('#hp-fill').style.width=`${p.hp/p.maxHp*100}%`;text('#hp-text',`${Math.ceil(p.hp)} / ${p.maxHp}`);
   document.querySelector('#stamina-fill').style.width=`${p.stamina}%`;text('#stamina-text',Math.floor(p.stamina));
-  text('#status-text',p.buff>0?`Battle Cry · ${Math.ceil(p.buff)}s · +35% damage`:inTown(p.x,p.z)?'Settlement · health recovers here':`Combo ${p.combo || '—'} · ${model.kills} defeated`);
-  for(const [name,cost] of [['cleave',20],['slam',30],['cry',25]]){const button=document.querySelector(`#${name}`);text(`#${name} small`,p.cooldowns[name]>0?`${Math.ceil(p.cooldowns[name])}s`:`${cost} stamina`);button.classList.toggle('unavailable',p.cooldowns[name]>0||p.stamina<cost);}
+  text('#status-text',p.ward>0?`Iron Ward · ${Math.ceil(p.ward)} shield · ${Math.ceil(p.wardTime)}s`:p.smoke>0?`Smoke Veil · ${Math.ceil(p.smoke)}s · faster & guarded`:p.buff>0?`Battle Cry · ${Math.ceil(p.buff)}s · +35% damage`:inTown(p.x,p.z)?'Settlement · heal & change class (K)':`Combo ${p.combo || '—'} · ${model.kills} defeated`);
+  skillHud(p);
   document.querySelector('#dodge').classList.toggle('unavailable',p.stamina<25||p.dodgeCD>0);
   return shake;
  }
  function reset(){impacts.clear();rings.clear();for(const v of views.values()){scene.remove(v.root,v.telegraph,v.edge);v.label.el.remove();v.sweep.dispose();v.slam?.dispose();v.edgeGeometry.dispose();v.slamEdge?.dispose();v.telegraph.material.dispose();v.edge.material.dispose();v.flashMaterials.forEach(m=>m.dispose());}views.clear();for(const n of numbers)n.el.remove();numbers.length=0;noticeTimer=flash=shake=0;document.querySelector('#notice').hidden=true;}
- return{update,process,reset,notice,portraitModels:{sword:assets.sword,axe:assets.axe,spear:assets.spear,armor:assets.raider}};
+ return{update,process,reset:()=>{reset();classEffects.clear();},notice,loadClass:actors.load,setClass:actors.activate,characterPortrait:actors.portrait,portraitModels:{sword:assets.sword,axe:assets.axe,spear:assets.spear,armor:assets.raider}};
 }

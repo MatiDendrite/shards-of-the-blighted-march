@@ -16,7 +16,7 @@ export function createItemPortraits(renderer, models) {
   try {
     renderer.setRenderTarget(target);renderer.setViewport(0,0,width,height);renderer.setScissorTest(false);renderer.setClearColor(0x000000,0);renderer.autoClear=true;
     for(const [kind,source] of Object.entries(models)){
-      const model=source.clone(true);model.position.set(0,0,0);model.rotation.set(0,kind==='armor'?.24:-.3,kind==='armor'?0:-.36);model.scale.setScalar(1);
+      const person=kind==='armor'||kind==='character',model=source.clone(true);model.position.set(0,0,0);model.rotation.set(0,person?.24:-.3,person?0:-.36);model.scale.setScalar(1);
       model.traverse(o=>{if(o.name==='heroWeaponMount')o.visible=false;});
       const box=new T.Box3().setFromObject(model),center=box.getCenter(new T.Vector3()),size=box.getSize(new T.Vector3());
       model.position.sub(center);scene.add(model);

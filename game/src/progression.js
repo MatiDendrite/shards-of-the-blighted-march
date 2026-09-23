@@ -1,5 +1,6 @@
 import { encounterComplete, emptyEncounter, freshCampaign, guardianCount, FIELD_PATROLS, ENCOUNTER_VERSION } from './campaign-data.js';
 import {WORLD_LIMIT,NPCS} from './world-map.js';
+import {sceneryLayout,canStandIn} from './region-layout.js';
 export const SAVE_KEY='shards.journey.v1';
 export const KINDS=['sword','axe','spear','armor'];
 export const RARITIES=['common','uncommon','rare'];
@@ -19,7 +20,8 @@ export function validEncounter(s,region=0,version=ENCOUNTER_VERSION){
 }
 export function validSave(s){
  if(s?.layoutVersion!==undefined&&s.layoutVersion!==2)return false;
- const encounterVersion=s?.encounterVersion===undefined?1:s.encounterVersion;if(encounterVersion!==1&&encounterVersion!==ENCOUNTER_VERSION)return false;
+ if(s?.geographyVersion!==undefined&&s.geographyVersion!==1)return false;
+ const encounterVersion=s?.encounterVersion===undefined?1:s.encounterVersion;if(![1,2,ENCOUNTER_VERSION].includes(encounterVersion))return false;
  if(!s||s.version!==1||!integer(s.level,1,8)||!integer(s.xp,0,1000)||!integer(s.gold,0,1000000)||!integer(s.ore,0,100000)||!integer(s.potions,0,20)||!integer(s.serial,5,1000000)||!integer(s.run,1,100000)||!integer(s.deaths,0,100000))return false;
  if(!Array.isArray(s.items)||s.items.length>24||s.items.length<4||!s.items.every(validItem)||new Set(s.items.map(i=>i.id)).size!==s.items.length)return false;
  if(!s.loadout||!KINDS.every(k=>s.items.some(i=>i.id===s.loadout[k]&&i.kind===k)))return false;
@@ -40,11 +42,12 @@ export function saveStore(storage){let blocked=false,status='Not saved yet';retu
  allowNew(){blocked=false;},
 };}
 export class Progression{
- constructor(saved=null){this.data=saved?structuredClone(saved):{version:1,encounterVersion:ENCOUNTER_VERSION,level:1,xp:0,gold:60,ore:2,potions:3,serial:5,run:1,deaths:0,weapon:'sword',items:KINDS.map((kind,n)=>({id:n+1,kind,rarity:'common',power:kind==='armor'?2:0,upgrade:0})),loadout:{sword:1,axe:2,spear:3,armor:4},claimed:[],drops:[],shardReward:false,world:{shardHp:250,exploded:false}};
+ constructor(saved=null){this.data=saved?structuredClone(saved):{version:1,encounterVersion:ENCOUNTER_VERSION,geographyVersion:1,level:1,xp:0,gold:60,ore:2,potions:3,serial:5,run:1,deaths:0,weapon:'sword',items:KINDS.map((kind,n)=>({id:n+1,kind,rarity:'common',power:kind==='armor'?2:0,upgrade:0})),loadout:{sword:1,axe:2,spear:3,armor:4},claimed:[],drops:[],shardReward:false,world:{shardHp:250,exploded:false}};
   const d=this.data;if((d.encounterVersion??1)<ENCOUNTER_VERSION){
    // Honour previously completed roads without granting retroactive loot or XP.
    // In-progress encounters keep their kills and gain the new living patrols.
-   const migrate=(state,region)=>{if(state&&region!==3&&encounterComplete(state,region,1))state.claimed.push(...FIELD_PATROLS.map(e=>e.id));};
+   const oldVersion=d.encounterVersion??1;
+   const migrate=(state,region)=>{if(state&&region!==3&&encounterComplete(state,region,oldVersion))state.claimed.push(...FIELD_PATROLS.filter(e=>e.id>guardianCount(region,oldVersion)).map(e=>e.id));};
    migrate(d,d.campaign?.region||0);d.campaign?.regions.forEach((state,region)=>migrate(state,region));d.encounterVersion=ENCOUNTER_VERSION;
   }
   this.revision=0;this.messages=[];this.potionCD=0;
@@ -52,14 +55,14 @@ export class Progression{
  touch(message){this.revision++;if(message)this.messages.push(message);}
  equipped(kind){return this.data.items.find(i=>i.id===this.data.loadout[kind]);}
  sync(combat,heal=false){const p=combat.player,d=this.data,old=p.maxHp;p.maxHp=120+(d.level-1)*12;p.hp=heal?p.maxHp:p.hp<=0?0:Math.min(p.maxHp,p.hp+Math.max(0,p.maxHp-old));p.damageBonus=itemPower(this.equipped(p.weapon));p.damageMultiplier=1+(d.level-1)*.08;p.armor=itemPower(this.equipped('armor'));d.weapon=p.weapon;}
- restore(combat){const d=this.data,w=d.world;if(d.layoutVersion!==2){for(const encounter of [d,...(d.campaign?.regions||[]).filter(Boolean)])encounter.drops.forEach((drop,i)=>{drop.x=(i%3-1)*1.8;drop.z=16+Math.floor(i/3)*1.8;});d.layoutVersion=2;}combat.reset(d.campaign?.region||0);combat.player.weapon=d.weapon;if(w.shardHp<250)combat.damageShard(250-w.shardHp);if(w.exploded){combat.shard.exploded=true;combat.shard.blast=0;}for(const e of combat.enemies)if(d.claimed.includes(e.id)){e.hp=0;e.phase='dead';}combat.kills=d.claimed.length;combat.consume();this.sync(combat,true);}
+ restore(combat){const d=this.data,w=d.world;if(d.layoutVersion!==2){for(const encounter of [d,...(d.campaign?.regions||[]).filter(Boolean)])encounter.drops.forEach((drop,i)=>{drop.x=(i%3-1)*1.2;drop.z=15+Math.floor(i/3)*.8;});d.layoutVersion=2;}if(d.geographyVersion!==1){const migrate=(state,region)=>{if(!state)return;const {colliders}=sceneryLayout(region);state.drops.forEach((drop,i)=>{if(!canStandIn(colliders,drop.x,drop.z)){drop.x=(i%3-1)*1.2;drop.z=15+Math.floor(i/3)*.8;}});};migrate(d,d.campaign?.region||0);d.campaign?.regions.forEach(migrate);d.geographyVersion=1;}combat.reset(d.campaign?.region||0);combat.player.weapon=d.weapon;if(w.shardHp<250)combat.damageShard(250-w.shardHp);if(w.exploded){combat.shard.exploded=true;combat.shard.blast=0;}for(const e of combat.enemies)if(d.claimed.includes(e.id)){e.hp=0;e.phase='dead';}combat.kills=d.claimed.length;combat.consume();this.sync(combat,true);}
  snapshot(combat){this.data.layoutVersion=2;this.data.world={shardHp:combat.shard.hp,exploded:combat.shard.exploded};this.data.weapon=combat.player.weapon;return structuredClone(this.data);}
  experience(amount){const d=this.data;if(d.level>=8)return;d.xp+=amount;while(d.level<8&&d.xp>=xpNeeded(d.level)){d.xp-=xpNeeded(d.level);d.level++;this.touch(`Level ${d.level} · health and damage increased`);}if(d.level===8)d.xp=0;}
  makeItem(kind,rarity,region=0){const d=this.data;return{id:d.serial++,kind,rarity,power:(kind==='armor'?2:0)+RARITIES.indexOf(rarity)*3+Math.max(0,Math.min(3,region))*2,upgrade:0};}
  events(events,combat){const d=this.data;for(const e of events){
   // Extra patrols supply XP, gold and smithing ore. Equipment stays on the
   // original guards and shard, keeping a full expedition within the 24-slot bag.
-  if(e.type==='kill'&&!d.claimed.includes(e.id)){const enemy=combat.enemies.find(n=>n.id===e.id);if(!enemy)continue;d.claimed.push(e.id);const boss=enemy.kind==='boss',wolf=enemy.kind==='wolf',xp=boss?160:wolf?25:45;this.experience(xp);const seed=e.id+d.run+combat.region;const item=boss?this.makeItem('armor','rare',combat.region):!wolf&&!enemy.patrol?this.makeItem(KINDS[((e.id*17+d.run*23)%11)%4],seed%3===0?'rare':'uncommon',combat.region):null;d.drops.push({id:`${d.run}-${combat.region}-${e.id}`,x:enemy.x,z:enemy.z,gold:boss?100:wolf?12:24,ore:boss?4:wolf?0:1,item});this.touch(`+${xp} XP · loot dropped`);}
+  if(e.type==='kill'&&!d.claimed.includes(e.id)){const enemy=combat.enemies.find(n=>n.id===e.id);if(!enemy)continue;d.claimed.push(e.id);const boss=enemy.kind==='boss',wolf=enemy.kind==='wolf',xp=boss?160:enemy.patrol?(wolf?12:22):wolf?25:45;this.experience(xp);const seed=e.id+d.run+combat.region;const item=boss?this.makeItem('armor','rare',combat.region):!wolf&&!enemy.patrol?this.makeItem(KINDS[((e.id*17+d.run*23)%11)%4],seed%3===0?'rare':'uncommon',combat.region):null;d.drops.push({id:`${d.run}-${combat.region}-${e.id}`,x:enemy.x,z:enemy.z,gold:boss?100:enemy.patrol?(wolf?7:14):wolf?12:24,ore:boss?4:wolf?0:1,item});this.touch(`+${xp} XP · loot dropped`);}
   if(e.type==='explosion'&&!d.shardReward){d.shardReward=true;this.experience(80);d.drops.push({id:`${d.run}-${combat.region}-shard`,x:combat.shard.x,z:combat.shard.z,gold:60,ore:3,item:this.makeItem(combat.player.weapon,'rare',combat.region)});this.touch('Shard cleansed · a rare weapon for your current fighting style dropped');}
   if(e.type==='death'){const lost=Math.floor(d.gold*.1);d.gold-=lost;d.deaths++;this.touch(`You lost ${lost} gold. Equipment and XP are safe.`);}
  }this.sync(combat);}

@@ -7,8 +7,8 @@ export const REGIONS = [
 ];
 export const emptyEncounter = (region=0)=>({claimed:[],drops:[],shardReward:false,world:{shardHp:region===3?0:250,exploded:region===3}});
 export const freshCampaign = ()=>({region:0,cleared:[false,false,false,false],regions:[null,null,null,null]});
-export const ENCOUNTER_VERSION=2;
-export const guardianCount=(region,version=ENCOUNTER_VERSION)=>region===3?1:version===1?8:16;
+export const ENCOUNTER_VERSION=3;
+export const guardianCount=(region,version=ENCOUNTER_VERSION)=>region===3?1:version===1?8:version===2?16:24;
 // IDs 1–8 belong to the original guards and shard waves. Never renumber them:
 // saved kills and uncollected rewards refer to these IDs.
 export const FIELD_PATROLS=[
@@ -16,5 +16,9 @@ export const FIELD_PATROLS=[
  {id:11,kind:'raider',x:-35,z:-13},{id:12,kind:'wolf',x:41,z:12},
  {id:13,kind:'wolf',x:34,z:22},{id:14,kind:'raider',x:37,z:-13},
  {id:15,kind:'wolf',x:-9,z:43},{id:16,kind:'wolf',x:9,z:43},
+ {id:17,kind:'wolf',x:-43,z:-4},{id:18,kind:'raider',x:-30,z:-15},
+ {id:19,kind:'raider',x:-26,z:-40},{id:20,kind:'wolf',x:-15,z:43},
+ {id:21,kind:'wolf',x:43,z:-4},{id:22,kind:'raider',x:30,z:-15},
+ {id:23,kind:'raider',x:26,z:-43},{id:24,kind:'wolf',x:15,z:43},
 ];
 export const encounterComplete = (encounter,region,version=ENCOUNTER_VERSION)=>encounter.world.exploded&&encounter.claimed.length===guardianCount(region,version);

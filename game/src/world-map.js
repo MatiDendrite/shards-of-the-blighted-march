@@ -1,4 +1,5 @@
 // Shared world-space contract for scenery, combat, travel, UI and save migration.
+import {scenicLocations,riverX} from './geography.js';
 export const WORLD_LIMIT=60;
 export const TOWN={x:0,z:8,halfWidth:19,halfDepth:19};
 export const ARRIVAL={x:0,z:11};
@@ -29,7 +30,7 @@ export function landmarks(region){const m=MAPS[region];return [
  {name:'Western Ruins',x:-34,z:-32,r:11,kind:'ruin'},
  {name:'Eastern Ruins',x:34,z:-32,r:11,kind:'ruin'},
  ];}
-export function zoneName(region,x,z){const list=landmarks(region);const nearby=list.find(l=>Math.hypot(x-l.x,z-l.z)<l.r);return nearby?.name||'The wilds';}
+export function zoneName(region,x,z){const list=[...scenicLocations(region),...landmarks(region)];const nearby=list.find(l=>Math.hypot(x-l.x,z-l.z)<l.r);return nearby?.name||'The wilds';}
 export function roads(region){
  const bent=region===1?4:0;
  return [
@@ -37,6 +38,7 @@ export function roads(region){
  [[-54,8],[-36,8],[-24,8],[0,8],[24,8],[36,8],[54,8]],
  [[-36,8],[-39,-11],[-34,-32],[0,-38],[34,-32],[39,-11],[36,8]],
  [[-36,8],[-32,31],[0,43],[32,31],[36,8]],
+ ...(region===0?[[[-34,-32],[-42,-40],[riverX(0,-40),-40],[-57,-40]]]:region===1?[[[32,31],[42,32],[riverX(1,32),32],[57,32]]]:region===2?[[[36,8],[47,8],[51,8]],[[47,8],[47,26],[43,34]]]:[[[32,31],[38,38]]]),
  ];
 }
 export function distanceToRoad(region,x,z){let nearest=Infinity;for(const path of roads(region))for(let i=1;i<path.length;i++){

@@ -1,5 +1,6 @@
 // Deterministic regional settlement + wilderness compositions of 404 assets.
 import {WORLD_LIMIT,TOWN,EXIT,NPCS,MAPS,inTown,landmarks,roads,distanceToRoad} from './world-map.js';
+import {geographyColliders,geographyProps,waterDistance,onCrossing,riverX} from './geography.js';
 export {WORLD_LIMIT};
 export const LANDSCAPES = [
  {ground:0xffffff,stone:0xfff5e3,needles:0xffffff,leaves:0xffffff,grass:0x6c794b,light:0xffac52,dust:0xc1c5a0,hour:16.5,azimuth:245,cover:16000},
@@ -9,9 +10,16 @@ export const LANDSCAPES = [
 ];
 export function seeded(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
 export function sceneryLayout(region){
- const props=[],colliders=[],lanterns=[],rand=seeded(8404+region*771);
+ const props=[],colliders=geographyColliders(region),lanterns=[],rand=seeded(8404+region*771);
+ for(const p of geographyProps(region)){
+  props.push(p);
+  if(p.kind==='cliff'){
+   const c=Math.abs(Math.cos(p.rotation)),s=Math.abs(Math.sin(p.rotation));
+   colliders.push({x:p.x,z:p.z,w:9*p.sx*c+6*p.sz*s,d:9*p.sx*s+6*p.sz*c,terrain:true});
+  }
+ }
  const add=(kind,x,z,sx=1,sy=sx,sz=sx,rotation=0)=>props.push({kind,x,z,sx,sy,sz,rotation});
- const rock=(x,z,sx=1,sy=sx,sz=sx)=>{add('stone',x,z,sx,sy,sz,rand()*6);colliders.push({x,z,r:.75*Math.max(sx,sz)});};
+ const rock=(x,z,sx=1,sy=sx,sz=sx)=>{if(waterDistance(region,x,z)<1.8||onCrossing(region,x,z,1))return;add('stone',x,z,sx,sy,sz,rand()*6);colliders.push({x,z,r:.75*Math.max(sx,sz)});};
  const building=(kind,x,z,scale=1,rotation=0)=>{
   add(kind,x,z,scale,scale,scale,rotation);
   const [w,d]=kind==='house'?[5.8,6.4]:kind==='stall'?[3.4,2.2]:[2.6,2.2];
@@ -49,6 +57,17 @@ export function sceneryLayout(region){
  }
  // Small hamlets, old camps and orchard markers give the southern loop a purpose.
  for(const side of [-1,1]){building('house',side*27,40,.7,side<0?Math.PI/2:-Math.PI/2);building('stall',side*32,45,.8);rock(side*7,45,.7,.65,.8);}
+ // Small riverside and coastal destinations use the same authored kit, but
+ // belong to their landscape instead of repeating the market everywhere.
+ if(region===0){building('house',-56,17,.62,Math.PI/2);building('stall',-56,-33,.7);}
+ if(region===1){building('house',56,22,.6,-Math.PI/2);building('stall',56,27,.65);}
+ if(region===2){building('stall',47,17,.85,-Math.PI/2);building('house',47,-14,.65,-Math.PI/2);}
+ for(let z=-54;z<=54;z+=9)for(const side of [-1,1]){
+  if(region>1)continue;const bridge=geographyProps(region).find(p=>p.kind==='bridge'&&Math.abs(p.z-z)<5);if(bridge)continue;
+  // Low bank stones are solid but leave both bridge approaches and hunting
+  // clearings open; their scale exposes the water edge rather than hiding it.
+  const x=riverX(region,z)+side*((region===0?2.6:2.2)+2.3);if(distanceToRoad(region,x,z)>2.5)rock(x,z,.35,.16,.4);
+ }
  // Human-scale courtyard edges. Keep entrances and the four roads unobstructed.
  for(const side of [-1,1]){
   for(const [x,z,k] of [[7.3,15.4,.72],[17,-9,.85],[17,27,.75]]){
@@ -63,7 +82,7 @@ export function sceneryLayout(region){
  const count=[390,500,130,200][region];
  for(let i=0;i<count;i++){
   const x=(rand()-.5)*138,z=(rand()-.5)*138,k=.65+rand()*.65;
-  if(inTown(x,z)||distanceToRoad(region,x,z)<3.5||protectedPoints.some(p=>Math.hypot(x-p.x,z-p.z)<p.r+1)||colliders.some(c=>c.r?Math.hypot(x-c.x,z-c.z)<c.r+1:Math.abs(x-c.x)<c.w/2+2&&Math.abs(z-c.z)<c.d/2+2))continue;
+  if(inTown(x,z)||waterDistance(region,x,z)<(region===2?9:3)||onCrossing(region,x,z,2)||distanceToRoad(region,x,z)<3.5||protectedPoints.some(p=>Math.hypot(x-p.x,z-p.z)<p.r+1)||colliders.some(c=>c.r?Math.hypot(x-c.x,z-c.z)<c.r+1:Math.abs(x-c.x)<c.w/2+2&&Math.abs(z-c.z)<c.d/2+2))continue;
   const kind=region!==2&&i%3===0?'hornbeam':'pine';add(kind,x,z,k,region===1?k*1.15:k,k,rand()*6.28);if(Math.abs(x)<WORLD_LIMIT&&Math.abs(z)<WORLD_LIMIT)colliders.push({x,z,r:.32*k});
  }
  // Light only the market; distant lanterns retain their emissive mesh without costly lights.
@@ -79,6 +98,7 @@ export function canStandIn(colliders,x,z){
 export function pavingLayout(region){
  const tiles=[],used=new Set(),rand=seeded(7504+region);
  const put=(x,z,sx=1.55,sz=1.55,rotation=0)=>{
+  if(waterDistance(region,x,z)<1.6||onCrossing(region,x,z,.3))return;
   const key=`${Math.round(x*3)},${Math.round(z*3)}`;if(used.has(key))return;used.add(key);
   tiles.push({x,z,sx,sz,rotation});
  };

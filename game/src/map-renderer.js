@@ -1,5 +1,6 @@
 import {MAP_EXTENT,mapView,project,mapLayout} from './cartography.js';
 import {TOWN} from './world-map.js';
+import {waterOutline} from './geography.js';
 
 // Shared, bounded cache: tiny HUD maps never redraw hundreds of scenery objects.
 const layers=new Map();
@@ -13,6 +14,10 @@ function terrain(region){
  for(const l of layout.landmarks){c.fillStyle=l.kind==='town'?'#75826855':l.kind==='shard'?'#9982ae22':'#b0b27c15';c.beginPath();c.arc(l.x,l.z,l.radius||l.r||11,0,Math.PI*2);c.fill();}
  c.fillStyle='#6d7f5855';c.fillRect(TOWN.x-TOWN.halfWidth,TOWN.z-TOWN.halfDepth,TOWN.halfWidth*2,TOWN.halfDepth*2);
  c.lineJoin=c.lineCap='round';
+ const polygon=(points,color)=>{c.fillStyle=color;c.beginPath();points.forEach(([x,z],i)=>i?c.lineTo(x,z):c.moveTo(x,z));c.closePath();c.fill();};
+ if(region===2)polygon(waterOutline(region,9),'#c6b58c');
+ polygon(waterOutline(region,1.3),'#71806c');polygon(layout.water,'#467f88');
+ c.strokeStyle='#a4c4b4';c.lineWidth=.16;c.stroke();
  for(const [width,color] of [[2.5,'#302e25'],[1.7,'#ac9670']]){c.lineWidth=width;c.strokeStyle=color;for(const path of layout.roads){c.beginPath();path.forEach(([x,z],i)=>i?c.lineTo(x,z):c.moveTo(x,z));c.stroke();}}
  c.fillStyle='#b1a182';c.beginPath();c.arc(0,8,4.5,0,Math.PI*2);c.fill();
  for(const p of layout.props){
@@ -24,6 +29,8 @@ function terrain(region){
    c.strokeStyle='#e3c598';c.strokeRect(-w/2,-d/2,w,d);c.beginPath();c.moveTo(0,-d/2);c.lineTo(0,d/2);c.stroke();
   }else if(p.kind==='pine'||p.kind==='hornbeam'){
    c.fillStyle=p.kind==='hornbeam'?'#4e6946':['#182e24','#142d23','#343c2a','#232f32'][region];c.beginPath();c.arc(0,0,p.kind==='hornbeam'?2.5:1.5,0,Math.PI*2);c.fill();c.strokeStyle='#72815a55';c.stroke();
+  }else if(p.kind==='bridge'){c.fillStyle='#9e7955';c.fillRect(-2,-4.4,4,8.8);c.strokeStyle='#ecd4ab';for(const x of [-2,2]){c.beginPath();c.moveTo(x,-4.3);c.lineTo(x,4.3);c.stroke();}c.strokeStyle='#5d4934';for(let z=-4;z<=4;z+=.5){c.beginPath();c.moveTo(-1.8,z);c.lineTo(1.8,z);c.stroke();}
+  }else if(p.kind==='cliff'){c.fillStyle='#777e77';c.beginPath();c.moveTo(-4.5,-1);c.lineTo(-2.5,-3);c.lineTo(2.5,-2.8);c.lineTo(4.5,1);c.lineTo(2.5,3);c.lineTo(-3,2.5);c.closePath();c.fill();c.strokeStyle='#c2c3ac';c.stroke();c.beginPath();c.moveTo(-3,1);c.lineTo(-.5,-1.8);c.lineTo(2.5,.8);c.stroke();
   }else if(p.kind==='garden'){c.fillStyle='#a9aa88';c.fillRect(-1.95,-.45,3.9,.9);
   }else if(p.kind==='standard'){c.fillStyle='#b88760';c.fillRect(-.4,-.35,.8,.7);
   }else if(p.kind==='stone'){

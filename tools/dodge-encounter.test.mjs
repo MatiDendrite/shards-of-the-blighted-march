@@ -16,41 +16,41 @@ const explode=s=>{s.m.damageShard(999);s.m.player.x=0;s.m.player.z=11;for(const 
 const legacy=()=>{const s=setup(),save=s.p.snapshot(s.m);delete save.encounterVersion;return save;};
 const completed=()=>({...emptyEncounter(),claimed:[1,2,3,4,5,6,7,8],shardReward:true,world:{shardHp:0,exploded:true}});
 
-for(let region=0;region<3;region++)test(`region ${region}: twelve initial enemies plus four stable wave IDs; every kill gates travel`,()=>{
+for(let region=0;region<3;region++)test(`region ${region}: twenty initial enemies plus four stable wave IDs; every kill gates travel`,()=>{
  const s=setup();s.p.data.campaign={region,cleared:[region>0,region>1,false,false],regions:[null,null,null,null]};s.m.reset(region);
- assert.equal(s.m.enemies.length,12);assert.equal(s.m.requiredKills,16);assert.equal(s.m.enemies.filter(e=>e.patrol).length,8);
- s.m.damageShard(999);assert.equal(s.m.enemies.length,16);assert.deepEqual(s.m.enemies.map(e=>e.id).sort((a,b)=>a-b),Array.from({length:16},(_,i)=>i+1));
+ assert.equal(s.m.enemies.length,20);assert.equal(s.m.requiredKills,24);assert.equal(s.m.enemies.filter(e=>e.patrol).length,16);
+ s.m.damageShard(999);assert.equal(s.m.enemies.length,24);assert.deepEqual(s.m.enemies.map(e=>e.id).sort((a,b)=>a-b),Array.from({length:24},(_,i)=>i+1));
  for(const e of s.m.enemies)e.stagger=100;for(let i=0;i<90;i++)s.m.update(1/60);flush(s);
  for(const e of s.m.enemies.filter(e=>e.id<=8))s.m.damageEnemy(e,999);flush(s);
  assert.equal(s.m.kills,8);assert(!s.m.complete);assert(!s.c.data.cleared[region]);assert(!s.c.travel(region+1));
- assert.match(journeyGuide(s.c).tip,/8 guardians remain/);assert.match(questSteps(s.c)[2].text,/8 \/ 16/);assert(!questSteps(s.c)[0].done);
- for(const e of s.m.enemies.filter(e=>e.id>8&&e.id!==16))s.m.damageEnemy(e,999);flush(s);
- assert.equal(s.m.kills,15);assert(!s.c.data.cleared[region]);assert(!s.c.travel(region+1));
- s.m.damageEnemy(s.m.enemies.find(e=>e.id===16),999);flush(s);
+ assert.match(journeyGuide(s.c).tip,/16 guardians remain/);assert.match(questSteps(s.c)[2].text,/8 \/ 24/);assert(!questSteps(s.c)[0].done);
+ for(const e of s.m.enemies.filter(e=>e.id>8&&e.id!==24))s.m.damageEnemy(e,999);flush(s);
+ assert.equal(s.m.kills,23);assert(!s.c.data.cleared[region]);assert(!s.c.travel(region+1));
+ s.m.damageEnemy(s.m.enemies.find(e=>e.id===24),999);flush(s);
  assert(s.m.complete);assert(s.c.data.cleared[region]);assert(travelFixture(s.c,region+1));
 });
 test('missing reinforcements cannot produce a false completion; boss remains one enemy',()=>{
  const m=new Combat();m.shard.exploded=true;m.enemies.forEach(e=>e.hp=0);assert(!m.complete);
  m.reset(3);assert.equal(m.enemies.length,1);assert.equal(m.requiredKills,1);m.damageEnemy(m.enemies[0],999);assert(m.complete);
 });
-test('last patrol and all seventeen drops survive reload; no duplicated rewards',()=>{
- const s=setup();explode(s);for(const e of s.m.enemies)if(e.id!==16)s.m.damageEnemy(e,999);flush(s);
+test('last patrol and all twenty-five drops survive reload; no duplicated rewards',()=>{
+ const s=setup();explode(s);for(const e of s.m.enemies)if(e.id!==24)s.m.damageEnemy(e,999);flush(s);
  const saved=s.p.snapshot(s.m);assert(validSave(saved));const p=new Progression(saved),m=new Combat(),c=new Campaign(p,m);p.restore(m);
- assert.equal(m.kills,15);assert(!m.complete);assert.deepEqual(m.telemetry().enemies.map(e=>e.id),[16]);
- m.damageEnemy(m.enemies.find(e=>e.id===16),999);const events=m.consume();p.events(events,m);p.events(events,m);assert(c.observe());assert(!c.observe());
- assert.equal(p.data.drops.length,17);assert.equal(p.data.claimed.length,16);assert(validSave(p.snapshot(m)));
+ assert.equal(m.kills,23);assert(!m.complete);assert.deepEqual(m.telemetry().enemies.map(e=>e.id),[24]);
+ m.damageEnemy(m.enemies.find(e=>e.id===24),999);const events=m.consume();p.events(events,m);p.events(events,m);assert(c.observe());assert(!c.observe());
+ assert.equal(p.data.drops.length,25);assert.equal(p.data.claimed.length,24);assert(validSave(p.snapshot(m)));
 });
 test('old partial save keeps original guard/wave kills and loot, and adds living patrols',()=>{
  const old=legacy();Object.assign(old,{claimed:[1,5],world:{shardHp:150,exploded:false},drops:[{id:'1-0-5',x:2,z:-43,gold:12,ore:0,item:null}]});
  assert(validSave(old));const original=structuredClone(old),p=new Progression(old),m=new Combat();p.restore(m);
- assert.deepEqual(old,original);assert.equal(m.enemies.length,14);assert.equal(m.kills,2);assert.equal(m.enemies.find(e=>e.id===5).hp,0);
+ assert.deepEqual(old,original);assert.equal(m.enemies.length,22);assert.equal(m.kills,2);assert.equal(m.enemies.find(e=>e.id===5).hp,0);
  assert(m.enemies.filter(e=>e.patrol).every(e=>e.hp>0));assert.deepEqual(p.data.drops,old.drops);assert(validSave(p.snapshot(m)));
 });
 test('completed legacy current and archived regions keep roads open without free rewards',()=>{
  const old=legacy();old.campaign={region:2,cleared:[true,true,true,false],regions:[completed(),completed(),null,null]};Object.assign(old,completed());assert(validSave(old));
  const p=new Progression(old),m=new Combat(),c=new Campaign(p,m);p.restore(m);
- assert(m.complete);assert.deepEqual(p.data.claimed,Array.from({length:16},(_,i)=>i+1));
- for(const state of p.data.campaign.regions.filter(Boolean))assert.equal(state.claimed.length,16);
+ assert(m.complete);assert.deepEqual(p.data.claimed,Array.from({length:24},(_,i)=>i+1));
+ for(const state of p.data.campaign.regions.filter(Boolean))assert.equal(state.claimed.length,24);
  for(const field of ['gold','ore','xp','level','serial','items','drops'])assert.deepEqual(p.data[field],old[field]);
  const upgraded=p.snapshot(m);assert(validSave(upgraded));assert.deepEqual(new Progression(upgraded).data,upgraded);
  assert(travelFixture(c,0));assert(m.complete);assert(travelFixture(c,3));assert.equal(m.enemies.length,1);assert(validSave(p.snapshot(m)));
@@ -64,7 +64,7 @@ test('eight kills before the legacy blast finishes do not bypass new patrols',()
 });
 test('schema bounds expanded IDs/drop count and rejects unknown encounter versions',()=>{
  const s=setup();explode(s);for(const e of s.m.enemies)s.m.damageEnemy(e,999);flush(s);const save=s.p.snapshot(s.m);assert(validSave(save));
- for(const mutate of [d=>d.encounterVersion=99,d=>d.encounterVersion=null,d=>d.encounterVersion='2',d=>delete d.encounterVersion,d=>d.claimed.push(17),d=>d.drops.push({...d.drops[0],id:'extra'})]){const bad=structuredClone(save);mutate(bad);assert(!validSave(bad));}
+ for(const mutate of [d=>d.encounterVersion=99,d=>d.encounterVersion=null,d=>d.encounterVersion='2',d=>delete d.encounterVersion,d=>d.claimed.push(25),d=>d.drops.push({...d.drops[0],id:'extra'})]){const bad=structuredClone(save);mutate(bad);assert(!validSave(bad));}
 });
 test('patrol rewards are once-only resources; all expedition equipment fits the satchel',()=>{
  const s=setup();for(let region=0;region<4;region++){

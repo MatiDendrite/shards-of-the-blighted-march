@@ -22,7 +22,11 @@ function walk(target,tolerance=1.15){
  const p=model.player,key=`${target.id??'point'}:${Math.round(target.x)}:${Math.round(target.z)}`;
  if(key!==pathKey||!waypoints.length||stuck>20||(frames/60-lastRoute>5)){
   const cols=model.shard.hp>0?[...obstacles,{x:model.shard.x,z:model.shard.z,r:.86}]:obstacles;
-  waypoints=route([p.x,p.z],target,cols,tolerance,.6);pathKey=key;lastRoute=frames/60;stuck=0;
+  // Following a moving patrol can leave the bot legally beside a tree, inside
+  // the router's extra safety margin. Retry with .35 m (still above the game's
+  // .30 m radius); actual simulated movement always uses the real collisions.
+  try{waypoints=route([p.x,p.z],target,cols,tolerance,.6);}catch{waypoints=route([p.x,p.z],target,cols,tolerance,.35);}
+  pathKey=key;lastRoute=frames/60;stuck=0;
  }
  while(waypoints.length>1&&Math.hypot(waypoints[0].x-p.x,waypoints[0].z-p.z)<.35)waypoints.shift();
  const next=waypoints[0]||target,dx=next.x-p.x,dz=next.z-p.z,d=Math.hypot(dx,dz)||1;return{x:dx/d,z:dz/d};

@@ -121,7 +121,8 @@ export class Combat {
       if(e.phase==='windup'){e.timer-=dt;if(e.timer<=0){e.phase='recovery';e.timer=d.recovery;if(inArc(e,{...p,radius:.28},d.range,d.arc,e.angle))this.hurtPlayer(d.damage*(1+this.region*.15));this.emit('enemyStrike',{id:e.id});}continue;}
       if(e.phase==='recovery'){e.timer-=dt;if(e.timer<=0)e.phase='idle';continue;}
       const distance=dist(e,p),aggro=!inTown(p.x,p.z)&&distance<10&&Math.hypot(e.x-e.homeX,e.z-e.homeZ)<14;
-      const target=aggro?p:{x:e.homeX,z:e.homeZ};
+      const patrol=e.patrol?{x:e.homeX+Math.sin(this.time*.19+e.id)*1.3,z:e.homeZ+Math.cos(this.time*.19+e.id)*.9}:{x:e.homeX,z:e.homeZ};
+      const target=aggro?p:this.canStand(patrol.x,patrol.z)&&!inTown(patrol.x,patrol.z)?patrol:{x:e.homeX,z:e.homeZ};
       if(aggro&&distance<d.range+.06){e.phase='windup';e.timer=d.windup;e.angle=bearing(e,p);this.emit('enemyWindup',{id:e.id});continue;}
       if(dist(e,target)>.2){const a=bearing(e,target);e.angle+=angleDelta(a,e.angle)*Math.min(1,dt*8);const x=Math.sin(a)*d.speed*dt,z=Math.cos(a)*d.speed*dt,oldX=e.x,oldZ=e.z;this.move(e,x,z);if(Math.hypot(e.x-oldX,e.z-oldZ)<dt*.1){const turn=a+(e.id%2?1:-1)*1.2;this.move(e,Math.sin(turn)*d.speed*dt,Math.cos(turn)*d.speed*dt);}e.walk+=dt*d.speed*3;}
       for(const other of this.enemies){if(other===e||other.hp<=0)continue;const sep=dist(e,other);if(sep<.75&&sep>.001)this.move(e,(e.x-other.x)/sep*dt*.55,(e.z-other.z)/sep*dt*.55);}

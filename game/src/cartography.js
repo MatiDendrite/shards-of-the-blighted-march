@@ -1,6 +1,7 @@
 import {MAPS,NPCS,TOWN,WORLD_LIMIT,roads,landmarks,portalsFor} from './world-map.js';
 import {sceneryLayout} from './region-layout.js';
 import {SMITH} from './progression.js';
+import {scenicLocations,waterOutline} from './geography.js';
 
 export const MAP_EXTENT=WORLD_LIMIT+4;
 export function mapView(zoom=1,x=0,z=0){
@@ -21,9 +22,10 @@ export function mapLocations(region){
   ...NPCS.map(n=>({...n,detail:n.role,symbol:n.name[0]})),
   ...(region===0?[{id:'smith',name:'Borin',detail:'Forge & salvage',symbol:'S',...SMITH}]:[]),
   {id:'objective',name:region===3?'Warden’s Court':'Shard Sanctuary',detail:'Quest location',...MAPS[region].shard},
-  ...portalsFor(region).map(p=>({...p,name:p.id==='exit'?'Northern portal':'Southern return portal',detail:p.id==='exit'?'Next region · finish quest first':'Previous region · reach the portal'}))
+  ...portalsFor(region).map(p=>({...p,name:p.id==='exit'?'Northern portal':'Southern return portal',detail:p.id==='exit'?'Next region · finish quest first':'Previous region · reach the portal'})),
+  ...scenicLocations(region).map((p,i)=>({...p,id:`scenic-${i}`,detail:({river:'Riverbank · cross at a bridge',bridge:'Timber crossing',beach:'Sandy coast',sea:'Open water · no swimming',lake:'Mountain lake',mountain:'Limestone crags'})[p.kind]}))
  ];
 }
 export function mapLayout(region){
- return {props:sceneryLayout(region).props,roads:roads(region),landmarks:landmarks(region),locations:mapLocations(region)};
+ return {props:sceneryLayout(region).props,roads:roads(region),landmarks:[...landmarks(region),...scenicLocations(region)],locations:mapLocations(region),water:waterOutline(region)};
 }

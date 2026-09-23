@@ -4,6 +4,7 @@ import {Combat} from '../game/src/combat-model.js';
 import {sceneryLayout,pavingLayout,canStandIn} from '../game/src/region-layout.js';
 import {WORLD_LIMIT,inTown,MAPS,EXIT,RETURN,NPCS,landmarks} from '../game/src/world-map.js';
 import {route} from './navigation.mjs';
+import {crossings} from '../game/src/geography.js';
 for(let region=0;region<4;region++){
  test(`region ${region}: deterministic settlement and solid obstacles`,()=>{
   const a=sceneryLayout(region);assert.deepEqual(a,sceneryLayout(region));assert(a.props.filter(p=>p.kind==='house').length>=6);assert(a.props.some(p=>p.kind==='well'));assert(a.props.some(p=>p.kind==='stall'));
@@ -21,7 +22,7 @@ for(let region=0;region<4;region++){
 test('each world is over eight times the original playable area',()=>{assert.equal(WORLD_LIMIT*2,120);assert((WORLD_LIMIT*2)**2/(38*45)>8);});
 test('paving reaches all four directions and retains distinct regional forms',()=>{
  const layouts=[0,1,2,3].map(r=>pavingLayout(r));
- for(const tiles of layouts){for(const key of ['x','z']){assert(Math.min(...tiles.map(t=>t[key]))<-50);assert(Math.max(...tiles.map(t=>t[key]))>50);}for(const p of tiles)assert([p.x,p.z,p.sx,p.sz,p.rotation].every(Number.isFinite));}
+ for(const [region,tiles] of layouts.entries()){const surfaces=[...tiles,...crossings(region).flatMap(p=>[{x:p.x-4*p.sz,z:p.z},{x:p.x+4*p.sz,z:p.z}])];for(const key of ['x','z']){assert(Math.min(...surfaces.map(t=>t[key]))<-50);assert(Math.max(...surfaces.map(t=>t[key]))>50);}for(const p of tiles)assert([p.x,p.z,p.sx,p.sz,p.rotation].every(Number.isFinite));}
  assert(layouts[1].length<layouts[0].length);assert(layouts[3].length>layouts[0].length);
 });
 test('town safety is bounded on all sides, not the old southern half-plane',()=>{assert(inTown(0,11));assert(inTown(-5,2));for(const [x,z] of [[35,11],[-35,11],[0,43],[0,-25]])assert(!inTown(x,z));});

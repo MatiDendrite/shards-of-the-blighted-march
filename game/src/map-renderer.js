@@ -1,6 +1,7 @@
 import {MAP_EXTENT,mapView,project,mapLayout} from './cartography.js';
 import {TOWN} from './world-map.js';
 import {waterOutline} from './geography.js';
+import {terrainHeight,groundGradient} from './terrain-height.js';
 
 // Shared, bounded cache: tiny HUD maps never redraw hundreds of scenery objects.
 const layers=new Map();
@@ -10,6 +11,18 @@ function terrain(region){
  const c=canvas.getContext('2d'),layout=mapLayout(region),scale=1024/(MAP_EXTENT*2);
  c.fillStyle=['#283e32','#203e32','#514638','#343847'][region];c.fillRect(0,0,1024,1024);
  c.save();c.translate(512,512);c.scale(scale,scale);
+ // Cached hillshade and metre contours match the actual traversable terrain.
+ // Kept beneath roads/markers so elevation never obscures the map's purpose.
+ for(let z=-MAP_EXTENT;z<MAP_EXTENT;z+=1)for(let x=-MAP_EXTENT;x<MAP_EXTENT;x+=1){const g=groundGradient(region,x+.5,z+.5),light=Math.max(-1,Math.min(1,(-g.x-g.z)*1.4));c.fillStyle=light>0?`rgba(219,222,181,${light*.23})`:`rgba(7,17,20,${-light*.4})`;c.fillRect(x,z,1,1);}
+ c.strokeStyle='#ded3a222';c.lineWidth=.1;c.beginPath();
+ for(let z=-MAP_EXTENT;z<MAP_EXTENT;z+=1)for(let x=-MAP_EXTENT;x<MAP_EXTENT;x+=1){
+  const corners=[[x,z],[x+1,z],[x+1,z+1],[x,z+1]],heights=corners.map(([u,v])=>terrainHeight(region,u,v));
+  for(let level=Math.max(1,Math.ceil(Math.min(...heights)));level<=Math.max(...heights);level++){
+   const points=[];for(let e=0;e<4;e++){const next=(e+1)%4,a=heights[e],b=heights[next];if((a<level)===(b<level))continue;const t=(level-a)/(b-a);points.push([corners[e][0]+(corners[next][0]-corners[e][0])*t,corners[e][1]+(corners[next][1]-corners[e][1])*t]);}
+   for(let i=1;i<points.length;i+=2){c.moveTo(...points[i-1]);c.lineTo(...points[i]);}
+  }
+ }
+ c.stroke();
  c.strokeStyle='#c5b48866';c.lineWidth=.18;c.strokeRect(-60,-60,120,120);
  for(const l of layout.landmarks){c.fillStyle=l.kind==='town'?'#75826855':l.kind==='shard'?'#9982ae22':'#b0b27c15';c.beginPath();c.arc(l.x,l.z,l.radius||l.r||11,0,Math.PI*2);c.fill();}
  c.fillStyle='#6d7f5855';c.fillRect(TOWN.x-TOWN.halfWidth,TOWN.z-TOWN.halfDepth,TOWN.halfWidth*2,TOWN.halfDepth*2);

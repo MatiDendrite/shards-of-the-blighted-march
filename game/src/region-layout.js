@@ -1,6 +1,8 @@
 // Deterministic regional settlement + wilderness compositions of 404 assets.
 import {WORLD_LIMIT,TOWN,EXIT,NPCS,MAPS,inTown,landmarks,roads,distanceToRoad} from './world-map.js';
 import {geographyColliders,geographyProps,waterDistance,onCrossing,riverX} from './geography.js';
+import {buildingSites,gateSites} from './settlement-layout.js';
+import {groundHeight} from './terrain-height.js';
 export {WORLD_LIMIT};
 export const LANDSCAPES = [
  {ground:0xffffff,stone:0xfff5e3,needles:0xffffff,leaves:0xffffff,grass:0x6c794b,light:0xffac52,dust:0xc1c5a0,hour:16.5,azimuth:245,cover:16000},
@@ -33,21 +35,13 @@ export function sceneryLayout(region){
   }
  };
  // A real central settlement, with open cardinal streets and exterior-only houses.
- const houses=region===0?[[-12,-3,1],[12,-3,1],[-12,17,1.05],[12,20,.9],[-7,-7,.78],[7,25,.85],[-9,29,.8],[14,30,.72]]:
-  region===1?[[-12,-3,.83],[12,-3,.8],[-12,19,.9],[12,22,.8],[-8,29,.72],[9,31,.7]]:
-  region===2?[[-13,-3,.85],[13,-3,.9],[-12,19,.9],[12,23,.75],[-9,30,.7]]:
-  [[-12,-3,.85],[12,-3,.85],[-12,20,.8],[12,23,.78]];
- for(const [x,z,s] of houses)building('house',x,z,s,x<0?Math.PI/2:-Math.PI/2);
- building('stall',7,-2,.95);building('stall',-7,17,.9,Math.PI/2);building('well',3,7,.85);
+ for(const p of buildingSites(region))building(p.kind,p.x,p.z,p.scale,p.rotation);
  for(const n of NPCS)colliders.push({x:n.x,z:n.z,r:.35});
  // The northern exit is separate from the settlement gates.
- gate(0,-53);
- for(const s of [-1,1]){gate(s*23,8,Math.PI/2);gate(s*36,-24);}
- gate(0,-15);gate(0,31);
+ for(const p of gateSites(region))gate(p.x,p.z,p.rotation);
  // Regional landmarks: ruined courts / rocky ridges / dense forest glades.
  if(region===3){
   for(let i=0;i<14;i++){const a=(i+.5)*Math.PI*2/14,x=Math.sin(a)*14,z=-38+Math.cos(a)*14;if(Math.abs(x)>4)rock(x,z,1.3,1.8,1.3);}
-  for(const s of [-1,1])gate(s*18,-38,Math.PI/2);
  }else{
   for(const [cx,cz] of [[-34,-32],[34,-32]])for(const [dx,dz] of [[-9,-5],[9,-5],[-9,7],[9,7]])rock(cx+dx,cz+dz,region===2?2.1:1.4,region===1?.7:1.7,1.4);
  }
@@ -56,12 +50,9 @@ export function sceneryLayout(region){
   if(distanceToRoad(region,x,z)>4)rock(x,z,1.8+rand(),region===2?1.5+rand():.7+rand(),1.5+rand());
  }
  // Small hamlets, old camps and orchard markers give the southern loop a purpose.
- for(const side of [-1,1]){building('house',side*27,40,.7,side<0?Math.PI/2:-Math.PI/2);building('stall',side*32,45,.8);rock(side*7,45,.7,.65,.8);}
+ for(const side of [-1,1])rock(side*7,45,.7,.65,.8);
  // Small riverside and coastal destinations use the same authored kit, but
  // belong to their landscape instead of repeating the market everywhere.
- if(region===0){building('house',-56,17,.62,Math.PI/2);building('stall',-56,-33,.7);}
- if(region===1){building('house',56,22,.6,-Math.PI/2);building('stall',56,27,.65);}
- if(region===2){building('stall',47,17,.85,-Math.PI/2);building('house',47,-14,.65,-Math.PI/2);}
  for(let z=-54;z<=54;z+=9)for(const side of [-1,1]){
   if(region>1)continue;const bridge=geographyProps(region).find(p=>p.kind==='bridge'&&Math.abs(p.z-z)<5);if(bridge)continue;
   // Low bank stones are solid but leave both bridge approaches and hunting
@@ -89,6 +80,14 @@ export function sceneryLayout(region){
  for(const [x,z] of [[-3,11],[8,11],[-5,-5],[5,-5],[-5,23],[5,23],[-25,11],[25,11],[-3,-18],[3,34],[-3,-55],[3,-55]]){
   add('lantern',x,z);lanterns.push({x,z,lit:inTown(x,z)});colliders.push({x,z,r:.1});
  }
+ // Collision footprints remain the accepted X/Z layout. Visual bounds receive
+ // exactly the same elevation as the placed mesh, including camera obstacles.
+ for(const p of props)if(p.kind!=='bridge'){
+  p.y=groundHeight(region,p.x,p.z);
+  const footprint={stone:[.7,.7],cliff:[4.5,3],pine:[.22,.22],hornbeam:[.3,.3]}[p.kind];
+  if(footprint){const c=Math.cos(p.rotation),s=Math.sin(p.rotation);for(let i=0;i<8;i++){const a=i*Math.PI/4,x=Math.cos(a)*footprint[0]*p.sx,z=Math.sin(a)*footprint[1]*p.sz;p.y=Math.min(p.y,groundHeight(region,p.x+x*c+z*s,p.z-x*s+z*c));}p.y-=.025;}
+ }
+ for(const p of lanterns)p.y=groundHeight(region,p.x,p.z);
  return {props,colliders,lanterns};
 }
 export function canStandIn(colliders,x,z){

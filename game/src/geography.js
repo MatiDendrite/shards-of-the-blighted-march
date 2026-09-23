@@ -1,5 +1,6 @@
 // Shared physical geography. Renderer, navigation, atlas and save migration use
-// this same contract; all walkable banks/decks remain at the combat floor y=0.
+// this same contract. Water and bridge decks keep their datum; dry-land relief
+// and exact rendered triangle sampling live in terrain-height.js.
 export const WATER_Y=-.46;
 export function waterOutline(region,edge=.65){
  if(region===3)return Array.from({length:65},(_,i)=>{const a=i/64*Math.PI*2;return [47+Math.cos(a)*(7+edge),38+Math.sin(a)*(7+edge)];});

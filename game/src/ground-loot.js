@@ -1,9 +1,10 @@
 import * as T from 'three';
 import {bakeStatic} from '../lib/assetlib.js';
+import {alignToGround} from './ground-projection.js';
 
 const COLORS={common:0xd9c697,uncommon:0x80d6aa,rare:0xb99af5};
 // One cached model per kind/tier. Drops never change the inventory/actor materials.
-export function createGroundLoot(models){
+export function createGroundLoot(models,heightAt=()=>0,gradientAt=null){
  const prototypes=new Map(),ownedMaterials=new Set(),ownedGeometry=new Set();
  const ringGeometry=new T.RingGeometry(.87,1,40),haloGeometry=new T.CircleGeometry(1,40);
  const coinGeometry=new T.CylinderGeometry(.09,.09,.025,12);
@@ -33,7 +34,7 @@ export function createGroundLoot(models){
  function create(drop){const kind=drop.item?.kind||'currency',rarity=drop.item?.rarity||'common',root=prototype(kind,rarity).clone(true);root.name='ground-loot';root.userData.itemKind=kind;root.userData.rarity=rarity;
   // Stable on reload; a grounded sword does not hover or spin like a pickup token.
   let hash=0;for(const c of String(drop.id))hash=(hash*31+c.charCodeAt(0))>>>0;
-  root.rotation.y=(hash%628)/100;root.position.set(drop.x,0,drop.z);return root;
+  const yaw=(hash%628)/100;root.rotation.y=yaw;root.position.set(drop.x,heightAt(drop.x,drop.z),drop.z);if(gradientAt)alignToGround(root,gradientAt(drop.x,drop.z),yaw);return root;
  }
  function update(time){for(const group of prototypes.values())group.getObjectByName('loot-outline').material.opacity=.46+Math.sin(time*2.6)*.15;}
  function dispose(){ownedMaterials.forEach(m=>m.dispose());ownedGeometry.forEach(g=>g.dispose());prototypes.clear();}

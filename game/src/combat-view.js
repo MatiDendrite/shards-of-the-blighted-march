@@ -11,6 +11,8 @@ import {SKILLS,classInfo} from './class-data.js';
 import {createSkillHud} from './class-view.js';
 import {createClassActors} from './class-actors.js';
 import {createClassEffects} from './class-effects.js';
+import {groundHeight} from './terrain-height.js';
+import {drapeGround} from './ground-projection.js';
 
 export function mergeJoints(root){const nodes=[],owned=[];root.traverse(n=>{if(n.isGroup)nodes.push(n);});for(const node of nodes){const meshes=node.children.filter(n=>n.isMesh);if(meshes.length<2)continue;const rigid=new T.Group();meshes.forEach(m=>rigid.add(m));const baked=bakeStatic(rigid);baked.traverse(o=>{if(o.isMesh)owned.push(o.geometry);});node.add(baked);}return owned;}
 
@@ -37,7 +39,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  // Enemy joints are resolved by name below. Serialized Object3D declarations
  // are not animation state and would otherwise duplicate large JSON trees on clone.
  assets.raider.traverse(o=>{delete o.userData.joints;});
- const impacts=createCombatEffects(scene),rings=createCombatRings(scene,prepare),text=createTextWriter();
+ const heightAt=(x,z)=>groundHeight(model.region,x,z),impacts=createCombatEffects(scene,heightAt),rings=createCombatRings(scene,prepare,heightAt),text=createTextWriter();
  let joints=hero.userData.joints;const weaponMount=new T.Group();weaponMount.name='heroWeaponMount';weaponMount.position.set(0,-.53,.04);weaponMount.rotation.x=Math.PI/2;joints.rightArm.add(weaponMount);
  const actors=createClassActors(hero,weaponMount,{mergeJoints,cloneActor,prepare}),skillHud=createSkillHud(),classEffects=createClassEffects(scene);
  let weapon='';const views=new Map(),labels=document.querySelector('#enemy-labels'),numbers=[];
@@ -47,13 +49,13 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  const blastRing=new T.Mesh(new T.RingGeometry(3.9,4.2,64),new T.MeshBasicMaterial({color:0xbe85ff,side:T.DoubleSide,transparent:true,opacity:.5,depthWrite:false}));blastRing.rotation.x=-Math.PI/2;blastRing.position.set(model.shard.x,.09,model.shard.z);blastRing.visible=false;scene.add(blastRing);
  function makeLabel(name,isShard=false){const el=document.createElement('div');el.className='enemy-label'+(isShard?' shard':'');const title=document.createElement('span');title.textContent=name;const bar=document.createElement('div'),fill=document.createElement('i');bar.append(fill);el.append(title,bar);labels.append(el);return{el,fill};}
  function createEnemy(e){
-  const root=assets[e.kind].clone(true);root.rotation.set(0,0,0);
+  const root=assets[e.kind].clone(true);root.name=`enemy-${e.id}`;root.rotation.set(0,0,0);
   // Hero clone includes the player's weapon; remove it before attaching enemy equipment.
   if(e.kind!=='wolf'){root.traverse(o=>{if(o.name==='heroWeaponMount')o.visible=false;});}
   const nodes={},materials=new Map();root.traverse(o=>{if(o.isGroup&&o.name)nodes[o.name]=o;if(o.isMesh){if(!materials.has(o.material)){const m=o.material.clone();if(e.kind==='raider'){m.color.multiplyScalar(.76);if(m.name==='fabric')m.color.setHex(0x39463a);}m.userData.restEmissive=m.emissive.clone();materials.set(o.material,m);}o.material=materials.get(o.material);}});
   if(e.kind!=='wolf'&&nodes.rightArm){const blade=assets.axe.clone();blade.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.userData.restEmissive=o.material.emissive.clone();}});blade.position.set(.12,e.kind==='boss'?-.98:-.76,.02);blade.rotation.x=Math.PI/2;if(e.kind==='boss')blade.scale.setScalar(1.65);nodes.rightArm.add(blade);}
-  const d=enemyAttack({...e,attackKind:'sweep'}),sweep=new T.CircleGeometry(d.range+.28,48,-Math.PI/2-d.arc/2,d.arc),slam=e.kind==='boss'?new T.CircleGeometry(enemyAttack({...e,attackKind:'slam'}).range+.28,64):null;
-  const telegraph=new T.Mesh(sweep,new T.MeshBasicMaterial({color:0xe0a949,side:T.DoubleSide,transparent:true,opacity:.32,depthWrite:false}));telegraph.rotation.x=-Math.PI/2;telegraph.visible=false;scene.add(telegraph);scene.add(root);
+  const d=enemyAttack({...e,attackKind:'sweep'}),sweep=new T.RingGeometry(0,d.range+.28,48,8,-Math.PI/2-d.arc/2,d.arc),slam=e.kind==='boss'?new T.RingGeometry(0,enemyAttack({...e,attackKind:'slam'}).range+.28,64,10):null;
+  const telegraph=new T.Mesh(sweep,new T.MeshBasicMaterial({color:0xe0a949,side:T.DoubleSide,transparent:true,opacity:.32,depthWrite:false}));telegraph.name=`warning-${e.id}`;telegraph.rotation.x=-Math.PI/2;telegraph.visible=false;scene.add(telegraph);scene.add(root);
   const name=e.kind==='boss'?'The Fallen Warden':e.kind==='wolf'?'Blighted Wolf':'Hollow Raider';
   const edgeGeometry=new T.RingGeometry(d.range+.20,d.range+.28,48,1,-Math.PI/2-d.arc/2,d.arc),slamEdge=e.kind==='boss'?new T.RingGeometry(4.7,4.78,64):null;
   const edge=new T.Mesh(edgeGeometry,new T.MeshBasicMaterial({color:d.color,transparent:true,opacity:.8,side:T.DoubleSide,depthWrite:false}));edge.rotation.x=-Math.PI/2;edge.visible=false;scene.add(edge);
@@ -81,12 +83,12 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   if(e.type==='death')audio.play('death');
  }}
  const projected=new T.Vector3(),hudPanels=[...document.querySelectorAll('#action-bar,#location,#utility,#objective,#navigation-map,#boss-bar')];let hudBounds=[];
- function positionLabel(label,x,y,z,camera){projected.set(x,y,z).project(camera);const sx=(projected.x*.5+.5)*innerWidth,sy=(-projected.y*.5+.5)*innerHeight;const behindHud=label.fill&&hudBounds.some(r=>sx+45>r.left&&sx-45<r.right&&sy>r.top&&sy-32<r.bottom);const visible=projected.z>-1&&projected.z<1&&Math.abs(projected.x)<1.2&&Math.abs(projected.y)<1.2&&!behindHud;label.el.hidden=!visible;if(visible){label.el.style.left=`${sx}px`;label.el.style.top=`${sy}px`;}}
+ function positionLabel(label,x,y,z,camera){projected.set(x,heightAt(x,z)+y,z).project(camera);const sx=(projected.x*.5+.5)*innerWidth,sy=(-projected.y*.5+.5)*innerHeight;const behindHud=label.fill&&hudBounds.some(r=>sx+45>r.left&&sx-45<r.right&&sy>r.top&&sy-32<r.bottom);const visible=projected.z>-1&&projected.z<1&&Math.abs(projected.x)<1.2&&Math.abs(projected.y)<1.2&&!behindHud;label.el.hidden=!visible;if(visible){label.el.style.left=`${sx}px`;label.el.style.top=`${sy}px`;}}
  function update(dt,camera){
   equip();const p=model.player,a=p.action;impacts.update(dt);hudBounds=hudPanels.map(el=>el.getBoundingClientRect()).filter(r=>r.width&&r.height);
   actors.animate(p,model.time);joints=actors.joints;classEffects.update(model);
-  for(const e of model.enemies){const near=(e.x-p.x)**2+(e.z-p.z)**2<44**2;let v=views.get(e.id);if(!v){if(e.hp<=0||!near)continue;v=createEnemy(e);}v.root.position.set(e.x,.06,e.z);v.root.rotation.set(0,e.angle,0);
-    if(e.hp<=0){v.deathAge+=dt;v.root.rotation.z=Math.min(Math.PI/2,v.deathAge*3);v.root.position.y=.06-Math.max(0,v.deathAge-1)*.5;v.root.visible=v.deathAge<2.8;v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
+  for(const e of model.enemies){const near=(e.x-p.x)**2+(e.z-p.z)**2<44**2;let v=views.get(e.id);if(!v){if(e.hp<=0||!near)continue;v=createEnemy(e);}v.root.position.set(e.x,heightAt(e.x,e.z)+.06,e.z);v.root.rotation.set(0,e.angle,0);
+    if(e.hp<=0){v.deathAge+=dt;v.root.rotation.z=Math.min(Math.PI/2,v.deathAge*3);v.root.position.y=heightAt(e.x,e.z)+.06-Math.max(0,v.deathAge-1)*.5;v.root.visible=v.deathAge<2.8;v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
     v.root.visible=near;if(!near){v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
     const flashing=e.flash>0;if(flashing!==v.flashing){for(const m of v.flashMaterials){if(flashing)m.emissive.setHex(0x392e20);else m.emissive.copy(m.userData.restEmissive);}v.flashing=flashing;}
     v.root.rotation.z=e.flash>0?Math.sin(e.flash/.18*Math.PI)*.075:0;
@@ -98,6 +100,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
     if(e.kind==='boss'){v.telegraph.geometry=e.attackKind==='slam'?v.slam:v.sweep;v.telegraph.material.color.setHex(e.attackKind==='slam'?0xb889f0:0xe0a949);}
     v.telegraph.visible=v.edge.visible=e.phase==='windup';v.telegraph.position.set(e.x,.11,e.z);v.telegraph.rotation.z=e.angle;v.telegraph.material.opacity=.12+charge*.30;
     v.edge.geometry=e.kind==='boss'&&e.attackKind==='slam'?v.slamEdge:v.edgeGeometry;v.edge.material.color.setHex(d.color);v.edge.position.set(e.x,.115,e.z);v.edge.rotation.z=e.angle;v.edge.material.opacity=.55+charge*.4;
+    if(v.telegraph.visible){drapeGround(v.telegraph,heightAt,.11);drapeGround(v.edge,heightAt,.115);}
     const title=e.phase==='windup'?`${d.name} · ${Math.max(0,e.timer).toFixed(1)}s`:`${v.name}${e.poison>0?' · Poisoned':e.slow>0?' · Chilled':''}`;if(v.label.el.firstChild.textContent!==title)v.label.el.firstChild.textContent=title;
     positionLabel(v.label,e.x,e.kind==='boss'?3.1:e.kind==='wolf'?1.55:2.1,e.z,camera);v.label.fill.style.width=`${e.hp/e.maxHp*100}%`;
     // The dedicated boss HUD already shows health and cast timing. A second
@@ -114,8 +117,9 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   }
   else{joints.rightArm.rotation.y=0;joints.torso.rotation.y=0;weaponMount.position.z=.04;}
   if(!p.dodge){if(joints.leftForearm)joints.leftForearm.rotation.x=p.moving?-.12:0;if(joints.rightForearm)joints.rightForearm.rotation.x=a?-.22:0;}
-  shard.position.set(model.shard.x,.05,model.shard.z);shardLight.position.set(model.shard.x,1.8,model.shard.z);blastRing.position.set(model.shard.x,.09,model.shard.z);const shardTitle=REGIONS[model.region].shard||'';if(shardLabel.el.firstChild.textContent!==shardTitle)shardLabel.el.firstChild.textContent=shardTitle;
+  const shardY=heightAt(model.shard.x,model.shard.z);shard.position.set(model.shard.x,shardY+.05,model.shard.z);shardLight.position.set(model.shard.x,shardY+1.8,model.shard.z);blastRing.position.set(model.shard.x,.09,model.shard.z);const shardTitle=REGIONS[model.region].shard||'';if(shardLabel.el.firstChild.textContent!==shardTitle)shardLabel.el.firstChild.textContent=shardTitle;
   shard.visible=model.shard.hp>0;shardLight.intensity=shard.visible?6+Math.sin(model.time*2)*2:0;blastRing.visible=model.shard.blast>0;blastRing.material.opacity=.3+Math.sin(model.time*25)**2*.45;
+  if(blastRing.visible)drapeGround(blastRing,heightAt,.09);
   shardLabel.el.hidden=model.shard.hp<=0;if(model.shard.hp>0){positionLabel(shardLabel,model.shard.x,3.6,model.shard.z,camera);shardLabel.fill.style.width=`${model.shard.hp/model.shard.maxHp*100}%`;}
   rings.update(dt);
   for(let i=numbers.length-1;i>=0;i--){const n=numbers[i];n.age+=dt;positionLabel({el:n.el},n.x,n.y+n.age,n.z,camera);n.el.style.opacity=1-n.age/.7;if(n.age>.7){n.el.remove();numbers.splice(i,1);}}

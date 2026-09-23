@@ -21,6 +21,8 @@ import {createFrameClock} from './frame-clock.js';
 import {CameraOrbit,cameraRelative,cameraHeading} from './camera-orbit.js';
 import {createClassView} from './class-view.js';
 import {classInfo,skillForSlot,SLOT_IDS} from './class-data.js';
+import {intersectGroundRay} from './terrain-height.js';
+import {drapeGround} from './ground-projection.js';
 
 const $=s=>document.querySelector(s);
 window.__READY__=false;
@@ -34,10 +36,10 @@ async function boot(){
   const snapshotObstacles=()=>Object.freeze(world.colliders.map(c=>Object.freeze({...c})));let diagnosticObstacles=snapshotObstacles();
   if(!hero.userData.joints?.leftLeg)throw new Error('The Wanderer joint hierarchy did not load.');
   mergeJoints(hero);
-  scene.add(hero);hero.position.set(0,.06,11);hero.rotation.y=Math.PI;
+  scene.add(hero);hero.position.set(0,world.heightAt(0,11)+.06,11);hero.rotation.y=Math.PI;
   const ring=new T.Mesh(new T.RingGeometry(.40,.425,40),new T.MeshBasicMaterial({color:0xc9c4a0,transparent:true,opacity:.32,depthWrite:false}));ring.rotation.x=-Math.PI/2;scene.add(ring);
   const orbit=new CameraOrbit();
-  const input=createInput(canvas,{canPlay:()=>window.__READY__===true&&started&&!paused&&!model.dead}),look=new T.Vector3(),desired=new T.Vector3(),ray=new T.Raycaster(),plane=new T.Plane(new T.Vector3(0,1,0),0),aim=new T.Vector3();
+  const input=createInput(canvas,{canPlay:()=>window.__READY__===true&&started&&!paused&&!model.dead}),look=new T.Vector3(),desired=new T.Vector3(),ray=new T.Raycaster();
   const model=new Combat((x,z)=>world.canStand(x,z)&&(model.shard.hp<=0||Math.hypot(x-model.shard.x,z-model.shard.z)>1.12),(x,z)=>world.canStand(x,z));
   const clearInput=input.clear;input.clear=()=>{clearInput();orbit.stop();model.clearBufferedInput();};
   const audio=createAudio(),combatView=await createCombatView(scene,hero,model,audio,{assets:combatAssets,prepare:root=>rig.refresh(root)});
@@ -65,7 +67,7 @@ async function boot(){
   function openBag(mode){if(classView?.busy)return;classView?.close();townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden)closeJournal();if(!$('#inventory').hidden){closeBag();return;}if(mode==='smith'&&!progress.nearSmith(model.player)){combatView.notice('Borin upgrades equipment at Hearthstead market. M marks his forge; southern portals lead back.');return;}if(mode==='merchant'&&!progress.nearMerchant(model.player))return;paused=true;input.clear();rpgView.open(mode);}
   function closeJournal(){if($('#journal').hidden)return;$('#journal').hidden=true;paused=false;input.clear();document.activeElement?.blur();}
   function openJournal(){if(classView?.busy)return;classView?.close();townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden){closeJournal();return;}if(!$('#inventory').hidden)closeBag();paused=true;input.clear();campaignView.open();save();}
-  function regionChanged(){classView?.close(false);classView?.refresh();combatView.setClass(model.player.classId);atlas?.close(false);combatView.reset();rpgView.clearDrops();if(world.setRegion(campaign.region))rig.refresh(scene);diagnosticObstacles=snapshotObstacles();setLandscapeLighting(rig,world.atmosphere);input.clear();hitStop=0;acc=0;actualSpeed=0;inventoryStill=0;hero.rotation.set(0,Math.PI,0);hero.position.set(model.player.x,.06,model.player.z);$('#journal').hidden=true;$('#defeat').hidden=true;$('#victory').hidden=true;paused=ended=false;won=campaign.complete;save();combatView.notice(REGIONS[campaign.region].name);document.activeElement?.blur();}
+  function regionChanged(){classView?.close(false);classView?.refresh();combatView.setClass(model.player.classId);atlas?.close(false);combatView.reset();rpgView.clearDrops();if(world.setRegion(campaign.region))rig.refresh(scene);diagnosticObstacles=snapshotObstacles();setLandscapeLighting(rig,world.atmosphere);input.clear();hitStop=0;acc=0;actualSpeed=0;inventoryStill=0;hero.rotation.set(0,Math.PI,0);hero.position.set(model.player.x,world.heightAt(model.player.x,model.player.z)+.06,model.player.z);$('#journal').hidden=true;$('#defeat').hidden=true;$('#victory').hidden=true;paused=ended=false;won=campaign.complete;save();combatView.notice(REGIONS[campaign.region].name);document.activeElement?.blur();}
   function travel(region){if(!started||paused||model.dead)return;if(campaign.travel(region))regionChanged();else combatView.notice('Approach an unlocked portal and leave combat before travelling.');}
   $('#journal-button').onclick=openJournal;$('#journal-close').onclick=closeJournal;$('#gate-button').onclick=()=>{if(!paused&&campaign.nearPortal)travel(campaign.nearPortal.destination);};
   $('#bag-button').onclick=()=>openBag('inventory');$('#smith-button').onclick=()=>openBag('smith');$('#bag-close').onclick=closeBag;
@@ -103,7 +105,7 @@ async function boot(){
     const moving=Math.hypot(m.x,m.z)>.08;
     let angle=p.angle;
     if(moving)angle=Math.atan2(m.x,m.z);
-    if(input.pointer.active&&!input.isTouch){ray.setFromCamera(input.pointer,camera);if(ray.ray.intersectPlane(plane,aim))angle=Math.atan2(aim.x-p.x,aim.z-p.z);}
+    if(input.pointer.active&&!input.isTouch){ray.setFromCamera(input.pointer,camera);const aim=intersectGroundRay(campaign.region,ray.ray.origin,ray.ray.direction);if(aim)angle=Math.atan2(aim.x-p.x,aim.z-p.z);}
     const actions=input.consume();
     if(input.isTouch&&(m.attack||actions.some(a=>['attack','cleave','slam'].includes(a)))){
       const ranged=(p.classId==='mage'&&actions.includes('cleave'))||(p.classId==='ninja'&&actions.includes('slam'))||(p.classId==='dwarf'&&actions.includes('slam'));
@@ -111,7 +113,7 @@ async function boot(){
       if(candidates.length)angle=Math.atan2(candidates[0].x-p.x,candidates[0].z-p.z);
     }
     for(const action of actions){if(action==='weapon'){model.cycleWeapon();progress.sync(model);}else if(action==='potion'){if(progress.potion(model))save();}else if(action==='dodge')model.dodge(m.x,m.z);else model.requestAttack(action==='attack'?'basic':SLOT_IDS.includes(action)?skillForSlot(p.classId,action):action,angle);}
-    const oldX=p.x,oldZ=p.z;model.update(dt,{...m,aim:angle});actualSpeed=Math.hypot(p.x-oldX,p.z-oldZ)/dt;hero.position.set(p.x,.06,p.z);hero.rotation.y=p.angle;
+    const oldX=p.x,oldZ=p.z;model.update(dt,{...m,aim:angle});actualSpeed=Math.hypot(p.x-oldX,p.z-oldZ)/dt;hero.position.set(p.x,world.heightAt(p.x,p.z)+.06,p.z);hero.rotation.y=p.angle;
     const revision=progress.revision,events=model.consume();progress.events(events,model);progress.tick(dt);progress.collect(p);const questCompleted=campaign.observe();if(questCompleted){campaignView.celebrate();audio.play('quest');}combatView.process(events);if(events.some(e=>e.type==='hit'))hitStop=events.some(e=>e.type==='hit'&&e.heavy)?.06:.03;
     if(progress.messages.length){if(!questCompleted)combatView.notice(progress.messages.at(-1));progress.messages.length=0;}
     saveTimer+=dt;if(progress.revision!==revision||saveTimer>5){save();saveTimer=0;}
@@ -123,12 +125,13 @@ async function boot(){
     const turn=input.consumeCamera();if(started&&!paused&&!model.dead){if(turn.reset)resetCamera();else{orbit.drag(turn.x,turn.y,turn.touch);orbit.wheel(turn.wheel);}orbit.advance(dt);}
     while(acc>=1/60){sim(1/60);acc-=1/60;}
     const portrait=innerWidth<innerHeight;
-    look.copy(hero.position);look.y=.75;
-    if(!started){look.set(-.7,.6,-4);desired.set(13,12,18);camera.position.lerp(desired,1-Math.exp(-dt*6));}
-    else{const eye=orbit.position(model.player,paused?0:dt,portrait,world.cameraObstacles);camera.position.set(eye.x,eye.y,eye.z);}
+    hero.position.y=world.heightAt(model.player.x,model.player.z)+.06;
+    look.copy(hero.position);look.y+=.69;
+    if(!started){look.set(-.7,world.heightAt(-.7,-4)+.6,-4);desired.set(13,12+world.heightAt(0,8),18);camera.position.lerp(desired,1-Math.exp(-dt*6));}
+    else{const eye=orbit.position(model.player,paused?0:dt,portrait,world.cameraObstacles,world.heightAt);camera.position.set(eye.x,eye.y,eye.z);}
     camera.lookAt(look);
     const heading=cameraHeading(orbit.yaw);if($('#camera-heading').textContent!==heading)$('#camera-heading').textContent=heading;
-    ring.position.set(hero.position.x,.09,hero.position.z);ring.visible=started;
+    ring.position.set(hero.position.x,.09,hero.position.z);ring.visible=started;if(started)drapeGround(ring,world.heightAt,.09);
     if(!paused){world.dust.rotation.y=Math.sin(elapsed*.025)*.045;world.update(dt,model.player);}
     const shake=combatView.update(started&&!paused?dt:0,camera);if(started&&!paused&&$('#shake').checked&&shake>0){const eye=orbit.shaken(Math.sin(elapsed*110)*shake,Math.cos(elapsed*95)*shake*.5,world.cameraObstacles);camera.position.set(eye.x,eye.y,eye.z);}
     rpgView.update(started&&!paused?dt:0,camera);
@@ -139,16 +142,18 @@ async function boot(){
     // The welcome screen keeps its fully rendered establishing shot. There is
     // no gameplay to redraw before Enter, and the GPU can finish that first frame.
     if(renderDirty||started&&inventoryStill<1.2){rig.render(camera,dt);renderDirty=false;}
-    const targets=model.enemies.filter(e=>e.hp>0).map(e=>{const s=new T.Vector3(e.x,0,e.z).project(camera);return{id:e.id,x:e.x,z:e.z,hp:e.hp,kind:e.kind,sx:(s.x*.5+.5)*innerWidth,sy:(-s.y*.5+.5)*innerHeight,visible:s.z>-1&&s.z<1&&Math.abs(s.x)<1&&Math.abs(s.y)<1};});
-    const shardScreen=new T.Vector3(model.shard.x,0,model.shard.z).project(camera);
+    const targets=model.enemies.filter(e=>e.hp>0).map(e=>{const s=new T.Vector3(e.x,world.heightAt(e.x,e.z),e.z).project(camera);return{id:e.id,x:e.x,z:e.z,hp:e.hp,kind:e.kind,sx:(s.x*.5+.5)*innerWidth,sy:(-s.y*.5+.5)*innerHeight,visible:s.z>-1&&s.z<1&&Math.abs(s.x)<1&&Math.abs(s.y)<1};});
+    const shardScreen=new T.Vector3(model.shard.x,world.heightAt(model.shard.x,model.shard.z),model.shard.z).project(camera);
     window.__GAME__={pos:[hero.position.x,hero.position.z],fps,speed:started&&!paused&&!model.dead?actualSpeed:0,score:model.kills,over:model.dead,draws:renderer.info.render.calls,tris:renderer.info.render.triangles,started,paused,stage:4,worldSize:WORLD_LIMIT*2,inTown:inTown(model.player.x,model.player.z),exit:{...EXIT},town:MAPS[campaign.region].town,...model.telemetry(),campaign:campaign.telemetry(),maxHp:model.player.maxHp,targets,rpg:{level:progress.data.level,xp:progress.data.xp,gold:progress.data.gold,ore:progress.data.ore,potions:progress.data.potions,items:progress.data.items.map(i=>({...i})),loadout:{...progress.data.loadout},drops:progress.data.drops.map(d=>({...d})),nearSmith:progress.nearSmith(model.player),save:store.status},shard:{x:model.shard.x,z:model.shard.z,sx:(shardScreen.x*.5+.5)*innerWidth,sy:(-shardScreen.y*.5+.5)*innerHeight,blast:model.shard.blast}};
     // A copied, read-only diagnostic map lets input tests route around scenery.
     window.__GAME__.obstacles=diagnosticObstacles;
     window.__GAME__.camera=orbit.telemetry();
+    window.__GAME__.elevation={ground:world.heightAt(model.player.x,model.player.z),hero:hero.position.y};
     window.__GAME__.classId=model.player.classId;window.__GAME__.classSkills=[...classInfo(model.player.classId).skills];window.__GAME__.classEffects={projectiles:model.projectiles.length,bombs:model.bombs.length,smoke:model.player.smoke,ward:model.player.ward};
     requestAnimationFrame(frame);
   }
-  camera.position.set(13,12,18);camera.lookAt(0,0,-4);resize();
+  hero.position.set(model.player.x,world.heightAt(model.player.x,model.player.z)+.06,model.player.z);
+  camera.position.set(13,12+world.heightAt(0,8),18);camera.lookAt(0,world.heightAt(0,-4),-4);resize();
   world.update(0,model.player);combatView.update(0,camera);rpgView.update(0,camera);townView.update(0,camera);rig.update(camera,0);
   // Precompile when the driver supports non-blocking links. On fallback
   // drivers, the first draw compiles only materials actually in the view.

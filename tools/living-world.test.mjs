@@ -12,7 +12,7 @@ for(const [name,generate,budget] of [['hornbeam',hornbeam,6000],['garden',garden
  root.traverse(o=>{if(!o.isMesh)return;assert(o.material.isMeshStandardMaterial);assert(!o.material.map);const p=o.geometry.attributes.position;tris+=(o.geometry.index?.count||p.count)/3;for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld);assert(v.toArray().every(Number.isFinite));bounds.expandByPoint(v);}});
  assert(tris<budget,`${tris} triangles`);assert(Math.abs(bounds.min.y)<.001,`base ${bounds.min.y}`);const c=bounds.getCenter(new T.Vector3());assert(Math.abs(c.x)<.04&&Math.abs(c.z)<.04,`centre ${c.toArray()}`);
 });
-test('background ridges do not raise the playable combat surface',()=>{
+test('generic terrain constructor stays neutral; regional relief is applied by the world',()=>{
  const g=terrain(T);let peak=0;g.traverse(o=>{if(o.isMesh&&o.material.name==='ground'){const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++){assert(p.getY(i)>=0,'negative border vertices would lift the playable floor during asset normalization');if(Math.abs(p.getX(i))<=60&&Math.abs(p.getZ(i))<=60)assert(Math.abs(p.getY(i))<1e-6);peak=Math.max(peak,p.getY(i));}}});assert(peak>5);
 });
 test('chimney particles are bounded and remain still when the world is paused',()=>{

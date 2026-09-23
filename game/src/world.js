@@ -6,8 +6,9 @@ import { inTown, distanceToRoad, MAPS } from './world-map.js';
 import {createLandscapeEffects} from './landscape-effects.js';
 import {applyScenerySurfaces} from './art.js';
 import {cameraTemplate,placeCameraObstacle} from './camera-obstacles.js';
-import {geographyHeight,beachWeight,waterDistance,onCrossing} from './geography.js';
+import {beachWeight,waterDistance,onCrossing} from './geography.js';
 import {createGeographyView} from './geography-view.js';
+import {TERRAIN_SIZE,TERRAIN_SEGMENTS,terrainHeight,groundHeight,groundGradient} from './terrain-height.js';
 
 export async function createWorld(host,art){
   const names=['terrain','old_gate','standing_stone','pine','lantern','village_house','market_stall','village_well','hornbeam','garden_wall','village_standard','timber_bridge','limestone_cliff'];
@@ -32,14 +33,13 @@ export async function createWorld(host,art){
     if(!slabs.length)throw new Error('Terrain paving hierarchy is missing.');
     slabs.forEach(o=>o.removeFromParent());
     tint(root,style);
-    // Deliberately baked vertex colours vary broad soil patches and road verges;
-    // the texture supplies fine detail, while the geometry stays level for combat.
+    // The same triangulated field supports actors, paving and ground effects.
     root.traverse(o=>{if(o.isMesh&&o.material.name==='ground'){
-      const geo=new T.PlaneGeometry(160,160,160,160);geo.rotateX(-Math.PI/2);const p=geo.attributes.position,uv=geo.attributes.uv,colors=new Float32Array(p.count*3),coverage=new Float32Array(p.count),sandCoverage=new Float32Array(p.count),sand=new T.Color(0xffedc3);
+      const geo=new T.PlaneGeometry(TERRAIN_SIZE,TERRAIN_SIZE,TERRAIN_SEGMENTS,TERRAIN_SEGMENTS);geo.rotateX(-Math.PI/2);const p=geo.attributes.position,uv=geo.attributes.uv,colors=new Float32Array(p.count*3),coverage=new Float32Array(p.count),sandCoverage=new Float32Array(p.count),rockCoverage=new Float32Array(p.count),sand=new T.Color(0xffedc3);
       const earth=new T.Color(region===2?0xd4c7ae:region===3?0xbfc1c1:0xf1ead9),green=new T.Color(region===2?0xb3a17b:region===3?0xabb4ab:0xe2e8cc),color=new T.Color();
-      for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i),noise=.5+.24*Math.sin(x*.13+z*.19)+.2*Math.cos(z*.31-x*.08),verge=Math.min(1,Math.max(0,(distanceToRoad(region,x,z)-.7)/2.6)),plaza=Math.min(1,Math.max(0,(Math.hypot(x,z-8)-8.5)/2)),court=region===3?Math.min(1,Math.max(0,(Math.hypot(x,z+38)-11)/3)):1,beach=beachWeight(region,x,z),bank=Math.min(1,Math.max(0,(waterDistance(region,x,z)-1.3)/2));sandCoverage[i]=beach;coverage[i]=verge*plaza*court*bank*(1-beach)*(region===2?.24:region===3?.54:.92);color.copy(earth).lerp(green,verge*.45).lerp(sand,beach);color.multiplyScalar(.9+noise*.16);color.toArray(colors,i*3);const fade=Math.min(1,Math.max(0,(Math.max(Math.abs(x),Math.abs(z))-62)/12)),original=fade*fade*Math.max(0,4.5+2.8*Math.sin(x*.075+z*.09)+2*Math.cos(z*.12-x*.065));p.setY(i,geographyHeight(region,x,z,original));uv.setXY(i,x/3,z/3);}
+      for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i),noise=.5+.24*Math.sin(x*.13+z*.19)+.2*Math.cos(z*.31-x*.08),verge=Math.min(1,Math.max(0,(distanceToRoad(region,x,z)-.7)/2.6)),plaza=Math.min(1,Math.max(0,(Math.hypot(x,z-8)-8.5)/2)),court=region===3?Math.min(1,Math.max(0,(Math.hypot(x,z+38)-11)/3)):1,beach=beachWeight(region,x,z),bank=Math.min(1,Math.max(0,(waterDistance(region,x,z)-1.3)/2));sandCoverage[i]=beach;coverage[i]=verge*plaza*court*bank*(1-beach)*(region===2?.24:region===3?.54:.92);color.copy(earth).lerp(green,verge*.45).lerp(sand,beach);color.multiplyScalar(.9+noise*.16);color.toArray(colors,i*3);p.setY(i,terrainHeight(region,x,z));const slope=groundGradient(region,x,z);rockCoverage[i]=Math.min(.82,Math.max(0,(Math.hypot(slope.x,slope.z)-.18)*2))*verge*(1-beach);uv.setXY(i,x/3,z/3);}
       geo.computeVertexNormals();
-      geo.setAttribute('color',new T.BufferAttribute(colors,3));geo.setAttribute('meadowWeight',new T.BufferAttribute(coverage,1));geo.setAttribute('sandWeight',new T.BufferAttribute(sandCoverage,1));o.geometry=geo;o.material.vertexColors=true;
+      geo.setAttribute('color',new T.BufferAttribute(colors,3));geo.setAttribute('meadowWeight',new T.BufferAttribute(coverage,1));geo.setAttribute('sandWeight',new T.BufferAttribute(sandCoverage,1));geo.setAttribute('rockWeight',new T.BufferAttribute(rockCoverage,1));o.geometry=geo;o.material.vertexColors=true;
     }});
     if(region>=2){
       const stone=slabs[0].material;
@@ -48,11 +48,11 @@ export async function createWorld(host,art){
         o.material.map=stone.map;o.material.bumpMap=stone.map;o.material.bumpScale=.025;o.material.normalMap=null;
       }});
     }
-    root.position.y=-.025;
+    root.position.y=0;
     const output=new T.Group(),sectors=new Map();output.add(bakeStatic(root));
     const templates=slabs.slice(0,24).map(o=>tint(o.clone(),style));
     const trim=templates.map(o=>{const t=o.clone();t.material=t.material.clone();t.material.color.multiplyScalar(.52);return t;}),inlay=templates.map(o=>{const t=o.clone();t.material=t.material.clone();t.material.color.setHex(0xb5a47d);return t;});
-    pavingLayout(region).forEach((p,i)=>{const r=Math.hypot(p.x,p.z-8),border=Math.abs(r-8.65)<.24||Math.abs(r-3.85)<.2,sigil=r<3.2&&Math.abs(Math.abs(p.x)+Math.abs(p.z-8)-2.15)<.26,palette=border?trim:sigil?inlay:templates,tile=palette[i%palette.length].clone();tile.position.set(p.x,.055,p.z);tile.rotation.y=p.rotation;tile.scale.set(p.sx,1,p.sz);const key=`${Math.floor(p.x/12)},${Math.floor(p.z/12)}`;if(!sectors.has(key))sectors.set(key,new T.Group());sectors.get(key).add(tile);});
+    pavingLayout(region).forEach((p,i)=>{const r=Math.hypot(p.x,p.z-8),border=Math.abs(r-8.65)<.24||Math.abs(r-3.85)<.2,sigil=r<3.2&&Math.abs(Math.abs(p.x)+Math.abs(p.z-8)-2.15)<.26,palette=border?trim:sigil?inlay:templates,tile=palette[i%palette.length].clone();tile.position.set(p.x,groundHeight(region,p.x,p.z)+.035,p.z);tile.rotation.y=p.rotation;tile.scale.set(p.sx,1,p.sz);const slope=groundGradient(region,p.x,p.z),normal=new T.Vector3(-slope.x,1,-slope.z).normalize();tile.quaternion.premultiply(new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),normal));const key=`${Math.floor(p.x/12)},${Math.floor(p.z/12)}`;if(!sectors.has(key))sectors.set(key,new T.Group());sectors.get(key).add(tile);});
     for(const sector of sectors.values())output.add(bakeStatic(sector));
     // Millimetre bevels receive the world shadow, but do not need their own shadow pass.
     output.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;}});return output;
@@ -71,12 +71,12 @@ export async function createWorld(host,art){
     if(region===2){const needles=[];prototypes.pine.traverse(o=>{if(o.isMesh&&o.material.name==='needles')needles.push(o);});needles.forEach(o=>o.removeFromParent());}
     const sectors=new Map(),coverSectors=new Map(),coverChunks=[];
     function place(proto,x,z,sx=1,sy=sx,sz=sx,rotation=0,cover=false){
-      const obj=proto.clone();obj.position.set(x,0,z);obj.scale.set(sx,sy,sz);obj.rotation.y=rotation;
+      const obj=proto.clone();obj.position.set(x,groundHeight(region,x,z),z);obj.scale.set(sx,sy,sz);obj.rotation.y=rotation;
       const key=`${Math.floor(x/10)},${Math.floor(z/10)}`,buckets=cover?coverSectors:sectors;
       if(!buckets.has(key))buckets.set(key,new T.Group());buckets.get(key).add(obj);return obj;
     }
     for(const p of layout.props)place(prototypes[p.kind],p.x,p.z,p.sx,p.sy,p.sz,p.rotation).position.y=p.y||0;
-    for(const {x,z,lit} of lanterns)if(lit){const light=new T.PointLight(style.light,8,8,2);light.position.set(x,1.9,z);scene.add(light);}
+    for(const {x,z,y,lit} of lanterns)if(lit){const light=new T.PointLight(style.light,8,8,2);light.position.set(x,y+1.9,z);scene.add(light);}
     const rand=seeded(9404+region*331),grassmat=Object.assign(new T.MeshStandardMaterial({color:style.grass,roughness:1,side:T.DoubleSide,vertexColors:true}),{name:'foliage'});
     const tufts=[];
     for(let variant=0;variant<4;variant++){
@@ -105,11 +105,13 @@ export async function createWorld(host,art){
     for(let i=0;i<(region<2?650:180);i++){const x=(rand()-.5)*112,z=(rand()-.5)*112;if(beachWeight(region,x,z)>.2||onCrossing(region,x,z,1)||distanceToRoad(region,x,z)<1.9||Math.hypot(x,z-8)<10||!canStandIn(colliders,x,z)||(region===3&&Math.hypot(x,z+38)<13))continue;if(Math.sin(x*.32)*Math.cos(z*.28)<.35)continue;const k=.8+rand()*.5;place(blooms,x,z,k,k,k,0,true);}
     for(const sector of sectors.values())scene.add(bakeStatic(sector));
     for(const [key,sector] of coverSectors){const [x,z]=key.split(',').map(Number),root=bakeStatic(sector);coverChunks.push({root,x:x*10+5,z:z*10+5});root.visible=Math.hypot(x*10+5,z*10+5-11)<42;scene.add(root);}
+    // Distance fading shrinks plants into their own hill, not the old y=0 plane.
+    scene.traverse(o=>{if(o.isMesh&&['foliage','petals'].includes(o.material.name)){const p=o.geometry.attributes.position,base=new Float32Array(p.count);for(let i=0;i<p.count;i++)base[i]=groundHeight(region,p.getX(i),p.getZ(i));o.geometry.setAttribute('groundBase',new T.BufferAttribute(base,1));}});
     art.finish(scene);
     const effects=createLandscapeEffects(scene,layout.props,region);
     const geography=createGeographyView(scene,region);
     const dustGeo=new T.BufferGeometry(),points=[];
-    for(let i=0;i<300;i++)points.push((rand()-.5)*120,.4+rand()*5,(rand()-.5)*120);
+    for(let i=0;i<300;i++){const x=(rand()-.5)*120,z=(rand()-.5)*120;points.push(x,groundHeight(region,x,z)+.4+rand()*5,z);}
     dustGeo.setAttribute('position',new T.Float32BufferAttribute(points,3));
     const dust=new T.Points(dustGeo,new T.PointsMaterial({color:style.dust,size:region===1?.05:.035,transparent:true,opacity:.6}));scene.add(dust);
     return {root:scene,colliders,cameraObstacles,dust,effects,geography,coverChunks};
@@ -120,6 +122,7 @@ export async function createWorld(host,art){
     get cameraObstacles(){return zones[active].cameraObstacles;},
     setRegion(region){const created=!zones[region];if(created)zones[region]=build(region);if(region!==active){host.remove(zones[active].root);host.add(zones[region].root);}active=region;return created;},
     canStand(x,z){return canStandIn(zones[active].colliders,x,z);},
+    heightAt(x,z){return groundHeight(active,x,z);},
     update(dt,player={x:0,z:11}){art.update(dt,player);zones[active].effects.update(dt);zones[active].geography.update(dt);for(const c of zones[active].coverChunks)c.root.visible=Math.hypot(c.x-player.x,c.z-player.z)<42;},
   };
 }

@@ -4,6 +4,7 @@ import {NPCS,MAPS,zoneName} from './world-map.js';
 import {drawMap} from './map-renderer.js';
 import {journeyGuide} from './journey-guide.js';
 import {createTextWriter} from './hud-bindings.js';
+import {groundHeight} from './terrain-height.js';
 
 export async function createTownView(scene,combat,progress,campaign,callbacks){
  const $=s=>document.querySelector(s),text=createTextWriter(),panel=$('#town-dialog'),people=[];
@@ -27,7 +28,7 @@ export async function createTownView(scene,combat,progress,campaign,callbacks){
  panel.addEventListener('keydown',e=>{if(e.code!=='Tab')return;const buttons=[...panel.querySelectorAll('button:not(:disabled)')].filter(b=>!b.hidden),first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
  function map(canvas,detailed){drawMap(canvas,{region:campaign.region,combat,progress,detailed});}
  function update(dt,camera){const p=combat.player;tick+=dt;
-  for(const n of people){const distance=Math.hypot(n.x-p.x,n.z-p.z);n.root.visible=distance<35;projection.set(n.x,2.5,n.z).project(camera);n.label.hidden=distance>13||projection.z<0||projection.z>1||Math.abs(projection.x)>.9||Math.abs(projection.y)>.7;n.label.style.left=`${(projection.x*.5+.5)*innerWidth}px`;n.label.style.top=`${(-projection.y*.5+.5)*innerHeight}px`;}
+  for(const n of people){const distance=Math.hypot(n.x-p.x,n.z-p.z),y=groundHeight(campaign.region,n.x,n.z);n.root.position.y=y+.05;n.root.visible=distance<35;projection.set(n.x,y+2.5,n.z).project(camera);n.label.hidden=distance>13||projection.z<0||projection.z>1||Math.abs(projection.x)>.9||Math.abs(projection.y)>.7;n.label.style.left=`${(projection.x*.5+.5)*innerWidth}px`;n.label.style.top=`${(-projection.y*.5+.5)*innerHeight}px`;}
   const n=near();$('#npc-button').hidden=!n||p.hp<=0||!panel.hidden;text('#npc-button',n?`Speak to ${n.name} · E`:'');
   text('#zone-name',zoneName(campaign.region,p.x,p.z));text('#town-location',`${MAPS[campaign.region].town} · 120 × 120 m region`);
   if(tick>.12||!$('#journal').hidden){tick=0;map(small,false);if(!$('#journal').hidden)map(large,true);}

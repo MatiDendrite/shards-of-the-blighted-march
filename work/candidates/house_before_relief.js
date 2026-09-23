@@ -45,19 +45,6 @@ export default function generate(T){
  // Shallow planter boxes stay inside the existing exterior collision footprint.
  const leaves=mat('foliage',0x506749),flowers=mat('petal',0xc3b590);
  for(const x of [-1.8,1.8]){box(wood,x,1.14,2.57,1.1,.24,.26);for(let i=0;i<5;i++){const leaf=new T.Mesh(new T.SphereGeometry(.12,5,3),leaves);leaf.scale.set(1,.6,.8);leaf.position.set(x+(i-2)*.18,1.31,2.58);g.add(leaf);const bloom=new T.Mesh(new T.SphereGeometry(.045,5,3),flowers);bloom.position.set(x+(i-2)*.18,1.4,2.59);g.add(bloom);}}
- // Two broken-joint foundation courses, mortar gaps and dressed corner returns.
- for(let row=0;row<2;row++){
-  for(const side of [-1,1])for(let i=0;i<7;i++)box(stone,(i-3)*.8+(row%2)*.06,.115+row*.235,side*2.42,.77,.205,.13);
-  for(const side of [-1,1])for(let i=0;i<5;i++)box(stone,side*2.82,.115+row*.235,(i-2)*.94,.12,.205,.9);
- }
- // Visible rafter ends and curved overlapping ridge caps break the roof outline.
- for(const side of [-1,1])for(let i=0;i<9;i++){const r=box(wood,side*2.96,3.6,(i-4)*.62,.36,.18,.14);r.rotation.z=-side*slope;}
- const capGeo=new T.CylinderGeometry(.17,.17,.51,6,1,true,Math.PI/2,Math.PI);capGeo.rotateX(Math.PI/2);
- for(let i=0;i<11;i++){const cap=new T.Mesh(capGeo,roof);cap.position.set(0,6.24,(i-5)*.49);g.add(cap);}
- for(let row=0;row<6;row++)for(const face of [-1,1])box(stone,1.6,5.14+row*.21,-.6+face*.365,.73,.04,.035);
- // Iron tie heads are geometry, not a painted marking on a blank beam.
- const pegGeo=new T.CylinderGeometry(.04,.04,.025,4);pegGeo.rotateX(Math.PI/2);
- for(const z of [-2.49,2.49])for(const x of [-2.72,0,2.72])for(const y of [.65,3.6]){const peg=new T.Mesh(pegGeo,dark);peg.position.set(x,y,z);g.add(peg);}
  // Centre the full footprint, including steps, without changing the authored scale.
  const b=new T.Box3(),v=new T.Vector3();g.updateMatrixWorld(true);g.traverse(o=>{if(o.isMesh){const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++)b.expandByPoint(v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld));}});const c=b.getCenter(new T.Vector3());g.children.forEach(o=>{o.position.x-=c.x;o.position.y-=b.min.y;o.position.z-=c.z;});return g;
 }

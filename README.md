@@ -29,7 +29,7 @@ Art revision: original generated soil, limestone and fir-needle textures, finer 
 
 Regional scenery: Hearthstead's lantern avenue, Thornwood's broken winding trail and mossy outcrops, the Causeway's dry road and ruined side courts, and the Warden's circular paved arena use distinct layouts, material palettes and dusk lighting. The expanded regions now have central settlements, western/eastern hunting fields, southern groves and northern sanctuaries linked by an outer trail. Three reference-led constructor assets add houses, stalls and a well. Saved quest progress is preserved while encounter locations move into the larger world.
 
-Geography expansion: follow Hearthstead's western road to Willow Run and its timber bridge; a second crossing links the northern bank. Thornwood has its own river and forester's hamlet to the east. Ashen Causeway opens onto Saltwind Beach, a jetty and the Pale Sea. Limestone mountain silhouettes frame the regions; the Court has taller crags and Mirror Tarn. Rivers, bridges, shorelines and cliffs appear on both maps. Cross water at bridges; there is no swimming or fishing yet. Walkable banks and decks stay level, while water channels and impassable background slopes are sculpted below/above the combat floor.
+Geography expansion: follow Hearthstead's western road to Willow Run and its timber bridge; a second crossing links the northern bank. Thornwood has its own river and forester's hamlet to the east. Ashen Causeway opens onto Saltwind Beach, a jetty and the Pale Sea. Limestone mountain silhouettes frame the regions; the Court has taller crags and Mirror Tarn. Rivers, bridges, shorelines and cliffs appear on both maps. Cross water at bridges; there is no swimming or fishing yet. The playable landscape now rises into hills and drops toward water; central services and the Warden's court retain comfortable level ground. Roads, actors, equipment drops, spell effects and warning areas follow the same terrain. Bridges retain level decks with graded approaches. Terrain-aware aiming and camera clearance replace the old flat-floor assumptions. Atlas hillshade and metre contours reflect the actual elevation. Houses, gates and standing stones gain additional constructor detail using existing materials.
 
 Approach Alden, Mara or Rowan and press **E** (or the touch prompt) to talk. Mara sells healing draughts and buys spare weapons and armour in every settlement. Choose **Sell equipment**, inspect the quoted price and confirm; equipped loadout items are protected. Borin's forge remains in Hearthstead and upgrades equipment up to +3. **M**, or tapping the HUD minimap, opens the detailed regional atlas: actual building footprints, roads, trees, rocks, NPC services, enemies, loot and your heading. Drag to pan, use the wheel or +/− to zoom, and select Town, Find me or a location. **M / Escape** closes it; gameplay pauses while it is open. **J** keeps the quest journal; gold northern and blue southern portals on M mark physical travel points. Houses are exterior landmarks, not enterable interiors.
 
@@ -49,6 +49,7 @@ npm run test:camera
 npm run test:services
 npm run test:geography
 npm run test:classes
+npm run test:terrain
 npm run test:classes:balance
 npm run test:balance
 npm run test:performance

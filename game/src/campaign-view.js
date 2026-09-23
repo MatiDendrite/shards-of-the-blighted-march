@@ -4,6 +4,8 @@ import {EXIT,RETURN} from './world-map.js';
 import {journeyGuide,questSteps} from './journey-guide.js';
 import {enemyAttack,windupProgress} from './combat-model.js';
 import {createTextWriter} from './hud-bindings.js';
+import {groundHeight} from './terrain-height.js';
+import {drapeGround} from './ground-projection.js';
 
 export function createCampaignView(scene,campaign){
  const $=s=>document.querySelector(s),text=createTextWriter(),panel=$('#journal'),touch=document.body.classList.contains('touch');let stamp='',celebration=0;
@@ -43,7 +45,7 @@ export function createCampaignView(scene,campaign){
   text('#objective-tip',guide.tip);
   text('#objective-detail',touch?`${i===3?'':`${m.kills} / ${m.requiredKills} guardians · `}${campaign.shards} / 3 shards`:`${campaign.shards} / 3 shards · ${i===3?'J: map & journal':`${m.kills} / ${m.requiredKills} guardians · J: journal`}`);
   const portal=campaign.nearPortal,unlocked=portal&&campaign.unlocked(portal.destination);$('#gate-button').hidden=!portal||m.dead;$('#gate-button').disabled=!unlocked||!campaign.safe;text('#gate-button',!unlocked?'Portal sealed · finish this quest':!campaign.safe?'Portal unsafe · leave combat first':`Enter ${REGIONS[portal.destination].name} · E`);
-  portals.forEach((gate,n)=>{gate.root.visible=n===0?i<3:i>0;const color=n===1?0x80cddd:c.cleared[i]?0xe8c16e:0x946baf;gate.material.color.setHex(color);gate.veil.material.color.setHex(color);gate.material.opacity=.5+Math.sin(m.time*2)*.12;gate.veil.material.opacity=.12+Math.sin(m.time*1.3)*.035;});
+  portals.forEach((gate,n)=>{gate.root.visible=n===0?i<3:i>0;gate.root.position.y=groundHeight(i,gate.root.position.x,gate.root.position.z);if(gate.region!==i){drapeGround(gate.root.children[2],(x,z)=>groundHeight(i,x,z),.12);gate.region=i;}const color=n===1?0x80cddd:c.cleared[i]?0xe8c16e:0x946baf;gate.material.color.setHex(color);gate.veil.material.color.setHex(color);gate.material.opacity=.5+Math.sin(m.time*2)*.12;gate.veil.material.opacity=.12+Math.sin(m.time*1.3)*.035;});
   const boss=m.enemies.find(e=>e.kind==='boss');$('#boss-bar').hidden=!boss||boss.hp<=0||Math.hypot(boss.x-m.player.x,boss.z-m.player.z)>25;text('#boss-phase',boss?.enraged?'ENRAGED · WATCH THE GROUND':'KEEPER OF THE BROKEN OATH');if(boss)$('#boss-health').style.width=`${boss.hp/boss.maxHp*100}%`;
   const windup=boss?.phase==='windup',attack=boss?enemyAttack(boss):null;
   text('#boss-intent',windup?`${attack.name} · ${Math.max(0,boss.timer).toFixed(1)}s · ${attack.hint}`:boss?.phase==='recovery'?'RECOVERING · Your opening to strike':'');

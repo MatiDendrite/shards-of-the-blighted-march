@@ -4,6 +4,7 @@ import { itemName,itemPower,xpNeeded,SMITH,sellPrice } from './progression.js';
 import { mergeJoints } from './combat-view.js';
 import { WEAPONS } from './combat-model.js';
 import { createGroundLoot } from './ground-loot.js';
+import {groundHeight,groundGradient} from './terrain-height.js';
 import { createTextWriter } from './hud-bindings.js';
 import {classInfo} from './class-data.js';
 export async function createRpgView(scene,progress,combat,store,onChange,portraitSource,lootModels){
@@ -13,7 +14,7 @@ export async function createRpgView(scene,progress,combat,store,onChange,portrai
  const smith=await ASSET(new URL('../assets/wanderer.js',import.meta.url).href,{keepHierarchy:true,height:1.85,surfaces:true});mergeJoints(smith);smith.position.set(SMITH.x,.07,SMITH.z);smith.rotation.y=1.7;smith.traverse(o=>{if(o.isMesh){o.material=o.material.clone();if(o.material.name==='fabric')o.material.color.setHex(0x57472f);}});scene.add(smith);
  const glow=new T.PointLight(0xffc07c,9,6,2);glow.position.set(SMITH.x,2,SMITH.z);scene.add(glow);
  const smithLabel=document.createElement('div');smithLabel.className='smith-label';smithLabel.textContent='BORIN · BLACKSMITH · UPGRADES';$('#enemy-labels').append(smithLabel);
- const groundLoot=createGroundLoot(lootModels);
+ const heightAt=(x,z)=>groundHeight(combat.region,x,z),groundLoot=createGroundLoot(lootModels,heightAt,(x,z)=>groundGradient(combat.region,x,z));
  const lootOccluders=[...document.querySelectorAll('#action-bar,#navigation-map,#utility,#objective,#boss-bar')];
  function info(text){$('#rpg-message').textContent=text;}
  function image(item){const img=document.createElement('img');img.src=portraits[item.kind];img.alt=`${kindNames[item.kind]} model`;img.draggable=false;return img;}
@@ -79,7 +80,7 @@ export async function createRpgView(scene,progress,combat,store,onChange,portrai
   for(const [id,mesh] of drops)if(!d.drops.some(x=>x.id===id)){mesh.userData.label.remove();scene.remove(mesh);drops.delete(id);}
   const nearest=[...d.drops].sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z)).slice(0,3),labelRects=[],hudRects=d.drops.length?lootOccluders.map(el=>el.getBoundingClientRect()).filter(r=>r.width&&r.height):[];
   for(const drop of d.drops){let g=drops.get(drop.id);if(!g){g=groundLoot.create(drop);const label=document.createElement('div');label.className=`loot-label ${drop.item?.rarity||'common'}`;label.textContent=drop.item?itemName(drop.item):`${drop.gold} gold${drop.ore?` · ${drop.ore} ore`:''}`;$('#enemy-labels').append(label);g.userData.label=label;scene.add(g);drops.set(drop.id,g);}
-   projected.set(drop.x,.9,drop.z).project(camera);const label=g.userData.label;label.hidden=!nearest.includes(drop)||Math.hypot(drop.x-p.x,drop.z-p.z)>8||projected.z<0||projected.z>1||Math.abs(projected.x)>.85||Math.abs(projected.y)>.6;
+   projected.set(drop.x,heightAt(drop.x,drop.z)+.9,drop.z).project(camera);const label=g.userData.label;label.hidden=!nearest.includes(drop)||Math.hypot(drop.x-p.x,drop.z-p.z)>8||projected.z<0||projected.z>1||Math.abs(projected.x)>.85||Math.abs(projected.y)>.6;
    if(!label.hidden){const half=label.offsetWidth/2,height=label.offsetHeight,sx=T.MathUtils.clamp((projected.x*.5+.5)*innerWidth,half+8,innerWidth-half-8);let sy=(-projected.y*.5+.5)*innerHeight;
     // At most three labels: stack clustered drops without hiding the item models.
     for(let n=0;n<3;n++){const hit=labelRects.find(r=>sx+half>r.left&&sx-half<r.right&&sy>r.top-4&&sy-height<r.bottom+4);if(!hit)break;sy=hit.top-5;}
@@ -87,7 +88,8 @@ export async function createRpgView(scene,progress,combat,store,onChange,portrai
     label.style.left=`${sx}px`;label.style.top=`${sy}px`;if(!label.hidden)labelRects.push({left:sx-half,right:sx+half,top:sy-height,bottom:sy});
    }
   }
-  projected.set(SMITH.x,2.5,SMITH.z).project(camera);smithLabel.hidden=!inCamp||projected.z<0||projected.z>1||Math.abs(projected.x)>.9||Math.abs(projected.y)>.85;smithLabel.style.left=`${(projected.x*.5+.5)*innerWidth}px`;smithLabel.style.top=`${(-projected.y*.5+.5)*innerHeight}px`;
+  smith.position.y=heightAt(SMITH.x,SMITH.z)+.07;glow.position.y=heightAt(SMITH.x,SMITH.z)+2;
+  projected.set(SMITH.x,heightAt(SMITH.x,SMITH.z)+2.5,SMITH.z).project(camera);smithLabel.hidden=!inCamp||projected.z<0||projected.z>1||Math.abs(projected.x)>.9||Math.abs(projected.y)>.85;smithLabel.style.left=`${(projected.x*.5+.5)*innerWidth}px`;smithLabel.style.top=`${(-projected.y*.5+.5)*innerHeight}px`;
  }
  function clearDrops(){for(const g of drops.values()){g.userData.label.remove();scene.remove(g);}drops.clear();}
  return{open,update,render,clearDrops};

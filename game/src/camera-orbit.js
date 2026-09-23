@@ -46,8 +46,8 @@ export class CameraOrbit{
  drag(dx,dy,touch=false){const speed=touch?.009:.006;this.targetYaw=wrap(this.targetYaw-dx*speed);this.targetTilt=clamp(this.targetTilt+dy*speed*.7,-.25,.42);}
  wheel(delta){this.targetZoom=clamp(this.targetZoom+delta*.00045,CAMERA_DEFAULTS.minZoom,CAMERA_DEFAULTS.maxZoom);}
  advance(dt){const a=smooth(dt);this.yaw=wrap(this.yaw+wrap(this.targetYaw-this.yaw)*a);this.tilt+=(this.targetTilt-this.tilt)*a;this.zoom+=(this.targetZoom-this.zoom)*a;}
- position(player,dt,portrait,obstacles=[]){
-  const focus={x:player.x,y:.75,z:player.z};
+ position(player,dt,portrait,obstacles=[],heightAt=null){
+  const focus={x:player.x,y:(heightAt?heightAt(player.x,player.z):0)+.75,z:player.z};
   // Follow the player's focus directly: yaw remains screen-relative even while
   // strafing. Smooth angles/radius, never interpolate Cartesian points through walls.
   this.focus=focus;
@@ -55,11 +55,17 @@ export class CameraOrbit{
   const pitch=clamp(Math.atan2(up,back)+this.tilt,CAMERA_DEFAULTS.minPitch,CAMERA_DEFAULTS.maxPitch);
   const wanted=Math.hypot(up,back)*this.zoom;
   const direction=a=>({x:Math.sin(this.yaw)*Math.cos(a),y:Math.sin(a),z:Math.cos(this.yaw)*Math.cos(a)});
-  let actualPitch=pitch,dir=direction(pitch),safe=cameraClearance(focus,dir,wanted,obstacles);
+  this.heightAt=heightAt;
+  const clearance=(direction,length)=>{
+   let safe=cameraClearance(focus,direction,length,obstacles);
+   if(heightAt)for(let t=.25;t<=safe;t+=.25)if(focus.y+direction.y*t<heightAt(focus.x+direction.x*t,focus.z+direction.z*t)+.24){safe=Math.max(0,t-.25);break;}
+   return safe;
+  };
+  let actualPitch=pitch,dir=direction(pitch),safe=clearance(dir,wanted);
   // A high angle is preferable to pushing the camera into the hero's head in
   // narrow alleys. Test the entire new boom, including raised gate masonry.
   if(safe<2.6)for(let a=pitch+.12;a<=Math.PI/2+.001;a=Math.min(Math.PI/2,a+.12)){
-   const trial=direction(a),room=cameraClearance(focus,trial,wanted,obstacles);
+   const trial=direction(a),room=clearance(trial,wanted);
    if(room>safe){safe=room;dir=trial;actualPitch=a;}if(safe>=2.6||a===Math.PI/2)break;
   }
   // The focus can lie inside a conservative bound (for example a roof eave).
@@ -73,7 +79,7 @@ export class CameraOrbit{
   this.distance=!this.distance||safe<this.distance?safe:Math.min(safe,this.distance+(safe-this.distance)*smooth(dt));
   // Do not leave an easing intermediate inside a raised arch. The fully
   // checked destination is clear, so finish that recovery in one step.
-  if(cameraClearance(focus,dir,this.distance,obstacles)<this.distance-.01)this.distance=safe;
+  if(clearance(dir,this.distance)<this.distance-.01)this.distance=safe;
   this.blocked=safe<wanted-.01||actualPitch!==pitch;this.pitch=actualPitch;
   this.eye={x:focus.x+dir.x*this.distance,y:focus.y+dir.y*this.distance,z:focus.z+dir.z*this.distance};return this.eye;
  }
@@ -82,6 +88,7 @@ export class CameraOrbit{
   if(this.blocked||!this.eye)return this.eye;
   const end={x:this.eye.x+dx,y:this.eye.y+dy,z:this.eye.z},delta={x:end.x-this.focus.x,y:end.y-this.focus.y,z:end.z-this.focus.z},length=Math.hypot(delta.x,delta.y,delta.z);
   const dir={x:delta.x/length,y:delta.y/length,z:delta.z/length},safe=cameraClearance(this.focus,dir,length,obstacles);
+  if(this.heightAt)for(let t=.25;t<=length;t+=.25)if(this.focus.y+dir.y*t<this.heightAt(this.focus.x+dir.x*t,this.focus.z+dir.z*t)+.24)return this.eye;
   return safe<.35?this.eye:{x:this.focus.x+dir.x*safe,y:this.focus.y+dir.y*safe,z:this.focus.z+dir.z*safe};
  }
 }

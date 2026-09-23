@@ -7,7 +7,7 @@ import { attackPose } from './combat-motion.js';
 import { createCombatEffects } from './combat-effects.js';
 import { createCombatRings } from './combat-rings.js';
 import { createTextWriter } from './hud-bindings.js';
-import {SKILLS,classInfo} from './class-data.js';
+import {SKILLS,classInfo,ARCANE_BOLT} from './class-data.js';
 import {createSkillHud} from './class-view.js';
 import {createClassActors} from './class-actors.js';
 import {createClassEffects} from './class-effects.js';
@@ -66,7 +66,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  const ring=rings.pulse;
  function notice(text,duration=3.5){document.querySelector('#notice').textContent=text;document.querySelector('#notice').hidden=false;noticeTimer=duration;}
  function process(events){for(const e of events){
-  if(e.type==='swing'){const s=SKILLS[e.kind];audio.play(e.kind==='cry'?'cry':e.weapon==='axe'?'heavySwing':'swing');if(['projectile','bomb','blink'].includes(s?.effect))ring(e.x,e.z,s.color,.7);else if(['frost','smoke','ward'].includes(s?.effect))ring(e.x,e.z,s.color,s.range);else if(e.kind==='slam'||e.kind==='cry')ring(e.x,e.z,e.kind==='cry'?'#c3c992':'#d1ad70',e.kind==='cry'?5:3.5);else rings.swing(e);}
+  if(e.type==='swing'){const s=e.projectile==='arcane'?ARCANE_BOLT:SKILLS[e.kind];audio.play(e.kind==='cry'?'cry':e.weapon==='axe'?'heavySwing':'swing');if(['projectile','bomb','blink'].includes(s?.effect))ring(e.x,e.z,s.color,.7);else if(['frost','smoke','ward'].includes(s?.effect))ring(e.x,e.z,s.color,s.range);else if(e.kind==='slam'||e.kind==='cry')ring(e.x,e.z,e.kind==='cry'?'#c3c992':'#d1ad70',e.kind==='cry'?5:3.5);else rings.swing(e);}
   if(e.type==='classImpact'){ring(e.x,e.z,e.color,e.radius);audio.play('hit');}
   if(e.type==='classMove'){ring(e.from.x,e.from.z,e.color,.8);ring(e.to.x,e.to.z,e.color,.8);audio.play('dodge');}
   if(e.type==='absorb')ring(model.player.x,model.player.z,SKILLS.ironward.color,1);

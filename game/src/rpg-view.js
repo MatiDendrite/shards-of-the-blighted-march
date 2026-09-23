@@ -2,7 +2,7 @@ import * as T from 'three';
 import { ASSET } from '../lib/assetlib.js';
 import { itemName,itemPower,xpNeeded,SMITH,sellPrice } from './progression.js';
 import { mergeJoints } from './combat-view.js';
-import { WEAPONS } from './combat-model.js';
+import { WEAPONS,basicAttack } from './combat-model.js';
 import { createGroundLoot } from './ground-loot.js';
 import {groundHeight,groundGradient} from './terrain-height.js';
 import { createTextWriter } from './hud-bindings.js';
@@ -32,7 +32,7 @@ export async function createRpgView(scene,progress,combat,store,onChange,portrai
   const preview=document.createElement('div');preview.className='inspect-model';preview.append(image(item));
   const stats=document.createElement('dl'),power=itemPower(item),equipped=progress.data.loadout[item.kind]===item.id,active=equipped&&(item.kind==='armor'||combat.player.weapon===item.kind),delta=power-itemPower(progress.equipped(item.kind));
   row(stats,item.kind==='armor'?'Damage reduction':'Bonus damage',`+${power}`);
-  if(item.kind!=='armor'){const w=WEAPONS[item.kind];row(stats,'Base weapon damage',w.damage);row(stats,'Reach',`${w.range} m`);}else row(stats,'Slot','Body armour');
+  if(item.kind!=='armor'){const mage=combat.player.classId==='mage',w=mage?basicAttack(combat.player):WEAPONS[item.kind];row(stats,mage?'Arcane Bolt base damage':'Base weapon damage',w.damage);row(stats,'Reach',`${w.range} m`);}else row(stats,'Slot','Body armour');
   row(stats,'Forge level',`${item.upgrade} / 3`);
   const compare=document.createElement('p');compare.className=`item-compare ${delta>0?'better':delta<0?'worse':''}`;compare.textContent=active?'Currently equipped':equipped?'In your weapon loadout':`${delta>=0?'+':''}${delta} ${item.kind==='armor'?'defence':'bonus damage'} vs equipped`;
   const note=document.createElement('p');note.className='item-lore';note.textContent={sword:'Weathered iron. A balanced blade for a long road.',axe:'A heavy bearded edge. Wide swings, decisive strikes.',spear:'An ash haft and a leaf-shaped point. Keep the blight at a distance.',armor:'Layered iron and oxblood cloth. The armour of a Marchguard.'}[item.kind];
@@ -52,7 +52,7 @@ export async function createRpgView(scene,progress,combat,store,onChange,portrai
   $('#bag-title').textContent=mode==='smith'?'Borin’s forge':mode==='merchant'?'Mara’s equipment trade':'Equipment & inventory';$('#bag-intro').textContent=mode==='smith'?'Reforge your equipment up to +3. Salvage spare gear for ore.':mode==='merchant'?'Select spare equipment to sell. Items in your loadout are protected.':'Steel for the road. A place for everything you carry.';
   $('#bag-money').replaceChildren();for(const [label,value] of [['GOLD',d.gold],['ORE',d.ore],['DRAUGHTS',d.potions]]){const el=document.createElement('span'),b=document.createElement('b');b.textContent=value;el.append(b,` ${label}`);$('#bag-money').append(el);}
   $('#sheet-level').textContent=`LV ${d.level}`;$('#bag-capacity').textContent=`${d.items.length} / 24`;
-  const stats=$('#character-stats');stats.replaceChildren();row(stats,'Health',`${Math.ceil(p.hp)} / ${p.maxHp}`);row(stats,'Attack¹',Math.round((WEAPONS[p.weapon].damage+(p.damageBonus||0))*(p.damageMultiplier||1)));row(stats,'Defence',p.armor||0);row(stats,'Experience',d.level===8?'MAX':`${d.xp} / ${xpNeeded(d.level)}`);stats.title='¹ Basic hit before combo or Battle Cry bonuses.';
+  const stats=$('#character-stats');stats.replaceChildren();row(stats,'Health',`${Math.ceil(p.hp)} / ${p.maxHp}`);row(stats,p.classId==='mage'?'Arcane Bolt¹':'Attack¹',Math.round((basicAttack(p).damage+(p.damageBonus||0))*(p.damageMultiplier||1)));row(stats,'Defence',p.armor||0);row(stats,'Experience',d.level===8?'MAX':`${d.xp} / ${xpNeeded(d.level)}`);stats.title='¹ Basic hit before combo or Battle Cry bonuses.';
   $('#buy-potion').hidden=mode==='inventory';$('#buy-potion').disabled=d.gold<25||d.potions>=20;
   $('#loadout-slots').replaceChildren(...Object.keys(kindNames).map(kind=>slot(progress.equipped(kind),true)));
   for(const b of $('#bag-filters').children)b.setAttribute('aria-pressed',String(b.dataset.filter===filter));

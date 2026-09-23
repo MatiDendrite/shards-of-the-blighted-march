@@ -9,7 +9,7 @@ import {Campaign} from '../game/src/campaign.js';
 import {route} from './navigation.mjs';
 const out='_artifacts/expanded-world';await fs.mkdir(out,{recursive:true});
 const m=new Combat(),p=new Progression(),c=new Campaign(p,m);p.restore(m);
-for(let i=0;i<4;i++){if(i)travelFixture(c,i);m.damageShard(999);for(let t=0;t<100;t++)m.update(1/60);for(const e of m.enemies)m.damageEnemy(e,999);p.events(m.consume(),m);c.observe();}
+for(let i=0;i<4;i++){if(i)travelFixture(c,i);m.damageShard(999);for(let t=0;t<100;t++)m.update(1/60);for(const e of m.enemies)m.damageEnemy(e,e.maxHp);p.events(m.consume(),m);c.observe();}
 travelFixture(c,0);const fixture=p.snapshot(m);assert(validSave(fixture));
 const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});
 try{

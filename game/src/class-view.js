@@ -1,4 +1,4 @@
-import {CLASSES,CLASS_IDS,SKILLS,SLOT_IDS,classInfo,skillIcon,skillDetails} from './class-data.js';
+import {CLASSES,CLASS_IDS,SKILLS,SLOT_IDS,classInfo,skillIcon,skillDetails,ARCANE_BOLT} from './class-data.js';
 
 export function createClassView(model,progress,{open,close,apply}){
  const panel=document.querySelector('#class-dialog'),choices=document.querySelector('#class-choices'),details=document.querySelector('#class-skills'),confirm=document.querySelector('#class-confirm'),message=document.querySelector('#class-message');
@@ -30,7 +30,7 @@ export function createSkillHud(){
  const controls=buttons.map(button=>({button,image:button.querySelector('img'),name:button.querySelector('span'),cost:button.querySelector('small'),percent:null,unavailable:null}));
  return p=>{
   const info=classInfo(p.classId);
-  if(current!==p.classId){current=p.classId;controls.forEach(({button:b,image,name},i)=>{const id=info.skills[i],s=SKILLS[id];b.dataset.skill=id;image.src=skillIcon(id);name.textContent=s.name;b.title=`${i+1} · ${skillDetails(id)}`;b.setAttribute('aria-label',`${i+1}: ${skillDetails(id)}`);});}
+  if(current!==p.classId){current=p.classId;controls.forEach(({button:b,image,name},i)=>{const id=info.skills[i],s=SKILLS[id];b.dataset.skill=id;image.src=skillIcon(id);name.textContent=s.name;b.title=`${i+1} · ${skillDetails(id)}`;b.setAttribute('aria-label',`${i+1}: ${skillDetails(id)}`);});const attack=document.querySelector('#attack'),mage=p.classId==='mage';attack.querySelector('b').textContent=mage?'✦':'⚔';attack.querySelector('span').textContent=mage?'Bolt':'Attack';attack.title=mage?`Hold LMB / F: ${ARCANE_BOLT.name} · ${ARCANE_BOLT.cost} stamina · ${ARCANE_BOLT.range} m · equipment strengthens bolts`:'Hold LMB / F to attack with your weapon';attack.setAttribute('aria-label',mage?'Cast Arcane Bolt':'Attack with weapon');}
   controls.forEach((control,i)=>{const b=control.button,id=info.skills[i],s=SKILLS[id],remaining=p.cooldowns[id],unavailable=remaining>0||p.stamina<s.cost||p.hp<=0;
    const label=remaining>0?`${Math.ceil(remaining)}s`:`${s.cost} stamina`;if(control.cost.textContent!==label)control.cost.textContent=label;
    if(control.unavailable!==unavailable){control.unavailable=unavailable;b.classList.toggle('unavailable',unavailable);b.setAttribute('aria-disabled',String(unavailable));}

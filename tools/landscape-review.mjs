@@ -12,7 +12,7 @@ const out='_artifacts/landscapes';await fs.mkdir(out,{recursive:true});
 const m=new Combat(),p=new Progression(),c=new Campaign(p,m);
 for(let r=0;r<4;r++){
   if(r)travelFixture(c,r);m.damageShard(999);for(let n=0;n<100;n++)m.update(1/60);
-  for(const e of m.enemies)m.damageEnemy(e,999);p.events(m.consume(),m);c.observe();
+  for(const e of m.enemies)m.damageEnemy(e,e.maxHp);p.events(m.consume(),m);c.observe();
 }
 travelFixture(c,0);const fixture=p.snapshot(m);assert(validSave(fixture));
 const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});

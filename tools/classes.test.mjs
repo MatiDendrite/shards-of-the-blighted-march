@@ -49,7 +49,7 @@ test('projectiles and blast damage cannot cross a solid obstacle',()=>{
  const n=arena('ninja',(x,z)=>z< -27),r=foe(n,0,-26);n.startAttack('venom');step(n,1);assert.equal(r.hp,100);assert(!r.poison);
 });
 test('Frost Nova hits behind the caster and slows movement, with boss resistance',()=>{
- const m=arena('mage'),e=foe(m,0,-32),boss=foe(m,2,-30,'boss');m.startAttack('frostnova');step(m,.4);assert.equal(e.hp,76);assert(e.slow>3.8);assert.equal(e.slowFactor,.45);assert.equal(boss.slowFactor,.725);assert.equal(boss.hp,616);step(m,4.5);assert.equal(e.slow,0);
+ const m=arena('mage'),e=foe(m,0,-32),boss=foe(m,2,-30,'boss');m.startAttack('frostnova');step(m,.4);assert.equal(e.hp,76);assert(e.slow>3.8);assert.equal(e.slowFactor,.45);assert.equal(boss.slowFactor,.725);assert.equal(boss.hp,boss.maxHp-24);step(m,4.5);assert.equal(e.slow,0);
 });
 test('Blink stops before obstacles, preserves facing and grants only brief immunity',()=>{
  const m=arena('mage',(x,z)=>z< -28.5);m.startAttack('blink');step(m,.2);assert(m.player.z< -28.5&&m.player.z> -28.7);assert(m.player.invulnerable>0);const hp=m.player.hp;m.hurtPlayer(20);assert.equal(m.player.hp,hp);step(m,.6);assert.equal(m.player.invulnerable,0);
@@ -70,7 +70,7 @@ test('Smoke Veil reduces incoming damage and increases speed but is not invulner
 });
 test('Forge Blow is a heavy interrupt, but cannot cancel a Warden windup',()=>{
  const m=arena('dwarf'),e=foe(m,0,-28);m.startAttack('forgeblow');step(m,.52);assert.equal(e.hp,40);assert(e.stagger>1.3);
- const n=arena('dwarf'),boss=foe(n,0,-28,'boss');boss.phase='windup';boss.timer=1.5;boss.attackKind='slam';n.startAttack('forgeblow');step(n,.52);assert.equal(boss.phase,'windup');assert.equal(boss.hp,580);
+ const n=arena('dwarf'),boss=foe(n,0,-28,'boss');boss.phase='windup';boss.timer=1.5;boss.attackKind='slam';n.startAttack('forgeblow');step(n,.52);assert.equal(boss.phase,'windup');assert.equal(boss.hp,boss.maxHp-60);
 });
 test('Cinder Bomb has a visible fuse, fixed landing point, area damage and one explosion',()=>{
  const m=arena('dwarf'),e=foe(m,0,-24.5),far=foe(m,4,-24.5);m.startAttack('cinderbomb');step(m,.4);assert.equal(m.bombs.length,1);assert.equal(m.bombs[0].radius,2.6);assert.equal(e.hp,100);step(m,.7);assert.equal(e.hp,100);step(m,.4);assert.equal(e.hp,48);assert.equal(far.hp,100);assert.equal(m.bombs.length,0);assert.equal(m.consume().filter(e=>e.type==='classImpact').length,1);

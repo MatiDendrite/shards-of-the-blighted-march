@@ -11,7 +11,7 @@ import {groundHeight} from '../game/src/terrain-height.js';
 import {travelFixture} from './travel-fixture.mjs';
 const surfaceReview=process.argv.includes('--surfaces'),out=surfaceReview?'_artifacts/surface-detail/play':'_artifacts/terrain/play';await fs.mkdir(out,{recursive:true});
 const model=new Combat(),progress=new Progression(),campaign=new Campaign(progress,model);progress.restore(model);
-for(let r=0;r<4;r++){if(r)travelFixture(campaign,r);model.damageShard(999);for(let i=0;i<100;i++)model.update(1/60);for(const e of model.enemies)model.damageEnemy(e,999);progress.events(model.consume(),model);campaign.observe();progress.data.drops=[];}
+for(let r=0;r<4;r++){if(r)travelFixture(campaign,r);model.damageShard(999);for(let i=0;i<100;i++)model.update(1/60);for(const e of model.enemies)model.damageEnemy(e,e.maxHp);progress.events(model.consume(),model);campaign.observe();progress.data.drops=[];}
 travelFixture(campaign,0);const fixture=progress.snapshot(model);assert(validSave(fixture));
 function slopeRoute(region){
  const {colliders}=sceneryLayout(region),options=[];

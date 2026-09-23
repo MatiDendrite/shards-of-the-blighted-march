@@ -66,7 +66,7 @@ test('class projectiles, bomb warnings and shields stay above elevated ground',(
  const scene=new T.Scene(),model=new Combat(),fx=createClassEffects(scene);model.player.x=32;model.player.z=-16;model.player.ward=50;model.projectiles=[{id:1,x:32,z:-15,kind:'firebolt',angle:0}];model.bombs=[{id:2,x:33,z:-16,age:.5,fuse:1.1,radius:2.6}];fx.update(model);
  const root=scene.getObjectByName('classEffects'),projectile=root.children.find(m=>m.material?.color.getHex()===0xffae64);close(projectile.position.y,groundHeight(0,32,-15)+.85);
  const bomb=root.children.find(m=>m.isGroup),warning=bomb.children[1],p=warning.geometry.attributes.position,v=new T.Vector3();root.updateMatrixWorld(true);for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i).applyMatrix4(warning.matrixWorld);close(v.y,groundHeight(0,v.x,v.z)+.11,1e-5);}
- fx.clear();assert.equal(root.children.length,2);
+ fx.clear();assert.equal(root.children.length,3);assert(root.children.every(o=>!o.visible));
 });
 test('height query rejects invalid regions and upward pointer rays miss cleanly',()=>{
  assert.throws(()=>terrainField(-1),RangeError);assert.throws(()=>terrainField(4),RangeError);assert.equal(intersectGroundRay(0,{x:0,y:20,z:0},{x:0,y:1,z:0}),null);assert.equal(TERRAIN_STEP,TERRAIN_SIZE/TERRAIN_SEGMENTS);

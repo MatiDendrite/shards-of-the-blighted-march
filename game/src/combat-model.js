@@ -1,7 +1,7 @@
 // Deterministic combat rules, independent of rendering and browser input.
 import {MAPS,inTown} from './world-map.js';
 import {FIELD_PATROLS,guardianCount} from './campaign-data.js';
-import {CLASS_IDS,classInfo,SKILLS} from './class-data.js';
+import {CLASS_IDS,classInfo,SKILLS,ARCANE_BOLT} from './class-data.js';
 import {activateClassSkill,classHit,updateClassEffects,clearPath} from './class-combat.js';
 export {SKILLS} from './class-data.js';
 export const DODGE_DURATION=.34;
@@ -10,10 +10,12 @@ export const WEAPONS = {
   axe: { name:'Bearded Axe', damage:36, range:2.25, arc:2.5, windup:.34, active:.19, recovery:.34, cost:14 },
   spear: { name:'Ash Spear', damage:19, range:3.25, arc:.62, windup:.12, active:.12, recovery:.22, cost:7 },
 };
-const ENEMIES={wolf:{hp:58,speed:2.45,range:1.4,damage:12,windup:.65,recovery:.9,radius:.48},raider:{hp:100,speed:1.65,range:1.9,damage:20,windup:.9,recovery:1.05,radius:.42},boss:{hp:640,radius:.7}};
+export const basicAttack=p=>p.classId==='mage'?ARCANE_BOLT:WEAPONS[p.weapon];
+const aimPoint=point=>point&&Number.isFinite(point.x)&&Number.isFinite(point.z)?{x:point.x,z:point.z}:null;
+const ENEMIES={wolf:{hp:58,speed:2.45,range:1.4,damage:12,windup:.65,recovery:.9,radius:.48},raider:{hp:100,speed:1.65,range:1.9,damage:20,windup:.9,recovery:1.05,radius:.42},boss:{hp:1080,radius:.7}};
 // Rendering and damage share these numbers: the warning is the actual danger zone.
 export function enemyAttack(e){
- if(e.kind==='boss')return e.attackKind==='slam'?{name:'Ground Slam',hint:'Leave the circle',range:4.5,arc:Math.PI*2,windup:1.6,recovery:1.5,damage:38,color:0xb889f0}:{name:'Oathbreaker Sweep',hint:'Dodge behind him',range:3.2,arc:2.3,windup:1.05,recovery:1.1,damage:26,color:0xe0a949};
+ if(e.kind==='boss')return e.attackKind==='slam'?{name:'Ground Slam',hint:'Leave the circle',range:4.5,arc:Math.PI*2,windup:1.6,recovery:1.5,damage:60,color:0xb889f0}:{name:'Oathbreaker Sweep',hint:'Dodge behind him',range:3.2,arc:2.3,windup:1.05,recovery:1.1,damage:42,color:0xe0a949};
  const d=ENEMIES[e.kind];return {...d,name:e.kind==='wolf'?'Lunge':'Axe Sweep',hint:'Step out of the marked ground',arc:e.kind==='wolf'?1:1.8,color:0xe0a949};
 }
 export const windupProgress=e=>Math.max(0,Math.min(1,1-e.timer/enemyAttack(e).windup));
@@ -45,12 +47,12 @@ export class Combat {
   consume(){return this.events.splice(0);}
   equip(name){const p=this.player;if(this.dead||p.action||p.dodge>0||!WEAPONS[name])return false;p.weapon=name;p.combo=0;this.emit('equip',{weapon:name});return true;}
   cycleWeapon(){const keys=Object.keys(WEAPONS);return this.equip(keys[(keys.indexOf(this.player.weapon)+1)%keys.length]);}
-  requestAttack(kind='basic',angle=this.player.angle){
+  requestAttack(kind='basic',angle=this.player.angle,target=null){
     const p=this.player,a=p.action;if(this.dead||p.dodge>0||!(kind==='basic'||classInfo(p.classId).skills.includes(kind)))return false;
-    if(!a)return this.startAttack(kind,angle);
+    if(!a)return this.startAttack(kind,angle,target);
     // A single late input is held briefly, never a whole automatic combo.
     if(a.windup+a.active+a.recovery-a.age>.20)return false;
-    p.queued={kind,angle,until:this.time+.24};return true;
+    p.queued={kind,angle,target:aimPoint(target),until:this.time+.24};return true;
   }
   clearBufferedInput(){this.player.queued=null;}
   canChangeClass(){const p=this.player;return !this.dead&&inTown(p.x,p.z)&&!p.action&&!p.dodge&&!this.projectiles.length&&!this.bombs.length&&!this.enemies.some(e=>e.hp>0&&e.poison>0);}
@@ -60,15 +62,16 @@ export class Combat {
     const remaining=Math.max(...Object.values(p.cooldowns));for(const key of Object.keys(p.cooldowns))p.cooldowns[key]=Math.max(p.cooldowns[key],remaining);
     p.classId=id;p.buff=p.smoke=p.ward=p.wardTime=p.combo=0;p.queued=null;this.emit('classChange',{classId:id});return true;
   }
-  startAttack(kind='basic',angle=this.player.angle){
+  startAttack(kind='basic',angle=this.player.angle,target=null){
     const p=this.player;if(this.dead||p.action||p.dodge>0)return false;
-    const basic=kind==='basic',d=basic?WEAPONS[p.weapon]:SKILLS[kind];if(!d||!basic&&!classInfo(p.classId).skills.includes(kind))return false;
+    const basic=kind==='basic',d=basic?basicAttack(p):SKILLS[kind];if(!d||!basic&&!classInfo(p.classId).skills.includes(kind))return false;
     if(p.stamina<d.cost){this.emit('notice',{text:'Not enough stamina'});return false;}
     if(!basic&&p.cooldowns[kind]>0)return false;
     p.queued=null;p.stamina-=d.cost;p.angle=Number.isFinite(angle)?angle:p.angle;angle=p.angle;
     if(basic){p.combo=this.time<=p.comboUntil?p.combo%3+1:1;this.attacks++;this.weaponsUsed[p.weapon]++;}
     else{p.cooldowns[kind]=d.cooldown;this.skillsUsed[kind]++;}
-    p.action={...d,kind,weapon:p.weapon,age:0,angle,hits:new Set(),applied:false,combo:basic?p.combo:0,damage:(d.damage>0?d.damage+(p.damageBonus||0):0)*(p.damageMultiplier||1)*(basic&&p.combo===3?1.5:1)*(p.buff>0?1.35:1)};
+    const multiplier=(p.damageMultiplier||1)*(basic&&p.combo===3?1.5:1)*(p.buff>0?1.35:1);
+    p.action={...d,kind,weapon:p.weapon,age:0,angle,target:aimPoint(target),hits:new Set(),applied:false,combo:basic?p.combo:0,equipmentDamage:d.damage>0?(p.damageBonus||0)*multiplier:0,damage:(d.damage>0?d.damage+(p.damageBonus||0):0)*multiplier};
     this.emit('attack',{kind,weapon:p.weapon,combo:p.combo});return true;
   }
   dodge(x,z){const p=this.player;if(this.dead||p.dodge>0||p.dodgeCD>0||p.stamina<25||this.phase==='active')return false;
@@ -87,14 +90,14 @@ export class Combat {
     const p=this.player;
     if(!e.enraged&&e.hp<=e.maxHp/2){e.enraged=true;this.emit('notice',{text:'The Warden is enraged! Watch the violet ground slam.'});}
     // Boss windups cannot be cancelled by basic-hit stagger or Battle Cry.
-    if(e.phase==='windup'){e.timer-=dt;if(e.timer<=0){const d=enemyAttack(e),slam=e.attackKind==='slam';if(inArc(e,{...p,radius:.28},d.range,d.arc,e.angle))this.hurtPlayer(d.damage*(e.enraged?1.2:1));e.phase='recovery';e.timer=d.recovery;this.emit('bossStrike',{x:e.x,z:e.z,slam});}return;}
+    if(e.phase==='windup'){e.timer-=dt;if(e.timer<=0){const d=enemyAttack(e),slam=e.attackKind==='slam';if(inArc(e,{...p,radius:.28},d.range,d.arc,e.angle)&&clearPath(this,e,p))this.hurtPlayer(d.damage*(e.enraged?1.2:1));e.phase='recovery';e.timer=d.recovery;this.emit('bossStrike',{x:e.x,z:e.z,slam});}return;}
     if(e.phase==='recovery'){e.timer-=dt;if(e.timer<=0)e.phase='idle';return;}
     const aggro=!inTown(p.x,p.z)&&dist(e,p)<15&&Math.hypot(e.x-e.homeX,e.z-e.homeZ)<18,target=aggro?p:{x:e.homeX,z:e.homeZ},distance=dist(e,target);
     if(aggro&&distance<3.15){e.attackKind=e.attackCount++%2?'slam':'sweep';e.phase='windup';e.timer=enemyAttack(e).windup;e.angle=bearing(e,p);this.emit('enemyWindup',{id:e.id});return;}
-    if(distance>.2){const a=bearing(e,target),speed=(e.enraged?2.4:1.9)*(e.slow>0?e.slowFactor:1);e.angle+=angleDelta(a,e.angle)*Math.min(1,dt*7);this.move(e,Math.sin(a)*speed*dt,Math.cos(a)*speed*dt);e.walk+=dt*speed*2.5;}
+    if(distance>.2){const a=bearing(e,target),speed=(e.enraged?3.25:2.55)*(e.slow>0?e.slowFactor:1);e.angle+=angleDelta(a,e.angle)*Math.min(1,dt*7);this.move(e,Math.sin(a)*speed*dt,Math.cos(a)*speed*dt);e.walk+=dt*speed*2.5;}
   }
   update(dt,input={x:0,z:0,attack:false,aim:this.player.angle}){
-    this.time+=dt;const p=this.player,s=this.shard;
+    this.time+=dt;const p=this.player,s=this.shard;p.aimPoint=aimPoint(input.aimPoint);
     for(const key of Object.keys(p.cooldowns))p.cooldowns[key]=Math.max(0,p.cooldowns[key]-dt);
     p.buff=Math.max(0,p.buff-dt);p.invulnerable=Math.max(0,p.invulnerable-dt);p.dodgeCD=Math.max(0,p.dodgeCD-dt);
     if(this.dead)return;
@@ -102,7 +105,7 @@ export class Combat {
     p.stamina=Math.min(100,p.stamina+dt*(p.action||p.dodge>0?4:23));
     if(inTown(p.x,p.z))p.hp=Math.min(p.maxHp,p.hp+dt*8);
     if(p.queued&&this.time>p.queued.until)p.queued=null;
-    if(!p.action&&p.queued){const queued=p.queued;p.queued=null;this.startAttack(queued.kind,queued.angle);}
+    if(!p.action&&p.queued){const queued=p.queued;p.queued=null;this.startAttack(queued.kind,queued.angle,queued.target);}
     if(input.attack&&!p.action)this.startAttack('basic',input.aim);
     const moving=Math.hypot(input.x,input.z)>.05;p.moving=moving;
     if(moving)p.walk+=dt*9;p.gait+=((moving?1:0)-p.gait)*(1-Math.exp(-dt*18));
@@ -112,10 +115,10 @@ export class Combat {
     if(a){
       a.age+=dt;p.angle=a.angle;
       if(a.age>=a.windup&&a.age<a.windup+a.active){
-        if(!a.applied){a.applied=true;activateClassSkill(this,a);this.emit('swing',{kind:a.kind,weapon:a.weapon,x:p.x,z:p.z,angle:p.angle,combo:a.combo,arc:a.arc,range:a.range});if(a.kind==='cry'){p.buff=6;for(const e of this.enemies)if(e.hp>0&&e.kind!=='boss'&&dist(p,e)<5)e.stagger=1.8;}}
+        if(!a.applied){a.applied=true;activateClassSkill(this,a);this.emit('swing',{kind:a.kind,projectile:a.projectile,weapon:a.weapon,x:p.x,z:p.z,angle:p.angle,combo:a.combo,arc:a.arc,range:a.range});if(a.kind==='cry'){p.buff=6;for(const e of this.enemies)if(e.hp>0&&e.kind!=='boss'&&dist(p,e)<5&&clearPath(this,p,e))e.stagger=1.8;}}
         const feedback={heavy:a.combo===3||a.kind==='slam'||a.kind==='cleave',finisher:a.combo===3,weapon:a.weapon};
-        if(a.damage>0&&!['projectile','bomb'].includes(a.effect)){for(const e of this.enemies)if(e.hp>0&&!a.hits.has(e.id)&&inArc(p,e,a.range,a.arc,a.angle)&&(!a.effect||clearPath(this,p,e))){a.hits.add(e.id);classHit(this,a,e);const d=dist(p,e)||1;this.move(e,(e.x-p.x)/d*.16,(e.z-p.z)/d*.16);}
-          if(s.hp>0&&!a.hits.has('shard')&&inArc(p,s,a.range,a.arc,a.angle)&&(!a.effect||clearPath(this,p,s))){a.hits.add('shard');this.damageShard(a.damage,feedback);}}
+        if(a.damage>0&&!['projectile','bomb'].includes(a.effect)){for(const e of this.enemies)if(e.hp>0&&!a.hits.has(e.id)&&inArc(p,e,a.range,a.arc,a.angle)&&clearPath(this,p,e)){a.hits.add(e.id);classHit(this,a,e);const d=dist(p,e)||1;this.move(e,(e.x-p.x)/d*.16,(e.z-p.z)/d*.16);}
+          if(s.hp>0&&!a.hits.has('shard')&&inArc(p,s,a.range,a.arc,a.angle)&&clearPath(this,p,s)){a.hits.add('shard');this.damageShard(a.damage,feedback);}}
       }
       if(a.age>=a.windup+a.active+a.recovery){p.action=null;p.comboUntil=this.time+.85;}
     }
@@ -124,7 +127,7 @@ export class Combat {
       if(e.kind==='boss'){this.updateBoss(e,dt);continue;}
       const d=enemyAttack(e);d.speed*=e.slow>0?e.slowFactor:1;
       if(e.stagger>0){e.stagger-=dt;e.phase='idle';continue;}
-      if(e.phase==='windup'){e.timer-=dt;if(e.timer<=0){e.phase='recovery';e.timer=d.recovery;if(inArc(e,{...p,radius:.28},d.range,d.arc,e.angle))this.hurtPlayer(d.damage*(1+this.region*.15));this.emit('enemyStrike',{id:e.id});}continue;}
+      if(e.phase==='windup'){e.timer-=dt;if(e.timer<=0){e.phase='recovery';e.timer=d.recovery;if(inArc(e,{...p,radius:.28},d.range,d.arc,e.angle)&&clearPath(this,e,p))this.hurtPlayer(d.damage*(1+this.region*.15));this.emit('enemyStrike',{id:e.id});}continue;}
       if(e.phase==='recovery'){e.timer-=dt;if(e.timer<=0)e.phase='idle';continue;}
       const distance=dist(e,p),aggro=!inTown(p.x,p.z)&&distance<10&&Math.hypot(e.x-e.homeX,e.z-e.homeZ)<14;
       const patrol=e.patrol?{x:e.homeX+Math.sin(this.time*.19+e.id)*1.3,z:e.homeZ+Math.cos(this.time*.19+e.id)*.9}:{x:e.homeX,z:e.homeZ};

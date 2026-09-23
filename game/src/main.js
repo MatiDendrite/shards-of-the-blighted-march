@@ -21,6 +21,7 @@ import {createFrameClock} from './frame-clock.js';
 import {CameraOrbit,cameraRelative,cameraHeading} from './camera-orbit.js';
 import {createClassView} from './class-view.js';
 import {classInfo,skillForSlot,SLOT_IDS} from './class-data.js';
+import {touchAim} from './combat-targeting.js';
 import {intersectGroundRay} from './terrain-height.js';
 import {drapeGround} from './ground-projection.js';
 
@@ -103,17 +104,13 @@ async function boot(){
     if(!started||paused||model.dead)return;
     const raw=input.read(),m={...raw,...cameraRelative(raw.x,raw.z,orbit.yaw)},p=model.player;
     const moving=Math.hypot(m.x,m.z)>.08;
-    let angle=p.angle;
+    let angle=p.angle,aimPoint=null;
     if(moving)angle=Math.atan2(m.x,m.z);
-    if(input.pointer.active&&!input.isTouch){ray.setFromCamera(input.pointer,camera);const aim=intersectGroundRay(campaign.region,ray.ray.origin,ray.ray.direction);if(aim)angle=Math.atan2(aim.x-p.x,aim.z-p.z);}
+    if(input.pointer.active&&!input.isTouch){ray.setFromCamera(input.pointer,camera);const aim=intersectGroundRay(campaign.region,ray.ray.origin,ray.ray.direction);if(aim){aimPoint={x:aim.x,z:aim.z};angle=Math.atan2(aim.x-p.x,aim.z-p.z);}}
     const actions=input.consume();
-    if(input.isTouch&&(m.attack||actions.some(a=>['attack','cleave','slam'].includes(a)))){
-      const ranged=(p.classId==='mage'&&actions.includes('cleave'))||(p.classId==='ninja'&&actions.includes('slam'))||(p.classId==='dwarf'&&actions.includes('slam'));
-      const candidates=[...model.enemies.filter(e=>e.hp>0),...(model.shard.hp>0?[model.shard]:[])].filter(e=>Math.hypot(e.x-p.x,e.z-p.z)<(ranged?p.classId==='dwarf'?5.5:10:4.2)).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z));
-      if(candidates.length)angle=Math.atan2(candidates[0].x-p.x,candidates[0].z-p.z);
-    }
-    for(const action of actions){if(action==='weapon'){model.cycleWeapon();progress.sync(model);}else if(action==='potion'){if(progress.potion(model))save();}else if(action==='dodge')model.dodge(m.x,m.z);else model.requestAttack(action==='attack'?'basic':SLOT_IDS.includes(action)?skillForSlot(p.classId,action):action,angle);}
-    const oldX=p.x,oldZ=p.z;model.update(dt,{...m,aim:angle});actualSpeed=Math.hypot(p.x-oldX,p.z-oldZ)/dt;hero.position.set(p.x,world.heightAt(p.x,p.z)+.06,p.z);hero.rotation.y=p.angle;
+    if(input.isTouch){const assisted=touchAim(model,actions,m.attack,angle);angle=assisted.angle;aimPoint=assisted.point;}
+    for(const action of actions){if(action==='weapon'){model.cycleWeapon();progress.sync(model);}else if(action==='potion'){if(progress.potion(model))save();}else if(action==='dodge')model.dodge(m.x,m.z);else model.requestAttack(action==='attack'?'basic':SLOT_IDS.includes(action)?skillForSlot(p.classId,action):action,angle,aimPoint);}
+    const oldX=p.x,oldZ=p.z;model.update(dt,{...m,aim:angle,aimPoint});actualSpeed=Math.hypot(p.x-oldX,p.z-oldZ)/dt;hero.position.set(p.x,world.heightAt(p.x,p.z)+.06,p.z);hero.rotation.y=p.angle;
     const revision=progress.revision,events=model.consume();progress.events(events,model);progress.tick(dt);progress.collect(p);const questCompleted=campaign.observe();if(questCompleted){campaignView.celebrate();audio.play('quest');}combatView.process(events);if(events.some(e=>e.type==='hit'))hitStop=events.some(e=>e.type==='hit'&&e.heavy)?.06:.03;
     if(progress.messages.length){if(!questCompleted)combatView.notice(progress.messages.at(-1));progress.messages.length=0;}
     saveTimer+=dt;if(progress.revision!==revision||saveTimer>5){save();saveTimer=0;}

@@ -8,7 +8,7 @@ import {Progression,SAVE_KEY,validSave} from '../game/src/progression.js';
 import {Campaign} from '../game/src/campaign.js';
 const out='_artifacts/detailed-map';await fs.mkdir(out,{recursive:true});
 const model=new Combat(),progress=new Progression(),campaign=new Campaign(progress,model);progress.restore(model);
-for(let i=0;i<4;i++){if(i)travelFixture(campaign,i);model.damageShard(999);for(let t=0;t<100;t++)model.update(1/60);for(const e of model.enemies)model.damageEnemy(e,999);progress.events(model.consume(),model);campaign.observe();}
+for(let i=0;i<4;i++){if(i)travelFixture(campaign,i);model.damageShard(999);for(let t=0;t<100;t++)model.update(1/60);for(const e of model.enemies)model.damageEnemy(e,e.maxHp);progress.events(model.consume(),model);campaign.observe();}
 travelFixture(campaign,0);const fixture=progress.snapshot(model);assert(validSave(fixture));
 const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});
 try{

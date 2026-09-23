@@ -31,7 +31,7 @@ for(let region=0;region<3;region++)test(`region ${region}: twenty initial enemie
 });
 test('missing reinforcements cannot produce a false completion; boss remains one enemy',()=>{
  const m=new Combat();m.shard.exploded=true;m.enemies.forEach(e=>e.hp=0);assert(!m.complete);
- m.reset(3);assert.equal(m.enemies.length,1);assert.equal(m.requiredKills,1);m.damageEnemy(m.enemies[0],999);assert(m.complete);
+ m.reset(3);assert.equal(m.enemies.length,1);assert.equal(m.requiredKills,1);m.damageEnemy(m.enemies[0],m.enemies[0].maxHp);assert(m.complete);
 });
 test('last patrol and all twenty-five drops survive reload; no duplicated rewards',()=>{
  const s=setup();explode(s);for(const e of s.m.enemies)if(e.id!==24)s.m.damageEnemy(e,999);flush(s);
@@ -68,7 +68,7 @@ test('schema bounds expanded IDs/drop count and rejects unknown encounter versio
 });
 test('patrol rewards are once-only resources; all expedition equipment fits the satchel',()=>{
  const s=setup();for(let region=0;region<4;region++){
-  if(region<3)explode(s);for(const e of s.m.enemies)s.m.damageEnemy(e,999);flush(s);
+  if(region<3)explode(s);for(const e of s.m.enemies)s.m.damageEnemy(e,e.maxHp);flush(s);
   for(const id of FIELD_PATROLS.map(e=>e.id)){const drop=s.p.data.drops.find(d=>d.id===`1-${region}-${id}`);if(region<3){assert(drop.gold>0);assert.equal(drop.item,null);}}
   for(const drop of [...s.p.data.drops]){Object.assign(s.m.player,{x:drop.x,z:drop.z});s.p.collect(s.m.player);}
   assert.equal(s.p.data.drops.length,0);assert(s.p.data.items.length<=24);assert(validSave(s.p.snapshot(s.m)));if(region<3)assert(travelFixture(s.c,region+1));

@@ -8,7 +8,7 @@ import {Progression,SAVE_KEY} from '../game/src/progression.js';
 import {Campaign} from '../game/src/campaign.js';
 const out=`_artifacts/visual-${process.argv[2]||'detail'}`;await fs.mkdir(out,{recursive:true});
 const m=new Combat(),p=new Progression(),c=new Campaign(p,m);p.restore(m);
-for(let r=0;r<4;r++){if(r)travelFixture(c,r);m.damageShard(999);for(let i=0;i<100;i++)m.update(1/60);for(const e of m.enemies)m.damageEnemy(e,999);p.events(m.consume(),m);c.observe();}travelFixture(c,0);
+for(let r=0;r<4;r++){if(r)travelFixture(c,r);m.damageShard(999);for(let i=0;i<100;i++)m.update(1/60);for(const e of m.enemies)m.damageEnemy(e,e.maxHp);p.events(m.consume(),m);c.observe();}travelFixture(c,0);
 const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});
 try{const page=await browser.newPage(),errors=[],results=[];page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(r.status()>=400)errors.push(`${r.status()} ${r.url()}`);});
  await page.setViewport({width:960,height:640,deviceScaleFactor:1});await page.evaluateOnNewDocument((key,data)=>{if(!localStorage.getItem(key))localStorage.setItem(key,data);},SAVE_KEY,JSON.stringify(p.snapshot(m)));

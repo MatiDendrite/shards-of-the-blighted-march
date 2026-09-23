@@ -1,4 +1,4 @@
-import {MAPS,NPCS,TOWN,EXIT,WORLD_LIMIT,roads,landmarks} from './world-map.js';
+import {MAPS,NPCS,TOWN,WORLD_LIMIT,roads,landmarks,portalsFor} from './world-map.js';
 import {sceneryLayout} from './region-layout.js';
 import {SMITH} from './progression.js';
 
@@ -21,7 +21,7 @@ export function mapLocations(region){
   ...NPCS.map(n=>({...n,detail:n.role,symbol:n.name[0]})),
   ...(region===0?[{id:'smith',name:'Borin',detail:'Forge & salvage',symbol:'S',...SMITH}]:[]),
   {id:'objective',name:region===3?'Warden’s Court':'Shard Sanctuary',detail:'Quest location',...MAPS[region].shard},
-  ...(region<3?[{id:'exit',name:'Northern passage',detail:'Next region · finish quest first',...EXIT}]:[])
+  ...portalsFor(region).map(p=>({...p,name:p.id==='exit'?'Northern portal':'Southern return portal',detail:p.id==='exit'?'Next region · finish quest first':'Previous region · reach the portal'}))
  ];
 }
 export function mapLayout(region){

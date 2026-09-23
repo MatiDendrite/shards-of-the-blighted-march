@@ -17,11 +17,25 @@ export function boxEntry(origin,direction,length,box,padding=.24){
  return entry;
 }
 export function cameraClearance(origin,direction,length,obstacles){
- let safe=length;
+ let safe=length;const overhead=[];
  for(const obstacle of obstacles){
   const broad=boxEntry(origin,direction,safe,obstacle);if(broad===null)continue;
-  if(obstacle.parts){for(const part of obstacle.parts){const hit=boxEntry(origin,direction,safe,part);if(hit!==null)safe=Math.min(safe,Math.max(0,hit-.06));}}
+  if(obstacle.parts){for(const part of obstacle.parts){
+   // A raised arch may cross the sightline without touching the camera. Keep
+   // the chosen view under it; posts and houses still block the whole boom.
+   if(part.overhead&&part.min.y>origin.y+1.6){overhead.push(part);continue;}
+   const hit=boxEntry(origin,direction,safe,part);if(hit!==null)safe=Math.min(safe,Math.max(0,hit-.06));
+  }}
   else safe=Math.min(safe,Math.max(0,broad-.06));
+ }
+ // An arch must still keep the lens itself outside masonry. Recheck after each
+ // retraction, since a shorter boom can place its endpoint inside another part.
+ for(let n=0;n<=overhead.length;n++){
+  let changed=false;
+  for(const part of overhead)if(['x','y','z'].every(a=>origin[a]+direction[a]*safe>=part.min[a]-.24&&origin[a]+direction[a]*safe<=part.max[a]+.24)){
+   const hit=boxEntry(origin,direction,safe,part);if(hit!==null){const next=Math.max(0,hit-.06);changed||=next<safe;safe=next;}
+  }
+  if(!changed)break;
  }
  return safe;
 }
@@ -57,6 +71,9 @@ export class CameraOrbit{
   }
   // Retract immediately for safety; ease back out when the obstacle clears.
   this.distance=!this.distance||safe<this.distance?safe:Math.min(safe,this.distance+(safe-this.distance)*smooth(dt));
+  // Do not leave an easing intermediate inside a raised arch. The fully
+  // checked destination is clear, so finish that recovery in one step.
+  if(cameraClearance(focus,dir,this.distance,obstacles)<this.distance-.01)this.distance=safe;
   this.blocked=safe<wanted-.01||actualPitch!==pitch;this.pitch=actualPitch;
   this.eye={x:focus.x+dir.x*this.distance,y:focus.y+dir.y*this.distance,z:focus.z+dir.z*this.distance};return this.eye;
  }

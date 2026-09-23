@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import {Combat,WEAPONS} from '../game/src/combat-model.js';
 import {Progression,validSave,itemPower,SMITH} from '../game/src/progression.js';
 import {Campaign} from '../game/src/campaign.js';
+import {EXIT} from '../game/src/world-map.js';
 import {sceneryLayout,canStandIn} from '../game/src/region-layout.js';
 import {route} from './navigation.mjs';
 let obstacles=sceneryLayout(0).colliders;
@@ -55,6 +56,6 @@ for(let region=0;region<4;region++){
  for(const kind of ['armor',weapon]){const best=progress.data.items.filter(i=>i.kind===kind).sort((a,b)=>itemPower(b)-itemPower(a))[0];assert(progress.equip(best.id,model));}
  const snapshot=progress.snapshot(model);assert(validSave(snapshot));progress.data=structuredClone(snapshot);progress.restore(model);assert(model.complete);assert(campaign.data.cleared[region]);
  reports.push({weapon,region,combatSeconds:Math.round(combatSeconds),withLootSeconds:Math.round(frames/60-start),level:progress.data.level,hpStart,damageTaken:damage,weaponPower:itemPower(progress.equipped(weapon)),armor:itemPower(progress.equipped('armor')),potions:progress.data.potions});console.log(reports.at(-1));
- if(region<3){assert(campaign.travel(region+1));obstacles=sceneryLayout(region+1).colliders;waypoints=[];pathKey='';}
+ if(region<3){walkUntil(EXIT,2.4);assert(campaign.travel(region+1));obstacles=sceneryLayout(region+1).colliders;waypoints=[];pathKey='';}
 }
 assert(campaign.complete);await fs.mkdir('_artifacts/performance/balance',{recursive:true});await fs.writeFile(`_artifacts/performance/balance/${weapon}.json`,JSON.stringify({result:'PASS',kind:'deterministic simulation, not browser input',seconds:Math.round(frames/60),reports},null,2));

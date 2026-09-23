@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Combat} from '../game/src/combat-model.js';
 import {sceneryLayout,pavingLayout,canStandIn} from '../game/src/region-layout.js';
-import {WORLD_LIMIT,inTown,MAPS,EXIT,NPCS,landmarks} from '../game/src/world-map.js';
+import {WORLD_LIMIT,inTown,MAPS,EXIT,RETURN,NPCS,landmarks} from '../game/src/world-map.js';
 import {route} from './navigation.mjs';
 for(let region=0;region<4;region++){
  test(`region ${region}: deterministic settlement and solid obstacles`,()=>{
@@ -13,7 +13,7 @@ for(let region=0;region<4;region++){
  });
  test(`region ${region}: town, fields, wave spawns and exit are reachable`,()=>{
   const {colliders}=sceneryLayout(region),m=new Combat();m.reset(region);m.damageShard(999);
-  const points=[{x:0,z:11},EXIT,...m.enemies,...landmarks(region).filter(l=>l.kind!=='town')];
+  const points=[{x:0,z:11},EXIT,RETURN,...m.enemies,...landmarks(region).filter(l=>l.kind!=='town')];
   for(const p of points){assert(canStandIn(colliders,p.x,p.z),`blocked ${p.x},${p.z}`);assert(route([0,11],p,colliders,1.1));}
   for(const n of NPCS)assert(route([0,11],n,colliders,2.5));
  });

@@ -36,6 +36,20 @@ test('compound gate bounds leave the real archway open and block its masonry',()
 test('camera retracts immediately and restores distance smoothly after obstruction',()=>{
  const c=new CameraOrbit(),p={x:0,z:0},clear=c.position(p,.016,false),far=c.distance;assert(clear.z>9);const wall=box(0,0,5,8,12,1);const near=c.position(p,.016,false,[wall]);assert(c.blocked);assert(c.distance<far);assert(!inside(near,wall,.2));const distance=c.distance;c.position(p,.016,false,[]);assert(c.distance>distance&&c.distance<far);for(let i=0;i<180;i++)c.position(p,.016,false,[]);close(c.distance,far);
 });
+test('walking below a raised arch preserves zoom and pitch on desktop and phone',()=>{
+ const obstacle=placeCameraObstacle(cameraTemplate('gate',gate(T)),{x:0,z:0,sx:1,sy:1,sz:1,rotation:0});
+ for(const portrait of [false,true])for(const yaw of [0,Math.PI])for(const tilt of [-.25,0,.42]){
+  const c=new CameraOrbit();c.yaw=yaw;c.tilt=tilt;const expected=c.position({x:0,z:8},1/60,portrait),distance=c.distance,pitch=c.pitch;
+  for(let z=-8;z<=8;z+=.05){const eye=c.position({x:0,z},1/60,portrait,[obstacle]);close(c.distance,distance);close(c.pitch,pitch);assert(!c.blocked);for(const part of obstacle.parts)assert(!inside(eye,part,.1));}
+  assert(Number.isFinite(expected.y));
+ }
+});
+test('overhead sightline exception never allows a lens inside arch masonry',()=>{
+ const obstacle=placeCameraObstacle(cameraTemplate('gate',gate(T)),{x:0,z:0,sx:1,sy:1,sz:1,rotation:.3});
+ for(let x=-7;x<8;x+=1.5)for(let z=-9;z<10;z+=1.5)for(let yaw=0;yaw<Math.PI*2;yaw+=.4){
+  const c=new CameraOrbit();c.yaw=yaw;c.zoom=.7;c.tilt=-.25;const eye=c.position({x,z},1/60,false,[obstacle]);for(const part of obstacle.parts)assert(!inside(eye,part,.1));
+ }
+});
 test('tight corners and conservative bounds never bury the camera or create NaNs',()=>{
  for(const obstacles of [[box(0,0,0,1,3,1)],[box(0,0,1,6,3,1),box(1,0,0,1,5,6)]]){
   const c=new CameraOrbit();for(let yaw=-Math.PI;yaw<Math.PI;yaw+=.2){c.yaw=yaw;const eye=c.position({x:0,z:0},.016,false,obstacles);assert(Object.values(eye).every(Number.isFinite));assert(eye.y>.75);for(const b of obstacles)assert(!inside(eye,b,.1));}

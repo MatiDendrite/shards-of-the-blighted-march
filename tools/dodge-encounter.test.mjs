@@ -1,3 +1,4 @@
+import {travelFixture} from './travel-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
@@ -26,7 +27,7 @@ for(let region=0;region<3;region++)test(`region ${region}: twelve initial enemie
  for(const e of s.m.enemies.filter(e=>e.id>8&&e.id!==16))s.m.damageEnemy(e,999);flush(s);
  assert.equal(s.m.kills,15);assert(!s.c.data.cleared[region]);assert(!s.c.travel(region+1));
  s.m.damageEnemy(s.m.enemies.find(e=>e.id===16),999);flush(s);
- assert(s.m.complete);assert(s.c.data.cleared[region]);assert(s.c.travel(region+1));
+ assert(s.m.complete);assert(s.c.data.cleared[region]);assert(travelFixture(s.c,region+1));
 });
 test('missing reinforcements cannot produce a false completion; boss remains one enemy',()=>{
  const m=new Combat();m.shard.exploded=true;m.enemies.forEach(e=>e.hp=0);assert(!m.complete);
@@ -52,7 +53,7 @@ test('completed legacy current and archived regions keep roads open without free
  for(const state of p.data.campaign.regions.filter(Boolean))assert.equal(state.claimed.length,16);
  for(const field of ['gold','ore','xp','level','serial','items','drops'])assert.deepEqual(p.data[field],old[field]);
  const upgraded=p.snapshot(m);assert(validSave(upgraded));assert.deepEqual(new Progression(upgraded).data,upgraded);
- assert(c.travel(0));assert(m.complete);assert(c.travel(3));assert.equal(m.enemies.length,1);assert(validSave(p.snapshot(m)));
+ assert(travelFixture(c,0));assert(m.complete);assert(travelFixture(c,3));assert.equal(m.enemies.length,1);assert(validSave(p.snapshot(m)));
 });
 test('legacy saves without campaign and completed boss saves migrate too',()=>{
  const old=legacy();delete old.campaign;Object.assign(old,completed());assert(validSave(old));let p=new Progression(old),m=new Combat();new Campaign(p,m);p.restore(m);assert(m.complete);assert(validSave(p.snapshot(m)));
@@ -70,7 +71,7 @@ test('patrol rewards are once-only resources; all expedition equipment fits the 
   if(region<3)explode(s);for(const e of s.m.enemies)s.m.damageEnemy(e,999);flush(s);
   for(const id of FIELD_PATROLS.map(e=>e.id)){const drop=s.p.data.drops.find(d=>d.id===`1-${region}-${id}`);if(region<3){assert(drop.gold>0);assert.equal(drop.item,null);}}
   for(const drop of [...s.p.data.drops]){Object.assign(s.m.player,{x:drop.x,z:drop.z});s.p.collect(s.m.player);}
-  assert.equal(s.p.data.drops.length,0);assert(s.p.data.items.length<=24);assert(validSave(s.p.snapshot(s.m)));if(region<3)assert(s.c.travel(region+1));
+  assert.equal(s.p.data.drops.length,0);assert(s.p.data.items.length<=24);assert(validSave(s.p.snapshot(s.m)));if(region<3)assert(travelFixture(s.c,region+1));
  }
  assert.equal(s.p.data.items.length,23);assert(s.c.complete);
 });

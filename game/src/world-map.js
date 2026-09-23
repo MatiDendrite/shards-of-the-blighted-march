@@ -3,6 +3,11 @@ export const WORLD_LIMIT=60;
 export const TOWN={x:0,z:8,halfWidth:19,halfDepth:19};
 export const ARRIVAL={x:0,z:11};
 export const EXIT={x:0,z:-56};
+export const RETURN={x:0,z:54};
+export const portalsFor=region=>[
+ ...(region<3?[{id:'exit',...EXIT,destination:region+1}]:[]),
+ ...(region>0?[{id:'return',...RETURN,destination:region-1}]:[]),
+];
 export const inTown=(x,z)=>Math.abs(x-TOWN.x)<TOWN.halfWidth&&Math.abs(z-TOWN.z)<TOWN.halfDepth;
 export const MAPS=[
  {town:'Hearthstead',west:'Wolfgrass Meadow',east:'Watchman’s Field',south:'South Orchards',shard:{x:0,z:-37}},
@@ -12,7 +17,7 @@ export const MAPS=[
 ];
 export const NPCS=[
  {id:'elder',x:-5,z:2,name:'Alden',role:'Warden of the road',color:0x536b59},
- {id:'merchant',x:6,z:2,name:'Mara',role:'Supplies',color:0x775146},
+ {id:'merchant',x:6,z:2,name:'Mara',role:'Equipment trader',color:0x775146},
  {id:'guide',x:5,z:16,name:'Rowan',role:'Trail guide',color:0x515e76},
 ];
 export function landmarks(region){const m=MAPS[region];return [

@@ -15,17 +15,17 @@ export function journeyGuide(campaign){
  if(m.dead)return mark('retry','Return to safe ground',null,'Your equipment and earned quest progress are kept.');
  if(m.shard.blast>0)return mark('danger','Leave the violet blast circle!',null,'The shard is breaking. Move more than 4.2 m away.');
  if(done){
-  const loot=nearest(p,d.drops);if(loot)return mark('loot','Collect your spoils',loot,d.items.length>=24?'Satchel full? Salvage spare gear at Borin in Hearthstead.':'Walk over loot to collect it. Open I to compare equipment.');
+  const loot=nearest(p,d.drops);if(loot)return mark('loot','Collect your spoils',loot,d.items.length>=24?'Satchel full? Sell spare gear to Mara in the central settlement.':'Walk over loot to collect it. Open I to compare equipment.');
   const upgrade=d.items.find(i=>itemPower(i)>itemPower(campaign.progress.equipped(i.kind)));
-  if(upgrade)return mark('gear','Stronger equipment in your satchel',null,'Open I to compare and equip it. Travel remains available in J.');
-  return campaign.region<3?mark('travel',`Road open · ${REGIONS[campaign.region+1].short}`,EXIT,'Follow the north road, or use J to travel from safe ground.'):mark('complete','The March is free',null,'All four quests complete. Explore, or begin another expedition from the pause menu.');
+  if(upgrade)return mark('gear','Stronger equipment in your satchel',null,'Open I to compare and equip it, then walk to the northern portal.');
+  return campaign.region<3?mark('travel',`Road open · ${REGIONS[campaign.region+1].short}`,EXIT,'Reach the northern portal and press E. The southern portal returns to the previous region.'):mark('complete','The March is free',null,'All four quests complete. Explore, return through the southern portal, or restart from the pause menu.');
  }
  if(p.hp<p.maxHp*.35)return mark('recover','Recover before the next fight',{x:0,z:11},d.potions>0?'Q / Heal: drink a draught, or return to the settlement.':'The central settlement restores health. Mara sells draughts.');
  const enemies=m.enemies.filter(e=>e.hp>0),near=nearest(p,enemies);
  if(campaign.region===3)return mark('boss','Defeat the Fallen Warden',near,'Gold sweep: dodge behind. Violet slam: leave the circle. Strike during recovery.');
  // Clear the scattered field guards first if they are closer, then follow the shard.
  if(near&&(m.shard.exploded||distance(p,near)<distance(p,m.shard)))return mark('guardian',m.shard.exploded?'Track the remaining guardians':'Clear the hunting fields',near,`${m.requiredKills-m.kills} guardians remain in this quest, including shard reinforcements. Gold warnings show where attacks land.`);
- return mark('shard',`Cleanse the ${q.shard}`,m.shard,inTown(p.x,p.z)?'Borin can forge a starter upgrade. Take supplies, then follow the marker.':'Breaking the shard calls two waves. Save stamina for a dodge.');
+ return mark('shard',`Cleanse the ${q.shard}`,m.shard,inTown(p.x,p.z)?campaign.region===0?'Borin can forge a starter upgrade. Take supplies, then follow the marker.':'Mara buys spare equipment and sells healing draughts. Follow the marker.':'Breaking the shard calls two waves. Save stamina for a dodge.');
 }
 
 export function questSteps(campaign){

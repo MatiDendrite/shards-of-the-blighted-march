@@ -1,3 +1,4 @@
+import {travelFixture} from './travel-fixture.mjs';
 // Real browser input for a fresh wolf encounter. The boss portion explicitly uses
 // a saved-journey fixture to review tells; it is not an earned full campaign run.
 import puppeteer from 'puppeteer';
@@ -16,7 +17,7 @@ try{
   const context=await browser.createBrowserContext(),page=await context.newPage();page.setDefaultTimeout(90000);
   page.on('pageerror',e=>{errors.push(e.message);console.log('ERROR',e.message);});page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await page.setViewport({width:960,height:640,deviceScaleFactor:1});
-  if(bossFixture){const m=new Combat(),p=new Progression(),c=new Campaign(p,m);p.restore(m);for(let r=0;r<3;r++){m.damageShard(999);for(let i=0;i<100;i++)m.update(1/60);for(const e of m.enemies)m.damageEnemy(e,999);p.events(m.consume(),m);c.observe();c.travel(r+1);}
+  if(bossFixture){const m=new Combat(),p=new Progression(),c=new Campaign(p,m);p.restore(m);for(let r=0;r<3;r++){m.damageShard(999);for(let i=0;i<100;i++)m.update(1/60);for(const e of m.enemies)m.damageEnemy(e,999);p.events(m.consume(),m);c.observe();travelFixture(c,r+1);}
    await page.evaluateOnNewDocument((key,data)=>{if(!localStorage.getItem(key))localStorage.setItem(key,data);},SAVE_KEY,JSON.stringify(p.snapshot(m)));
   }
   await page.goto('http://localhost:4173/preview/');await page.waitForFunction(()=>window.__READY__);await page.click('#startb');console.log(bossFixture?'Boss fixture ready':'Fresh journey ready');

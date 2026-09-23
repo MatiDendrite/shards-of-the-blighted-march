@@ -20,7 +20,7 @@ try{
  await page.goto('http://localhost:4173/');
  const wait=fn=>page.waitForFunction(fn,{timeout:90000,polling:100}),state=()=>page.evaluate(()=>window.__GAME__);
  await wait(()=>window.__READY__);await page.click('#startb');
- await page.keyboard.press('KeyJ');await page.waitForSelector('#journal:not([hidden])');assert.equal(await page.$$eval('.quest-card',e=>e.length),4);if(!process.argv.includes('--resume'))assert(await page.$eval('[data-travel="3"]',e=>e.disabled));await page.screenshot({path:`${out}/journal-start.png`});await page.click('#journal-close');
+ await page.keyboard.press('KeyJ');await page.waitForSelector('#journal:not([hidden])');assert.equal(await page.$$eval('.quest-card',e=>e.length),4);assert.equal(await page.$$eval('[data-travel]',e=>e.length),0);if(!process.argv.includes('--resume'))assert.match(await page.$eval('[data-region="3"]',e=>e.textContent),/SEALED/);await page.screenshot({path:`${out}/journal-start.png`});await page.click('#journal-close');
  // Upgrade and select the real starter spear, paying starter resources.
  if(!process.argv.includes('--resume')){await page.keyboard.down('KeyA');await wait(()=>window.__GAME__.rpg.nearSmith);await page.keyboard.up('KeyA');await page.keyboard.press('KeyE');await page.click('#item-list [data-select-item="3"]');await page.click('[data-item-action="upgrade"][data-id="3"]');await page.click('#bag-close');await page.keyboard.press('KeyR');await wait(()=>window.__GAME__.weapon==='axe');await page.keyboard.press('KeyR');await wait(()=>window.__GAME__.weapon==='spear');}
  const held=new Set();async function keys(want){for(const k of held)if(!want.includes(k)){await page.keyboard.up(k);held.delete(k);}for(const k of want)if(!held.has(k)){await page.keyboard.down(k);held.add(k);}}
@@ -72,9 +72,8 @@ try{
   // A completed save shows its ending on entry. Dismiss it through the real
   // Stay button before opening the journal; modal guards correctly reject J.
   if(region===3){assert(g.campaign.complete);await page.waitForSelector('#victory:not([hidden])');await page.screenshot({path:`${out}/ending.png`});await page.click('#explore');await page.keyboard.press('KeyJ');await page.waitForSelector('#journal:not([hidden])');assert.equal(await page.$$eval('.quest-card.done',cards=>cards.length),4);break;}
-  // Walk through the actual north gate for the first crossing; use the journal later.
-  if(region===0){await walkTo(0,-56,1.5);await page.click('#gate-button');}
-  else{await page.keyboard.press('KeyJ');await page.click(`[data-travel="${region+1}"]`);}
+  // Every crossing requires the actual north portal; journal travel is removed.
+  await walkTo(0,-56,1.5);await page.click('#gate-button');
   await page.waitForFunction(i=>window.__GAME__.campaign.region===i,{timeout:90000},region+1);if(process.argv.includes('--first-region'))break;
  }
  assert.deepEqual(errors,[]);if(!software){assert(maxDraws<=500);assert(maxTris<=600000);}await fs.writeFile(`${out}/real-input.json`,JSON.stringify({result:'PASS',scope:process.argv.includes('--first-region')?'first region and gate':'four quests',resumed:process.argv.includes('--resume'),rendering:software?'native-input/DOM integration only; world drawing skipped after initial frame, separately validated at full quality':'unmodified',runs,...(!software?{maxDraws,maxTris}:{}),errors},null,2));console.log(process.argv.includes('--first-region')?'Expanded first region through real input: PASS':'Full expanded campaign through real input: PASS');

@@ -1,17 +1,17 @@
 import * as T from 'three';
 import { ASSET } from '../lib/assetlib.js';
-import { itemName,itemPower,xpNeeded,SMITH } from './progression.js';
+import { itemName,itemPower,xpNeeded,SMITH,sellPrice } from './progression.js';
 import { mergeJoints } from './combat-view.js';
 import { WEAPONS } from './combat-model.js';
 import { createGroundLoot } from './ground-loot.js';
 import { createTextWriter } from './hud-bindings.js';
 export async function createRpgView(scene,progress,combat,store,onChange,portraitSource,lootModels){
- const $=s=>document.querySelector(s),text=createTextWriter(),panel=$('#inventory'),list=$('#item-list'),drops=new Map();let mode='inventory',rendered=-1,selected=1,filter='all';
+ const $=s=>document.querySelector(s),text=createTextWriter(),panel=$('#inventory'),list=$('#item-list'),drops=new Map();let mode='inventory',rendered=-1,selected=1,filter='all',pendingSale=null;
  const kindNames={sword:'Sword',axe:'Axe',spear:'Spear',armor:'Armour'};
  let portraits;
  const smith=await ASSET(new URL('../assets/wanderer.js',import.meta.url).href,{keepHierarchy:true,height:1.85,surfaces:true});mergeJoints(smith);smith.position.set(SMITH.x,.07,SMITH.z);smith.rotation.y=1.7;smith.traverse(o=>{if(o.isMesh){o.material=o.material.clone();if(o.material.name==='fabric')o.material.color.setHex(0x57472f);}});scene.add(smith);
  const glow=new T.PointLight(0xffc07c,9,6,2);glow.position.set(SMITH.x,2,SMITH.z);scene.add(glow);
- const smithLabel=document.createElement('div');smithLabel.className='smith-label';smithLabel.textContent='BORIN · SMITH';$('#enemy-labels').append(smithLabel);
+ const smithLabel=document.createElement('div');smithLabel.className='smith-label';smithLabel.textContent='BORIN · BLACKSMITH · UPGRADES';$('#enemy-labels').append(smithLabel);
  const groundLoot=createGroundLoot(lootModels);
  const lootOccluders=[...document.querySelectorAll('#action-bar,#navigation-map,#utility,#objective,#boss-bar')];
  function info(text){$('#rpg-message').textContent=text;}
@@ -36,17 +36,22 @@ export async function createRpgView(scene,progress,combat,store,onChange,portrai
   const note=document.createElement('p');note.className='item-lore';note.textContent={sword:'Weathered iron. A balanced blade for a long road.',axe:'A heavy bearded edge. Wide swings, decisive strikes.',spear:'An ash haft and a leaf-shaped point. Keep the blight at a distance.',armor:'Layered iron and oxblood cloth. The armour of a Marchguard.'}[item.kind];
   const actions=document.createElement('div');actions.className='item-actions';function button(label,action,disabled=false){const b=document.createElement('button');b.textContent=label;b.disabled=disabled;b.dataset.itemAction=action;b.dataset.id=item.id;actions.append(b);}
   if(mode==='smith'){const cost=progress.price(item);button(item.upgrade>=3?'Maximum +3':`Forge · ${cost.gold}g + ${cost.ore} ore`,'upgrade',item.upgrade>=3||progress.data.gold<cost.gold||progress.data.ore<cost.ore);button('Salvage spare equipment','salvage',equipped);}
+  else if(mode==='merchant'){
+   row(stats,'Sale price',`${sellPrice(item)} gold`);
+   if(pendingSale===item.id){note.textContent='Selling removes this item permanently. Confirm the sale or keep it.';button(`Confirm sale · ${sellPrice(item)} gold`,'confirm-sale');button('Keep item','cancel-sale');}
+   else button(equipped?'In loadout · cannot sell':`Sell · ${sellPrice(item)} gold`,'sell',equipped||progress.data.gold+sellPrice(item)>1000000);
+  }
   else button(active?'Equipped':equipped?'Use weapon':'Equip item','equip',active);
   detail.append(tier,title,preview,stats,compare,note,actions);
  }
  function render(){if(!portraits){portraits=typeof portraitSource==='function'?portraitSource():portraitSource;$('#character-preview').src=portraits.armor;}const scroll=panel.scrollTop;rendered=progress.revision;const d=progress.data,p=combat.player;
   const shown=d.items.filter(i=>filter==='all'||(filter==='armor'?i.kind==='armor':i.kind!=='armor'));
   if(!shown.some(i=>i.id===selected))selected=shown[0]?.id;
-  $('#bag-title').textContent=mode==='smith'?'Borin’s forge':'Equipment & inventory';$('#bag-intro').textContent=mode==='smith'?'Reforge your equipment. Salvage what you no longer need.':'Steel for the road. A place for everything you carry.';
+  $('#bag-title').textContent=mode==='smith'?'Borin’s forge':mode==='merchant'?'Mara’s equipment trade':'Equipment & inventory';$('#bag-intro').textContent=mode==='smith'?'Reforge your equipment up to +3. Salvage spare gear for ore.':mode==='merchant'?'Select spare equipment to sell. Items in your loadout are protected.':'Steel for the road. A place for everything you carry.';
   $('#bag-money').replaceChildren();for(const [label,value] of [['GOLD',d.gold],['ORE',d.ore],['DRAUGHTS',d.potions]]){const el=document.createElement('span'),b=document.createElement('b');b.textContent=value;el.append(b,` ${label}`);$('#bag-money').append(el);}
   $('#sheet-level').textContent=`LV ${d.level}`;$('#bag-capacity').textContent=`${d.items.length} / 24`;
   const stats=$('#character-stats');stats.replaceChildren();row(stats,'Health',`${Math.ceil(p.hp)} / ${p.maxHp}`);row(stats,'Attack¹',Math.round((WEAPONS[p.weapon].damage+(p.damageBonus||0))*(p.damageMultiplier||1)));row(stats,'Defence',p.armor||0);row(stats,'Experience',d.level===8?'MAX':`${d.xp} / ${xpNeeded(d.level)}`);stats.title='¹ Basic hit before combo or Battle Cry bonuses.';
-  $('#buy-potion').hidden=mode!=='smith';$('#buy-potion').disabled=d.gold<25||d.potions>=20;
+  $('#buy-potion').hidden=mode==='inventory';$('#buy-potion').disabled=d.gold<25||d.potions>=20;
   $('#loadout-slots').replaceChildren(...Object.keys(kindNames).map(kind=>slot(progress.equipped(kind),true)));
   for(const b of $('#bag-filters').children)b.setAttribute('aria-pressed',String(b.dataset.filter===filter));
   list.replaceChildren(...shown.map(i=>slot(i)));
@@ -54,13 +59,16 @@ export async function createRpgView(scene,progress,combat,store,onChange,portrai
   const item=d.items.find(i=>i.id===selected);if(item)renderDetail(item);else $('#item-detail').textContent='No items in this category.';panel.scrollTop=scroll;
  }
  panel.addEventListener('click',e=>{
-  const choose=e.target.closest('[data-select-item]');if(choose){const fromLoadout=!!choose.closest('#loadout-slots');selected=Number(choose.dataset.selectItem);if(fromLoadout)filter='all';render();const next=panel.querySelector(`${fromLoadout?'#loadout-slots':'#item-list'} [data-select-item="${selected}"]`);next?.focus({preventScroll:true});if(innerWidth<=760)$('#item-detail').scrollIntoView({block:'nearest'});return;}
-  const category=e.target.closest('[data-filter]');if(category){filter=category.dataset.filter;render();return;}
-  const b=e.target.closest('button[data-item-action]');if(!b)return;const id=Number(b.dataset.id),action=b.dataset.itemAction;const ok=action==='equip'?progress.equip(id,combat):action==='upgrade'?progress.upgrade(id,combat.player):progress.salvage(id,combat.player);if(ok){progress.sync(combat);onChange();info(progress.messages.at(-1)||'Equipment updated');render();(panel.querySelector('[data-item-action]:not(:disabled)')||panel.querySelector('#item-list button'))?.focus({preventScroll:true});}else info('That action is unavailable right now. Finish your attack first.');
+  const choose=e.target.closest('[data-select-item]');if(choose){pendingSale=null;const fromLoadout=!!choose.closest('#loadout-slots');selected=Number(choose.dataset.selectItem);if(fromLoadout)filter='all';render();const next=panel.querySelector(`${fromLoadout?'#loadout-slots':'#item-list'} [data-select-item="${selected}"]`);next?.focus({preventScroll:true});if(innerWidth<=760)$('#item-detail').scrollIntoView({block:'nearest'});return;}
+  const category=e.target.closest('[data-filter]');if(category){pendingSale=null;filter=category.dataset.filter;render();return;}
+  const b=e.target.closest('button[data-item-action]');if(!b||b.disabled)return;const id=Number(b.dataset.id),action=b.dataset.itemAction;
+  if(mode==='merchant'&&(action==='sell'||action==='cancel-sale')){pendingSale=action==='sell'?id:null;render();panel.querySelector('[data-item-action]:not(:disabled)')?.focus({preventScroll:true});return;}
+  const ok=mode==='inventory'&&action==='equip'?progress.equip(id,combat):mode==='smith'&&action==='upgrade'?progress.upgrade(id,combat.player):mode==='smith'&&action==='salvage'?progress.salvage(id,combat.player):mode==='merchant'&&action==='confirm-sale'&&pendingSale===id?progress.sell(id,combat.player):false;
+  if(ok){pendingSale=null;progress.sync(combat);onChange();info(progress.messages.at(-1)||'Equipment updated');render();(panel.querySelector('[data-item-action]:not(:disabled)')||panel.querySelector('#item-list button'))?.focus({preventScroll:true});}else info('That action is unavailable right now.');
  });
  panel.addEventListener('keydown',e=>{if(e.code!=='Tab')return;const buttons=[...panel.querySelectorAll('button:not(:disabled)')].filter(b=>!b.hidden&&b.getClientRects().length);const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
- $('#buy-potion').onclick=()=>{if(progress.buyPotion(combat.player)){onChange();info('Healing draught added to your supplies.');render();}};
- function open(nextMode){mode=nextMode;filter='all';selected=progress.data.loadout[combat.player.weapon];info('');render();panel.hidden=false;panel.scrollTop=0;$('#bag-close').focus();}
+ $('#buy-potion').onclick=()=>{if(mode==='merchant'?progress.buySupplies(combat.player):mode==='smith'&&progress.buyPotion(combat.player)){onChange();info('Healing draught added to your supplies.');render();}};
+ function open(nextMode){mode=nextMode;pendingSale=null;filter='all';selected=mode==='merchant'?(progress.data.items.find(i=>!Object.values(progress.data.loadout).includes(i.id))?.id??progress.data.loadout[combat.player.weapon]):progress.data.loadout[combat.player.weapon];info('');render();panel.hidden=false;panel.scrollTop=0;$('#bag-close').focus();}
  const projected=new T.Vector3();function update(dt,camera){
   const inCamp=(progress.data.campaign?.region||0)===0;smith.visible=inCamp&&Math.hypot(combat.player.x-SMITH.x,combat.player.z-SMITH.z)<35;glow.visible=smith.visible;
   const d=progress.data,p=combat.player;text('#level-text',`LV ${d.level} · ${d.gold} gold`);$('#xp-fill').style.width=`${d.level===8?100:d.xp/xpNeeded(d.level)*100}%`;text('#potion-count',progress.potionCD>0?`${Math.ceil(progress.potionCD)}s`:`${d.potions}`);text('#save-state',store.status);$('#smith-button').classList.toggle('near',progress.nearSmith(p));$('#smith-button').title=progress.nearSmith(p)?'Speak to Borin':'Borin is at the west side of Hearthstead market';

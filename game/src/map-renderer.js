@@ -58,7 +58,7 @@ export function drawMap(canvas,{region,combat,progress,view=mapView(),detailed=f
  }
  for(const d of progress.data.drops)marker(d.x,d.z,'#e2c17b','+',4);
  for(const e of combat.enemies)if(e.hp>0)marker(e.x,e.z,e.kind==='boss'?'#f08e79':'#e58371',e.kind==='boss'?'!':null,e.kind==='boss'?9:3.5);
- for(const n of layout.locations){if(n.symbol)marker(n.x,n.z,'#cee0af',n.symbol,7);if(n.id==='exit')marker(n.x,n.z,'#f0cf7c','↑',8);}
+ for(const n of layout.locations){if(n.symbol)marker(n.x,n.z,'#cee0af',n.symbol,7);if(n.id==='exit')marker(n.x,n.z,'#f0cf7c','↑',8);if(n.id==='return')marker(n.x,n.z,'#80cddd','↓',8);}
  if(combat.shard.hp>0)marker(combat.shard.x,combat.shard.z,'#d4a6ef','diamond',8);
  const [px,py]=at(combat.player.x,combat.player.z);
  c.save();c.translate(px,py);c.rotate(Math.PI-combat.player.angle);c.scale(unit,unit);c.fillStyle='#fff6dc';c.strokeStyle='#14221b';c.lineWidth=2;

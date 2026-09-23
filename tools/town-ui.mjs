@@ -1,3 +1,4 @@
+import {travelFixture} from './travel-fixture.mjs';
 // Isolated completed-campaign fixture for traversal/settlement UI, not earned wins.
 import puppeteer from 'puppeteer';
 import fs from 'node:fs/promises';
@@ -8,8 +9,8 @@ import {Campaign} from '../game/src/campaign.js';
 import {route} from './navigation.mjs';
 const out='_artifacts/expanded-world';await fs.mkdir(out,{recursive:true});
 const m=new Combat(),p=new Progression(),c=new Campaign(p,m);p.restore(m);
-for(let i=0;i<4;i++){if(i)c.travel(i);m.damageShard(999);for(let t=0;t<100;t++)m.update(1/60);for(const e of m.enemies)m.damageEnemy(e,999);p.events(m.consume(),m);c.observe();}
-c.travel(0);const fixture=p.snapshot(m);assert(validSave(fixture));
+for(let i=0;i<4;i++){if(i)travelFixture(c,i);m.damageShard(999);for(let t=0;t<100;t++)m.update(1/60);for(const e of m.enemies)m.damageEnemy(e,999);p.events(m.consume(),m);c.observe();}
+travelFixture(c,0);const fixture=p.snapshot(m);assert(validSave(fixture));
 const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});
 try{
  const page=await browser.newPage(),errors=[],results=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('response',r=>{if(r.status()>=400)errors.push(`${r.status()} ${r.url()}`);});
@@ -37,7 +38,7 @@ try{
  await press('#town-buy');await page.waitForFunction(gold=>window.__GAME__.rpg.gold===gold,{},before.rpg.gold-25);assert.equal((await state()).rpg.potions,before.rpg.potions+1);await page.screenshot({path:`${out}/${mobile?'mobile':'desktop'}-merchant.png`});
  await press('#town-journal');await page.waitForSelector('#journal:not([hidden])');assert(await page.$eval('#journal',e=>e.scrollWidth<=e.clientWidth+1));await page.$eval('#local-map',e=>e.scrollIntoView({block:'center'}));await page.screenshot({path:`${out}/${mobile?'mobile':'desktop'}-map.png`});await press('#journal-close');
  for(let region=0;region<(mobile||process.argv.includes('--first-region')?1:4);region++){
-  if(region){await press('#journal-button');await press(`[data-travel="${region}"]`);await page.waitForFunction(i=>window.__GAME__.campaign.region===i,{timeout:90000},region);}
+  if(region){await walk(0,-56,2.2);await press('#gate-button');await page.waitForFunction(i=>window.__GAME__.campaign.region===i,{timeout:90000},region);}
   console.log('Exploring expanded region',region);if(!mobile)await walk(0,11);await page.screenshot({path:`${out}/town-${region}${mobile?'-mobile':''}.png`});
   if(!mobile){await walk(0,8);await walk(-36,8);const west=await state();assert(!west.inTown);assert(west.pos[0]<-34);await page.screenshot({path:`${out}/west-${region}.png`});await walk(0,8);await walk(36,8);const east=await state();assert(east.pos[0]>34);await page.screenshot({path:`${out}/east-${region}.png`});assert(east.draws<=500);assert(east.tris<=600000);results.push({region,west:west.pos,east:east.pos,draws:east.draws,tris:east.tris,result:'PASS'});console.log(results.at(-1));}
  }

@@ -1,3 +1,4 @@
+import {travelFixture} from './travel-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Combat} from '../game/src/combat-model.js';
@@ -7,7 +8,7 @@ import {inTown,NPCS} from '../game/src/world-map.js';
 import {sceneryLayout,canStandIn} from '../game/src/region-layout.js';
 const step=(m,t)=>{for(let i=0;i<t*60;i++)m.update(1/60);};
 test('legacy active and archived loot relocates once, preserving all rewards',()=>{
- const m=new Combat(),p=new Progression(),c=new Campaign(p,m);p.restore(m);m.damageShard(999);step(m,1.6);for(const e of m.enemies)m.damageEnemy(e,999);p.events(m.consume(),m);c.observe();c.travel(1);m.damageEnemy(m.enemies[0],999);p.events(m.consume(),m);
+ const m=new Combat(),p=new Progression(),c=new Campaign(p,m);p.restore(m);m.damageShard(999);step(m,1.6);for(const e of m.enemies)m.damageEnemy(e,999);p.events(m.consume(),m);c.observe();travelFixture(c,1);m.damageEnemy(m.enemies[0],999);p.events(m.consume(),m);
  const old=p.snapshot(m);delete old.layoutVersion;for(const d of [...old.drops,...old.campaign.regions[0].drops]){d.x=-12;d.z=-3;}
  assert(validSave(old));const copy=structuredClone(old),r=new Progression(old);r.restore(m);const next=r.snapshot(m);assert.equal(next.layoutVersion,2);assert(validSave(next));assert.deepEqual(old,copy);
  for(const [region,drops] of [[1,next.drops],[0,next.campaign.regions[0].drops]]){const layout=sceneryLayout(region);for(const d of drops){assert(inTown(d.x,d.z));assert(canStandIn(layout.colliders,d.x,d.z));}}

@@ -20,8 +20,10 @@ try{
   await new Promise(r=>setTimeout(r,600));
   const before=await page.evaluate(()=>window.__GAME__.pos);
   if(mobile){const b=await page.$eval('#stick',e=>{const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};});await page.touchscreen.touchStart(b.x,b.y);await page.touchscreen.touchMove(b.x,b.y-40);}else await page.keyboard.down('KeyW');
-  await new Promise(r=>setTimeout(r,2200));
-  if(mobile)await page.touchscreen.touchEnd();else await page.keyboard.up('KeyW');
+  // Assert distance rather than a fixed wall-clock interval: software rendering
+  // can deliver only a few simulation frames while parallel art renders run.
+  try{await page.waitForFunction(before=>Math.hypot(window.__GAME__.pos[0]-before[0],window.__GAME__.pos[1]-before[1])>=1.5,{timeout:60000,polling:'raf'},before);}
+  finally{if(mobile)await page.touchscreen.touchEnd();else await page.keyboard.up('KeyW');}
   const state=await page.evaluate(()=>window.__GAME__);
   const moved=Math.hypot(state.pos[0]-before[0],state.pos[1]-before[1]);
   assert(moved>=1,`movement failed: ${moved}`);
@@ -35,5 +37,5 @@ try{
   assert.deepEqual(errors,[]);
   results.push({mobile,ready,moved,...state,errors});await page.close();
  }
- await fs.writeFile('_artifacts/smoke.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results,null,2));
+ await fs.writeFile('_artifacts/smoke.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results.map(({mobile,ready,moved,draws,tris,errors})=>({mobile,ready,moved,draws,tris,errors})),null,2));
 }finally{await browser.close();}

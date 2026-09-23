@@ -2,34 +2,84 @@ import * as T from 'three';
 import { ASSET } from '../lib/assetlib.js';
 import { itemName,itemPower,xpNeeded,SMITH } from './progression.js';
 import { mergeJoints } from './combat-view.js';
-export async function createRpgView(scene,progress,combat,store,onChange){
- const $=s=>document.querySelector(s),panel=$('#inventory'),list=$('#item-list'),drops=new Map();let mode='inventory',rendered=-1;
+import { WEAPONS } from './combat-model.js';
+import { createGroundLoot } from './ground-loot.js';
+import { createTextWriter } from './hud-bindings.js';
+export async function createRpgView(scene,progress,combat,store,onChange,portraitSource,lootModels){
+ const $=s=>document.querySelector(s),text=createTextWriter(),panel=$('#inventory'),list=$('#item-list'),drops=new Map();let mode='inventory',rendered=-1,selected=1,filter='all';
+ const kindNames={sword:'Sword',axe:'Axe',spear:'Spear',armor:'Armour'};
+ let portraits;
  const smith=await ASSET(new URL('../assets/wanderer.js',import.meta.url).href,{keepHierarchy:true,height:1.85,surfaces:true});mergeJoints(smith);smith.position.set(SMITH.x,.07,SMITH.z);smith.rotation.y=1.7;smith.traverse(o=>{if(o.isMesh){o.material=o.material.clone();if(o.material.name==='fabric')o.material.color.setHex(0x57472f);}});scene.add(smith);
  const glow=new T.PointLight(0xffc07c,9,6,2);glow.position.set(SMITH.x,2,SMITH.z);scene.add(glow);
  const smithLabel=document.createElement('div');smithLabel.className='smith-label';smithLabel.textContent='BORIN · SMITH';$('#enemy-labels').append(smithLabel);
- const ringGeo=new T.TorusGeometry(.17,.025,5,20),auraGeo=new T.CylinderGeometry(.08,.18,.8,8,1,true);
- const dropMats=[new T.MeshBasicMaterial({color:0xd6c28b}),new T.MeshBasicMaterial({color:0x83cdb0}),new T.MeshBasicMaterial({color:0xa994f0})];
+ const groundLoot=createGroundLoot(lootModels);
+ const lootOccluders=[...document.querySelectorAll('#action-bar,#navigation-map,#utility,#objective,#boss-bar')];
  function info(text){$('#rpg-message').textContent=text;}
- function stats(item){return `${item.kind==='armor'?'Defence':'Bonus damage'} +${itemPower(item)}`;}
- function render(){rendered=progress.revision;const d=progress.data;$('#bag-title').textContent=mode==='smith'?'Borin’s forge':'Your equipment';$('#bag-intro').textContent=mode==='smith'?'Improve equipment up to +3, salvage spares or buy supplies.':'Equip an item to compare its effect. R cycles your three equipped weapons.';$('#bag-money').textContent=`Level ${d.level} · ${d.xp} / ${xpNeeded(d.level)} XP · ${d.gold} gold · ${d.ore} ore · ${d.items.length}/24 slots`;$('#buy-potion').hidden=mode!=='smith';$('#buy-potion').disabled=d.gold<25||d.potions>=20;list.replaceChildren();
-  for(const item of d.items){const equipped=d.loadout[item.kind]===item.id,active=equipped&&(item.kind==='armor'||combat.player.weapon===item.kind),card=document.createElement('article');card.className=`item-card ${item.rarity}${equipped?' equipped':''}`;card.dataset.itemId=item.id;
-   const icon=document.createElement('span');icon.className='item-icon';icon.textContent={sword:'⚔',axe:'⚒',spear:'↟',armor:'♜'}[item.kind];const content=document.createElement('div'),name=document.createElement('h3'),detail=document.createElement('p'),compare=document.createElement('small');name.textContent=itemName(item);detail.textContent=`${item.rarity} · ${stats(item)}`;const delta=itemPower(item)-itemPower(progress.equipped(item.kind));compare.textContent=equipped?'Equipped':`${delta>=0?'+':''}${delta} vs equipped`;content.append(name,detail,compare);card.append(icon,content);
-   const actions=document.createElement('div');actions.className='item-actions';function button(label,action,disabled=false){const b=document.createElement('button');b.textContent=label;b.disabled=disabled;b.dataset.itemAction=action;b.dataset.id=item.id;actions.append(b);}
-   if(mode==='smith'){const cost=progress.price(item);button(item.upgrade>=3?'Maximum +3':`Forge · ${cost.gold}g + ${cost.ore} ore`,'upgrade',item.upgrade>=3||d.gold<cost.gold||d.ore<cost.ore);button('Salvage','salvage',equipped);}
-   else button(active?'Equipped':equipped?'Use weapon':'Equip','equip',active);
-   card.append(actions);list.append(card);
-  }
+ function image(item){const img=document.createElement('img');img.src=portraits[item.kind];img.alt=`${kindNames[item.kind]} model`;img.draggable=false;return img;}
+ function slot(item,loadout=false){const button=document.createElement('button');button.className=`item-slot ${item.rarity}${selected===item.id?' selected':''}`;button.dataset.selectItem=item.id;if(!loadout)button.dataset.itemId=item.id;button.setAttribute('aria-pressed',String(selected===item.id));
+  const equipped=progress.data.loadout[item.kind]===item.id,active=equipped&&(item.kind==='armor'||combat.player.weapon===item.kind);
+  button.setAttribute('aria-label',`${itemName(item)}, ${item.rarity}${active?', active':equipped?', in loadout':''}`);button.title=button.getAttribute('aria-label');button.append(image(item));
+  if(equipped){const badge=document.createElement('span');badge.className='slot-equipped';badge.textContent=active?'◆':'◇';badge.setAttribute('aria-hidden','true');button.append(badge);}
+  if(item.upgrade){const rank=document.createElement('span');rank.className='slot-rank';rank.textContent=`+${item.upgrade}`;button.append(rank);}
+  if(loadout){const label=document.createElement('small');label.textContent=kindNames[item.kind];button.append(label);}return button;
  }
- list.addEventListener('click',e=>{const b=e.target.closest('button[data-item-action]');if(!b)return;const id=Number(b.dataset.id),action=b.dataset.itemAction;const ok=action==='equip'?progress.equip(id,combat):action==='upgrade'?progress.upgrade(id,combat.player):progress.salvage(id,combat.player);if(ok){progress.sync(combat);onChange();info(progress.messages.at(-1)||'Equipment updated');render();}else info('That action is unavailable right now. Finish your attack first.');});
+ function row(dl,label,value){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;dl.append(dt,dd);}
+ function renderDetail(item){const detail=$('#item-detail');detail.replaceChildren();detail.className=item.rarity;
+  const tier=document.createElement('span');tier.className='item-tier';tier.textContent=`${item.rarity} · ${kindNames[item.kind]}`;
+  const title=document.createElement('h3');title.textContent=itemName(item);
+  const preview=document.createElement('div');preview.className='inspect-model';preview.append(image(item));
+  const stats=document.createElement('dl'),power=itemPower(item),equipped=progress.data.loadout[item.kind]===item.id,active=equipped&&(item.kind==='armor'||combat.player.weapon===item.kind),delta=power-itemPower(progress.equipped(item.kind));
+  row(stats,item.kind==='armor'?'Damage reduction':'Bonus damage',`+${power}`);
+  if(item.kind!=='armor'){const w=WEAPONS[item.kind];row(stats,'Base weapon damage',w.damage);row(stats,'Reach',`${w.range} m`);}else row(stats,'Slot','Body armour');
+  row(stats,'Forge level',`${item.upgrade} / 3`);
+  const compare=document.createElement('p');compare.className=`item-compare ${delta>0?'better':delta<0?'worse':''}`;compare.textContent=active?'Currently equipped':equipped?'In your weapon loadout':`${delta>=0?'+':''}${delta} ${item.kind==='armor'?'defence':'bonus damage'} vs equipped`;
+  const note=document.createElement('p');note.className='item-lore';note.textContent={sword:'Weathered iron. A balanced blade for a long road.',axe:'A heavy bearded edge. Wide swings, decisive strikes.',spear:'An ash haft and a leaf-shaped point. Keep the blight at a distance.',armor:'Layered iron and oxblood cloth. The armour of a Marchguard.'}[item.kind];
+  const actions=document.createElement('div');actions.className='item-actions';function button(label,action,disabled=false){const b=document.createElement('button');b.textContent=label;b.disabled=disabled;b.dataset.itemAction=action;b.dataset.id=item.id;actions.append(b);}
+  if(mode==='smith'){const cost=progress.price(item);button(item.upgrade>=3?'Maximum +3':`Forge · ${cost.gold}g + ${cost.ore} ore`,'upgrade',item.upgrade>=3||progress.data.gold<cost.gold||progress.data.ore<cost.ore);button('Salvage spare equipment','salvage',equipped);}
+  else button(active?'Equipped':equipped?'Use weapon':'Equip item','equip',active);
+  detail.append(tier,title,preview,stats,compare,note,actions);
+ }
+ function render(){if(!portraits){portraits=typeof portraitSource==='function'?portraitSource():portraitSource;$('#character-preview').src=portraits.armor;}const scroll=panel.scrollTop;rendered=progress.revision;const d=progress.data,p=combat.player;
+  const shown=d.items.filter(i=>filter==='all'||(filter==='armor'?i.kind==='armor':i.kind!=='armor'));
+  if(!shown.some(i=>i.id===selected))selected=shown[0]?.id;
+  $('#bag-title').textContent=mode==='smith'?'Borin’s forge':'Equipment & inventory';$('#bag-intro').textContent=mode==='smith'?'Reforge your equipment. Salvage what you no longer need.':'Steel for the road. A place for everything you carry.';
+  $('#bag-money').replaceChildren();for(const [label,value] of [['GOLD',d.gold],['ORE',d.ore],['DRAUGHTS',d.potions]]){const el=document.createElement('span'),b=document.createElement('b');b.textContent=value;el.append(b,` ${label}`);$('#bag-money').append(el);}
+  $('#sheet-level').textContent=`LV ${d.level}`;$('#bag-capacity').textContent=`${d.items.length} / 24`;
+  const stats=$('#character-stats');stats.replaceChildren();row(stats,'Health',`${Math.ceil(p.hp)} / ${p.maxHp}`);row(stats,'Attack¹',Math.round((WEAPONS[p.weapon].damage+(p.damageBonus||0))*(p.damageMultiplier||1)));row(stats,'Defence',p.armor||0);row(stats,'Experience',d.level===8?'MAX':`${d.xp} / ${xpNeeded(d.level)}`);stats.title='¹ Basic hit before combo or Battle Cry bonuses.';
+  $('#buy-potion').hidden=mode!=='smith';$('#buy-potion').disabled=d.gold<25||d.potions>=20;
+  $('#loadout-slots').replaceChildren(...Object.keys(kindNames).map(kind=>slot(progress.equipped(kind),true)));
+  for(const b of $('#bag-filters').children)b.setAttribute('aria-pressed',String(b.dataset.filter===filter));
+  list.replaceChildren(...shown.map(i=>slot(i)));
+  for(let i=shown.length;i<24;i++){const empty=document.createElement('div');empty.className='item-slot empty';empty.setAttribute('aria-hidden','true');list.append(empty);}
+  const item=d.items.find(i=>i.id===selected);if(item)renderDetail(item);else $('#item-detail').textContent='No items in this category.';panel.scrollTop=scroll;
+ }
+ panel.addEventListener('click',e=>{
+  const choose=e.target.closest('[data-select-item]');if(choose){const fromLoadout=!!choose.closest('#loadout-slots');selected=Number(choose.dataset.selectItem);if(fromLoadout)filter='all';render();const next=panel.querySelector(`${fromLoadout?'#loadout-slots':'#item-list'} [data-select-item="${selected}"]`);next?.focus({preventScroll:true});if(innerWidth<=760)$('#item-detail').scrollIntoView({block:'nearest'});return;}
+  const category=e.target.closest('[data-filter]');if(category){filter=category.dataset.filter;render();return;}
+  const b=e.target.closest('button[data-item-action]');if(!b)return;const id=Number(b.dataset.id),action=b.dataset.itemAction;const ok=action==='equip'?progress.equip(id,combat):action==='upgrade'?progress.upgrade(id,combat.player):progress.salvage(id,combat.player);if(ok){progress.sync(combat);onChange();info(progress.messages.at(-1)||'Equipment updated');render();(panel.querySelector('[data-item-action]:not(:disabled)')||panel.querySelector('#item-list button'))?.focus({preventScroll:true});}else info('That action is unavailable right now. Finish your attack first.');
+ });
+ panel.addEventListener('keydown',e=>{if(e.code!=='Tab')return;const buttons=[...panel.querySelectorAll('button:not(:disabled)')].filter(b=>!b.hidden&&b.getClientRects().length);const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
  $('#buy-potion').onclick=()=>{if(progress.buyPotion(combat.player)){onChange();info('Healing draught added to your supplies.');render();}};
- function open(nextMode){mode=nextMode;info('');render();panel.hidden=false;$('#bag-close').focus();}
+ function open(nextMode){mode=nextMode;filter='all';selected=progress.data.loadout[combat.player.weapon];info('');render();panel.hidden=false;panel.scrollTop=0;$('#bag-close').focus();}
  const projected=new T.Vector3();function update(dt,camera){
-  const d=progress.data,p=combat.player;$('#level-text').textContent=`LV ${d.level} · ${d.gold} gold`;$('#xp-fill').style.width=`${d.level===8?100:d.xp/xpNeeded(d.level)*100}%`;$('#potion-count').textContent=progress.potionCD>0?`${Math.ceil(progress.potionCD)}s`:`${d.potions}`;$('#save-state').textContent=store.status;$('#smith-button').classList.toggle('near',progress.nearSmith(p));$('#smith-button').title=progress.nearSmith(p)?'Speak to Borin':'Borin is southwest of the starting lanterns';
+  const inCamp=(progress.data.campaign?.region||0)===0;smith.visible=inCamp&&Math.hypot(combat.player.x-SMITH.x,combat.player.z-SMITH.z)<35;glow.visible=smith.visible;
+  const d=progress.data,p=combat.player;text('#level-text',`LV ${d.level} · ${d.gold} gold`);$('#xp-fill').style.width=`${d.level===8?100:d.xp/xpNeeded(d.level)*100}%`;text('#potion-count',progress.potionCD>0?`${Math.ceil(progress.potionCD)}s`:`${d.potions}`);text('#save-state',store.status);$('#smith-button').classList.toggle('near',progress.nearSmith(p));$('#smith-button').title=progress.nearSmith(p)?'Speak to Borin':'Borin is at the west side of Hearthstead market';
+  text('#character-level',d.level);text('#xp-text',d.level===8?'MAX LEVEL':`${d.xp} / ${xpNeeded(d.level)} XP`);
   if(!panel.hidden&&rendered!==progress.revision)render();
-  for(const [id,mesh] of drops)if(!d.drops.some(x=>x.id===id)){mesh.userData.aura.material.dispose();scene.remove(mesh);drops.delete(id);}
-  for(const drop of d.drops){let g=drops.get(drop.id);if(!g){g=new T.Group();const tier=drop.item?.rarity==='rare'?2:drop.item?1:0,m=dropMats[tier],ring=new T.Mesh(ringGeo,m);ring.rotation.x=-Math.PI/2;g.add(ring);const aura=new T.Mesh(auraGeo,new T.MeshBasicMaterial({color:m.color,transparent:true,opacity:.18,depthWrite:false,side:T.DoubleSide}));aura.position.y=.4;g.add(aura);g.userData.aura=aura;scene.add(g);drops.set(drop.id,g);}g.position.set(drop.x,.14+Math.sin(combat.time*3)*.035,drop.z);g.rotation.y+=dt;}
-  projected.set(SMITH.x,2.5,SMITH.z).project(camera);smithLabel.hidden=projected.z<0||projected.z>1||Math.abs(projected.x)>.9||Math.abs(projected.y)>.85;smithLabel.style.left=`${(projected.x*.5+.5)*innerWidth}px`;smithLabel.style.top=`${(-projected.y*.5+.5)*innerHeight}px`;
+  groundLoot.update(combat.time);
+  for(const [id,mesh] of drops)if(!d.drops.some(x=>x.id===id)){mesh.userData.label.remove();scene.remove(mesh);drops.delete(id);}
+  const nearest=[...d.drops].sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z)).slice(0,3),labelRects=[],hudRects=d.drops.length?lootOccluders.map(el=>el.getBoundingClientRect()).filter(r=>r.width&&r.height):[];
+  for(const drop of d.drops){let g=drops.get(drop.id);if(!g){g=groundLoot.create(drop);const label=document.createElement('div');label.className=`loot-label ${drop.item?.rarity||'common'}`;label.textContent=drop.item?itemName(drop.item):`${drop.gold} gold${drop.ore?` · ${drop.ore} ore`:''}`;$('#enemy-labels').append(label);g.userData.label=label;scene.add(g);drops.set(drop.id,g);}
+   projected.set(drop.x,.9,drop.z).project(camera);const label=g.userData.label;label.hidden=!nearest.includes(drop)||Math.hypot(drop.x-p.x,drop.z-p.z)>8||projected.z<0||projected.z>1||Math.abs(projected.x)>.85||Math.abs(projected.y)>.6;
+   if(!label.hidden){const half=label.offsetWidth/2,height=label.offsetHeight,sx=T.MathUtils.clamp((projected.x*.5+.5)*innerWidth,half+8,innerWidth-half-8);let sy=(-projected.y*.5+.5)*innerHeight;
+    // At most three labels: stack clustered drops without hiding the item models.
+    for(let n=0;n<3;n++){const hit=labelRects.find(r=>sx+half>r.left&&sx-half<r.right&&sy>r.top-4&&sy-height<r.bottom+4);if(!hit)break;sy=hit.top-5;}
+    label.hidden=hudRects.some(r=>sx+half>r.left&&sx-half<r.right&&sy>r.top&&sy-height<r.bottom);
+    label.style.left=`${sx}px`;label.style.top=`${sy}px`;if(!label.hidden)labelRects.push({left:sx-half,right:sx+half,top:sy-height,bottom:sy});
+   }
+  }
+  projected.set(SMITH.x,2.5,SMITH.z).project(camera);smithLabel.hidden=!inCamp||projected.z<0||projected.z>1||Math.abs(projected.x)>.9||Math.abs(projected.y)>.85;smithLabel.style.left=`${(projected.x*.5+.5)*innerWidth}px`;smithLabel.style.top=`${(-projected.y*.5+.5)*innerHeight}px`;
  }
- function clearDrops(){for(const g of drops.values()){g.userData.aura.material.dispose();scene.remove(g);}drops.clear();}
+ function clearDrops(){for(const g of drops.values()){g.userData.label.remove();scene.remove(g);}drops.clear();}
  return{open,update,render,clearDrops};
 }

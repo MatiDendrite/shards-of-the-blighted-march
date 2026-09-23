@@ -1,0 +1,9 @@
+// Scenery-only renders. These do not claim player traversal or quest completion.
+import puppeteer from 'puppeteer';
+import fs from 'node:fs/promises';
+const out='_artifacts/field-detail';await fs.mkdir(out,{recursive:true});
+const b=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});
+try{const page=await b.newPage();await page.setViewport({width:800,height:600});await page.setRequestInterception(true);page.on('request',r=>r.url().endsWith('/src/main.js')?r.respond({status:200,contentType:'text/javascript',body:''}):r.continue());await page.goto('http://localhost:4173/');
+ await page.evaluate(async()=>{const T=await import('three'),{createRig}=await import('/lib/rig.js'),{loadArt}=await import('/src/art.js'),{createWorld}=await import('/src/world.js');document.body.innerHTML='';const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(800,600);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;document.body.append(renderer.domElement);const scene=new T.Scene(),camera=new T.PerspectiveCamera(44,4/3,.1,140),rig=createRig(T,renderer,scene,{tier:'phone',post:false,cascades:1,shadowMap:1024,shadowDist:55,exposure:1.19,sunColor:0xe0ddd0,sunIntensity:1.9,fill:1.7,envIntensity:.45,bounce:.3,fogStart:15,fogDensity:.026}),world=await createWorld(scene,await loadArt(renderer));await rig.ready;window.__artFrame=async region=>{world.setRegion(region);rig.setTime(world.atmosphere);camera.position.set(-36,11,20);camera.lookAt(-36,.5,8);rig.refresh(scene);for(let i=0;i<3;i++)rig.render(camera,1/60);return {draws:renderer.info.render.calls,tris:renderer.info.render.triangles};};});
+ for(let r=0;r<4;r++){console.log({region:r,...await page.evaluate(r=>window.__artFrame(r),r)});await page.screenshot({path:`${out}/field-${r}.png`});}
+}finally{await b.close();}

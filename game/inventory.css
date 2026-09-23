@@ -1,0 +1,65 @@
+/* Native MMO equipment window. All item images are portraits of runtime models. */
+#inventory{overflow-anchor:none}
+#inventory,.touch #inventory{--edge:#82704e;--rarity:#c2b79d;width:min(1040px,96vw);max-height:94dvh;padding:0 22px;overflow:auto;overscroll-behavior:contain;scrollbar-color:#776348 #141b16;border:1px solid #b29a67;background:linear-gradient(120deg,#262c21,#111b18 70%);box-shadow:inset 0 0 0 3px #111710,inset 0 0 0 4px #6b5d3d,0 25px 100px #000d;isolation:isolate}
+#inventory header,.touch #inventory header{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:14px;background:linear-gradient(#34382a,#1c251e);padding:18px 2px 12px;border-bottom:1px solid var(--edge)}
+#inventory header .eyebrow{font-size:8px;letter-spacing:2.7px;color:#b09c70}
+#inventory h2{font-size:27px;letter-spacing:.4px;margin:7px 0 0;color:#ede0bc}
+#bag-close{padding:10px 13px;min-height:42px;background:linear-gradient(#474330,#262a20);border:1px solid #968056;color:#e4d3a8;font:12px Georgia;white-space:nowrap}
+#inventory #bag-intro{margin:10px 0;font:italic 12px Georgia;color:#a7ac94}
+#bag-money{display:flex;gap:24px;flex-wrap:wrap;padding:10px 0 14px;font:9px Arial;letter-spacing:1px;color:#9a9e88;border:0}
+#bag-money b{font:17px Georgia;color:#e1c68a;margin-right:5px;font-variant-numeric:tabular-nums}
+.inventory-layout{display:grid;grid-template-columns:210px minmax(250px,1fr) 250px;gap:14px;align-items:stretch}
+.character-sheet,.satchel,#item-detail{min-width:0;border:1px solid #71624277;background:#10171388;padding:12px;box-shadow:inset 0 0 0 2px #0c141144}
+#inventory .pane-title{display:flex;justify-content:space-between;gap:8px;align-items:center;font:9px Arial;letter-spacing:1.3px;color:#c7b588;margin:0 0 12px}
+.pane-title span{font-size:10px;letter-spacing:0;white-space:nowrap;color:#e0c486}
+.paperdoll{position:relative;height:212px;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 70%,#80876533,transparent 65%);border-bottom:1px solid #73644355}
+.paperdoll:before{content:'';position:absolute;width:135px;height:135px;border:1px solid #a08b5033;border-radius:50%;box-shadow:0 0 0 9px #a08b5009,0 0 0 10px #a08b501a;transform:scaleY(.4);bottom:5px}
+.paperdoll img{height:100%;width:100%;object-fit:contain;position:relative;filter:drop-shadow(0 8px 7px #0009)}
+.paperdoll-caption{position:absolute;bottom:3px;right:0;font:8px Arial;letter-spacing:2px;color:#9f9b77}
+#loadout-slots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:14px 0 20px}
+#loadout-slots .item-slot{aspect-ratio:1/1.2;overflow:visible}
+#loadout-slots small{position:absolute;top:calc(100% + 4px);left:0;width:100%;font:8px Arial;color:#b4b397;text-align:center}
+#character-stats,#item-detail dl{display:grid;grid-template-columns:1fr auto;gap:8px 10px;margin:16px 0 0;font:11px Arial;color:#a9b09a}
+#character-stats dd,#item-detail dd{margin:0;color:#e7d6aa;font-variant-numeric:tabular-nums}
+#bag-filters{display:flex;gap:4px;border-bottom:1px solid #6d604055;margin:0 0 12px;padding-bottom:9px}
+#bag-filters button{flex:1;min-height:34px;padding:6px 3px;background:#182019;border:1px solid #6d604055;font:11px Georgia;color:#9da88f}
+#bag-filters button[aria-pressed=true]{background:linear-gradient(#52482d,#2d3021);border-color:#ac905a;color:#eed6a3}
+#item-list{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;margin:0}
+.item-slot{--rarity:#8b8571;position:relative;display:block;width:100%;min-width:0;aspect-ratio:1/1.16;padding:2px;overflow:hidden;border:1px solid var(--rarity);background:radial-gradient(ellipse at 50% 90%,#4b51423d,#111915 80%);box-shadow:inset 0 0 0 2px #050c0a88;touch-action:manipulation}
+.item-slot img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none;filter:drop-shadow(1px 2px 1px #000)}
+.item-slot:hover{background-color:#59604766;border-color:#ead5a0}
+.item-slot.selected{outline:1px solid #f5d79a;outline-offset:1px;box-shadow:inset 0 0 14px #bca46c33}
+.item-slot.empty{border-color:#625d4244;background:linear-gradient(140deg,#101913,#202a1d66);box-shadow:inset 0 0 6px #0008}
+.item-slot.empty:after{content:'·';position:absolute;inset:0;display:grid;place-items:center;color:#81815b33;font:20px Georgia}
+.uncommon{--rarity:#8fc7a2}.rare{--rarity:#b3a0eb}
+.slot-equipped{position:absolute;left:3px;top:1px;font:9px Arial;color:#e3d4a0;text-shadow:0 1px 3px #000}
+.slot-rank{position:absolute;right:3px;bottom:3px;color:#f1d796;font:bold 10px Arial;text-shadow:0 1px 3px #000}
+#inventory .slot-help{font:10px/1.8 Arial;color:#909a84;margin:16px 0 0}
+#item-detail{border-top:2px solid var(--rarity);background:linear-gradient(#242e2577,#101915);display:flex;flex-direction:column}
+.item-tier{font:9px Arial;letter-spacing:1.5px;text-transform:uppercase;color:var(--rarity)}
+#item-detail h3{font:21px/1.2 Georgia;color:var(--rarity);margin:10px 0 0;font-weight:normal}
+.inspect-model{height:162px;background:radial-gradient(ellipse,#7c866e24,transparent 70%);margin:4px 0 0}
+.inspect-model img{height:100%;width:100%;object-fit:contain;filter:drop-shadow(0 9px 8px #0008)}
+#item-detail dl{border-top:1px solid #77715144;padding-top:12px;margin-top:0}
+#inventory .item-compare{font:10px/1.4 Arial;color:#c9b98a;margin:12px 0 0}
+#inventory .item-compare.better{color:#9cd3a6}#inventory .item-compare.worse{color:#e5a18d}
+#inventory .item-lore{font:italic 11px/1.6 Georgia;color:#9da18b;margin:12px 0}
+.item-actions{display:flex;flex-direction:column;gap:7px;margin-top:auto;padding-top:8px}
+.item-actions button,#buy-potion{border:1px solid #a78c54;background:linear-gradient(#514930,#303121);color:#f0dbab;padding:11px 8px;font:12px Georgia;min-height:42px}
+.item-actions button:hover:not(:disabled),#buy-potion:hover:not(:disabled),#bag-close:hover{filter:brightness(1.2)}
+.item-actions button:disabled,#buy-potion:disabled{opacity:.45;cursor:default}
+.item-actions [data-item-action=salvage]{background:#242b21;border-color:#736340;color:#c1ae89}
+.bag-footer{display:flex;gap:12px;justify-content:space-between;align-items:center;min-height:56px;padding:10px 0}
+#rpg-message{font:11px/1.5 Arial;color:#e2c78d}#buy-potion{flex-shrink:0;margin:0}
+#inventory button:focus-visible{outline:2px solid #ffe3a4;outline-offset:2px;z-index:1}
+#utility button,#combat-controls button{background:linear-gradient(145deg,#363b2df5,#101915f5);border-color:#8e7955;box-shadow:inset 0 0 0 2px #131914,inset 0 0 0 3px #a3905933,0 3px 7px #0005}
+.meter{box-shadow:0 0 0 2px #121912,inset 0 1px 3px #000}
+@media(max-width:900px){.inventory-layout{grid-template-columns:170px minmax(200px,1fr) 220px;gap:10px}#inventory,.touch #inventory{padding:0 16px}.character-sheet,.satchel,#item-detail{padding:10px}#inventory .pane-title{letter-spacing:.5px}}
+@media(max-width:760px){
+ #inventory,.touch #inventory{width:96vw;max-height:94dvh;padding:0 12px}#inventory h2,.touch #inventory h2{font-size:23px}#inventory header{padding-top:14px}#inventory header .eyebrow{font-size:7px;letter-spacing:2px}#bag-close{font-size:11px;padding:9px}
+ .inventory-layout{grid-template-columns:1fr;gap:12px}.character-sheet{display:grid;grid-template-columns:110px 1fr;gap:0 15px}.character-sheet .pane-title{grid-column:1/-1}.paperdoll{grid-row:2/4;height:155px;border:0}.paperdoll:before{width:90px;height:90px}.paperdoll-caption{font-size:7px}
+ #loadout-slots{margin:0 0 17px}#loadout-slots .item-slot{height:48px;aspect-ratio:auto}#character-stats{margin:7px 0 0;font-size:10px;gap:5px 9px}#bag-money{gap:18px}#bag-money b{font-size:16px}
+ #item-list{gap:6px}.item-slot{aspect-ratio:1/1.06;min-height:40px}.slot-help br{display:none}#inventory .slot-help{margin:10px 0 0;font-size:9px}
+ #item-detail{display:grid;grid-template-columns:100px minmax(0,1fr);gap:8px 12px;scroll-margin-top:90px}#item-detail .item-tier,#item-detail h3{grid-column:1/-1}#item-detail h3{margin:0;font-size:22px}.inspect-model{grid-column:1;grid-row:3/6;height:160px;align-self:center}#item-detail dl{grid-column:2;gap:8px;font-size:10px}#item-detail .item-compare,#item-detail .item-lore{grid-column:2;margin:0}#item-detail .item-actions{grid-column:1/-1;padding:0;display:flex;flex-direction:row}#item-detail .item-actions button{flex:1}.bag-footer{flex-wrap:wrap}#buy-potion{width:100%}
+}
+@media(max-height:540px){#inventory,.touch #inventory{max-height:96dvh}#inventory #bag-intro{display:none}#inventory header,.touch #inventory header{padding-top:9px;padding-bottom:9px}}

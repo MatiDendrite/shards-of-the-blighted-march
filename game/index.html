@@ -3,8 +3,14 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#111a19"><title>Shards · The Blighted March</title>
-  <link rel="icon" href="data:,"><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./combat.css"><link rel="stylesheet" href="./rpg.css">
+  <link rel="icon" href="data:,"><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./combat.css"><link rel="stylesheet" href="./rpg.css"><link rel="stylesheet" href="./inventory.css"><link rel="stylesheet" href="./campaign.css"><link rel="stylesheet" href="./town.css">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
+  <link rel="modulepreload" href="./vendor/three.module.js">
+  <link rel="modulepreload" href="./src/main.js">
+  <link rel="stylesheet" href="./map.css">
+  <link rel="stylesheet" href="./polish.css">
+  <link rel="stylesheet" href="./hud.css">
+  <link rel="stylesheet" href="./camera.css">
 </head>
 <body>
   <canvas id="world" aria-label="The Blighted March game world"></canvas>
@@ -16,29 +22,54 @@
     <h1>The light<br>still holds.</h1>
     <p>Beyond the last hearth, the old stones whisper.<br>Take up your weapon. Break what corrupts the March.</p>
     <button id="startb" class="primary">Enter the March <span>↗</span></button>
-    <div class="intro-controls">WASD to move <i>·</i> Hold click to attack<br><span>Space to dodge · R to switch weapon · 1 / 2 / 3 skills</span></div>
-    <span class="build-label">THE FIRST ENCOUNTER</span>
+    <div class="intro-controls">WASD to move <i>·</i> Hold left click to attack<br><span>Right drag: camera · Scroll: zoom · C: reset view<br>Space to dodge · R to switch weapon · 1 / 2 / 3 skills</span></div>
+    <span class="build-label">THREE SHARDS. ONE FALLEN WARDEN. YOUR JOURNEY.</span>
   </section>
   <main id="hud" hidden>
     <div id="location"><span class="eyebrow">THE BORDERLANDS</span><h2>Hearthstead Approach</h2><span class="location-rule"></span></div>
-    <div id="compass"><span>W</span><b>· &nbsp; · &nbsp; N &nbsp; · &nbsp; ·</b><span>E</span></div>
+    <div id="compass" aria-label="Camera heading"><span>LOOKING</span><b id="camera-heading">N</b><span>MAP: N ↑</span></div>
     <button id="menu-button" aria-label="Open pause menu">Ⅱ</button>
-    <div id="utility"><button id="bag-button" aria-label="Open inventory"><b>I</b> Gear</button><button id="potion-button" aria-label="Drink healing potion"><b>Q · <span id="potion-count">3</span></b> Heal</button><button id="smith-button" aria-label="Speak to nearby smith"><b>E</b> Smith</button></div>
-    <div id="progress-hud"><span id="level-text">LV 1 · 60 gold</span><div id="xp-track"><div id="xp-fill"></div></div><small id="save-state">Not saved yet</small></div>
-    <aside id="objective"><span class="eyebrow">BREAK THE BLIGHT</span><p id="objective-text">Destroy the shard beyond the lanterns.</p><small id="objective-detail">Return south to recover your health.</small></aside>
+    <div id="utility"><button id="bag-button" aria-label="Open inventory"><b>I</b> Gear</button><button id="potion-button" aria-label="Drink healing potion"><b>Q · <span id="potion-count">3</span></b> Heal</button><button id="smith-button" aria-label="Speak to nearby smith"><b>E</b> Smith</button><button id="journal-button" aria-label="Open quest journal and map"><b>J</b> Journal</button></div>
+    <button id="gate-button" hidden>Enter the next region · E</button>
+    <div id="boss-bar" hidden><span id="boss-name">THE FALLEN WARDEN</span><span id="boss-phase"></span><div><i id="boss-health"></i></div><span id="boss-intent"></span><div id="boss-cast" hidden><i id="boss-cast-fill"></i></div></div>
+    <div id="navigation-map"><button id="map-button" aria-label="Open detailed region map (M)"><canvas id="mini-map" width="168" height="168" aria-hidden="true"></canvas><span class="map-hint">M · Map</span></button><button id="camera-reset" title="Restore default camera (C)" aria-label="Restore default camera, without restarting the journey">↺ View <span>· C</span></button><span id="zone-name"></span></div><button id="npc-button" hidden></button><aside id="objective"><span class="eyebrow">BREAK THE BLIGHT</span><p id="objective-text">Destroy the shard beyond the lanterns.</p><strong id="objective-route"></strong><small id="objective-detail">Return to the settlement to recover your health.</small><small id="objective-tip"></small></aside>
     <div id="arrival" role="status" hidden></div>
-    <div id="vitals"><div class="meter-row"><span>HEALTH</span><span id="hp-text">120 / 120</span></div><div class="meter"><div id="hp-fill"></div></div><div class="meter-row"><span>STAMINA</span><span id="stamina-text">100</span></div><div class="meter stamina"><div id="stamina-fill"></div></div><span id="status-text">Safe ground · health recovers here</span></div>
     <div id="enemy-labels" aria-hidden="true"></div><div id="damage-flash" aria-hidden="true"></div>
     <div id="notice" role="status" hidden></div>
-    <div class="bottom"><div class="character"><span class="portrait">◇</span><div><strong>The Wanderer</strong><small id="weapon-name">Iron Sword</small></div></div><span id="desktop-help">WASD <i>Move</i> · LMB / F <i>Attack</i> · SPACE <i>Dodge</i> · R <i>Weapon</i></span></div>
+    <section id="action-bar" aria-label="Character and combat bar">
+    <div id="character-hud"><div class="character"><span class="level-medallion" aria-label="Character level"><small>LV</small><b id="character-level">1</b></span><div><strong>The Wanderer</strong><small id="weapon-name">Iron Sword</small></div></div><div id="progress-hud"><span id="level-text">LV 1 · 60 gold</span><div id="xp-track"><div id="xp-fill"></div></div><span id="xp-text">0 / 100 XP</span><small id="save-state">Not saved yet</small></div></div>
+    <div id="vitals"><div class="meter-row"><span>HEALTH</span><span id="hp-text">120 / 120</span></div><div class="meter"><div id="hp-fill"></div></div><div class="meter-row"><span>STAMINA</span><span id="stamina-text">100</span></div><div class="meter stamina"><div id="stamina-fill"></div></div><span id="status-text">Safe ground · health recovers here</span></div>
     <div id="combat-controls"><button id="weapon-button" data-action="weapon" aria-label="Switch weapon"><b>R</b><span>Iron Sword</span></button><div id="skills"><button id="cleave" data-action="cleave"><b>1</b><span>Cleave</span><small></small></button><button id="slam" data-action="slam"><b>2</b><span>Ground Slam</span><small></small></button><button id="cry" data-action="cry"><b>3</b><span>Battle Cry</span><small></small></button></div><div id="physical-actions"><button id="dodge" data-action="dodge"><b>↝</b><span>Dodge</span></button><button id="attack" data-action="attack"><b>⚔</b><span>Attack</span></button></div></div>
+    <span id="desktop-help">WASD <i>Move</i> · LMB / F <i>Attack</i> · SPACE <i>Dodge</i> · RMB drag <i>Camera</i> · C <i>Reset view</i></span>
+    </section>
     <div id="stick" role="group" aria-label="Movement joystick"><div id="stick-knob"></div></div>
   </main>
-  <section id="pause" class="panel" hidden><span class="eyebrow">TAKE A BREATH</span><h2>The March can wait.</h2><button id="resume" class="primary">Resume journey <span>↗</span></button><label>Visual quality <select id="quality"><option value="low">Low · recommended</option><option value="high">High</option></select></label><label class="setting">Sound <input id="sound" type="checkbox" checked></label><label class="setting">Camera shake <input id="shake" type="checkbox" checked></label><p>Sword: balanced combos. Axe: wide, heavy strikes.<br>Spear: long reach, precise thrusts.<br>Gold attack warnings give you time to dodge.<br>R: weapon · 1 / 2 / 3: skills · Space: dodge.</p><button id="reset-view">Restart encounter</button></section>
-  <section id="defeat" class="panel" hidden><span class="eyebrow">THE MARCH ENDURES</span><h2>You have fallen.</h2><p>Watch the attack warnings. Keep enough stamina to dodge, and retreat south to recover.</p><button id="retry" class="primary">Try again <span>↗</span></button></section>
-  <section id="inventory" class="panel" role="dialog" aria-modal="true" aria-labelledby="bag-title" hidden><header><div><span class="eyebrow">THE WANDERER’S JOURNAL</span><h2 id="bag-title">Your equipment</h2></div><button id="bag-close" aria-label="Close inventory">Close ×</button></header><p id="bag-intro"></p><div id="bag-money"></div><div id="item-list"></div><button id="buy-potion" hidden>Buy healing draught · 25 gold</button><p id="rpg-message" role="status"></p></section>
-  <section id="victory" class="panel" hidden><span class="eyebrow">THE FIRST LIGHT RETURNS</span><h2>The blight is broken.</h2><p id="victory-stats"></p><button id="replay" class="primary">Fight again <span>↗</span></button><button id="explore">Stay in the clearing</button></section>
+  <section id="pause" class="panel" hidden><span class="eyebrow">TAKE A BREATH</span><h2>The March can wait.</h2><button id="resume" class="primary">Resume journey <span>↗</span></button><label>Visual quality <select id="quality"><option value="low">Low · recommended</option><option value="high">High</option></select></label><label class="setting">Sound <input id="sound" type="checkbox" checked></label><label class="setting">Camera shake <input id="shake" type="checkbox" checked></label><button id="camera-defaults">Restore default camera · keep journey</button><p>Sword: balanced combos. Axe: wide, heavy strikes.<br>Spear: long reach, precise thrusts.<br>Gold attack warnings give you time to dodge.<br>R: weapon · 1 / 2 / 3: skills · Space: dodge.<br>Camera: right drag / touch-drag the world.<br>Scroll: zoom · C / View: reset camera.</p><button id="reset-view">Restart encounter</button></section>
+  <section id="defeat" class="panel" hidden><span class="eyebrow">THE MARCH ENDURES</span><h2>You have fallen.</h2><p>Watch the attack warnings. Keep enough stamina to dodge, and return to the settlement to recover.</p><button id="retry" class="primary">Try again <span>↗</span></button></section>
+  <section id="inventory" class="panel" role="dialog" aria-modal="true" aria-labelledby="bag-title" hidden>
+    <header><div><span class="eyebrow">THE WANDERER’S JOURNAL</span><h2 id="bag-title">Equipment & inventory</h2></div><button id="bag-close" aria-label="Close inventory">Close ×</button></header>
+    <p id="bag-intro"></p><div id="bag-money"></div>
+    <div class="inventory-layout">
+      <section class="character-sheet" aria-label="Character equipment"><h3 class="pane-title">THE WANDERER <span id="sheet-level"></span></h3><div class="paperdoll"><img id="character-preview" alt="The Wanderer wearing Marchguard Mail"><span class="paperdoll-caption">MARCHGUARD</span></div><div id="loadout-slots" aria-label="Equipped loadout"></div><dl id="character-stats"></dl></section>
+      <section class="satchel"><div class="pane-title">TRAVELLER’S SATCHEL <span id="bag-capacity"></span></div><div id="bag-filters" role="group" aria-label="Filter inventory"><button data-filter="all" aria-pressed="true">All</button><button data-filter="weapons" aria-pressed="false">Weapons</button><button data-filter="armor" aria-pressed="false">Armour</button></div><div id="item-list" aria-label="Inventory slots"></div><p class="slot-help">Select an item to inspect it.<br>R cycles your equipped weapons.</p></section>
+      <section id="item-detail" aria-label="Selected item"></section>
+    </div>
+    <footer class="bag-footer"><span id="rpg-message" role="status"></span><button id="buy-potion" hidden>Buy healing draught · 25 gold</button></footer>
+  </section>
+  <section id="journal" class="panel" role="dialog" aria-modal="true" aria-labelledby="journal-title" hidden><header><div><span class="eyebrow">THE ROAD THROUGH THE MARCH</span><h2 id="journal-title">Map & quest journal</h2></div><button id="journal-close">Close ×</button></header><p id="travel-rule"></p><nav id="region-map" aria-label="Travel destinations"></nav><div class="local-map-wrap"><span id="town-location"></span><canvas id="local-map" width="400" height="400" aria-label="Local map showing the settlement, roads, glades and current position"></canvas><p id="map-legend">White: you · Red: guardians · Violet: shard · Gold: exit · Green: settlement</p></div><div id="quest-list"></div><p class="journal-tip">Uncollected loot stays in its region. Return to the central settlement to travel or recover health. Borin’s forge is in Hearthstead.</p></section>
+  <section id="town-dialog" class="panel" role="dialog" aria-modal="true" aria-labelledby="town-title" hidden><header><span class="eyebrow">A MOMENT IN THE SETTLEMENT</span><button id="town-close">Close ×</button></header><h2 id="town-title"></h2><p id="town-story"></p><div class="town-actions"><button id="town-buy" hidden></button><button id="town-journal">Open map & journal</button></div><p id="town-message" role="status"></p></section>
+  <section id="victory" class="panel" hidden><span class="eyebrow">THE MARCH REMEMBERS</span><h2>The road is free.</h2><p id="victory-stats"></p><button id="replay" class="primary">Begin another expedition <span>↗</span></button><button id="explore">Stay and collect the Warden’s spoils</button></section>
   <div id="error" class="panel" role="alert" hidden><h2>The March could not load.</h2><p id="error-detail"></p><button onclick="location.reload()">Try again</button></div>
+  <section id="atlas-dialog" role="dialog" aria-modal="true" aria-labelledby="atlas-title" aria-describedby="atlas-help" hidden>
+    <div class="atlas-frame">
+      <header><div><span class="eyebrow">CARTOGRAPHER’S ATLAS · GAME PAUSED</span><h2 id="atlas-title">Region map</h2></div><button id="atlas-close" aria-label="Close region map">Close ×</button></header>
+      <div class="atlas-tools" role="group" aria-label="Map controls"><button id="atlas-out" aria-label="Zoom out">−</button><output id="atlas-zoom" aria-label="Map zoom">1.0×</output><button id="atlas-in" aria-label="Zoom in">+</button><button id="atlas-full">Full region</button><button id="atlas-town">Town</button><button id="atlas-player">Find me</button></div>
+      <div class="atlas-body">
+        <div class="atlas-chart"><canvas id="atlas-canvas" width="700" height="700" tabindex="0" role="img" aria-label="Regional map: buildings, roads, trees, services, enemies, loot and your heading. Use arrow keys to pan and plus or minus to zoom."></canvas><p id="atlas-position"></p><p id="atlas-help" class="atlas-help">Drag to explore · Scroll / + − to zoom · Arrow keys to pan · M / Esc to close<br>Tap a location to inspect it. Travel is in the journal (J).</p></div>
+        <aside class="atlas-sidebar"><h3>PLACES & SERVICES</h3><div id="atlas-locations"></div><div class="atlas-legend" aria-label="Map legend"><span><b>▲</b> You</span><span><b>A M R S</b> <br>Services</span><span><b class="hostile">● / !</b> Foes / boss</span><span><b class="quest">◆</b> Shard</span><span><b class="gold">↑</b> Exit</span><span><b class="gold">+</b> Loot</span></div></aside>
+      </div>
+    </div>
+  </section>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

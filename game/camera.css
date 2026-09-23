@@ -1,0 +1,7 @@
+#world{touch-action:none}#world.orbiting{cursor:grabbing}
+#navigation-map{height:auto}
+#camera-reset{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;min-height:32px;margin-top:5px;padding:5px;border:1px solid #a9946666;background:#15231de8;color:#dfcda2;font:11px Georgia;pointer-events:auto;touch-action:manipulation}
+#camera-reset:hover{background:#354433}#camera-reset:focus-visible{outline:2px solid #f3d690;outline-offset:3px}
+.touch #camera-reset{min-height:44px}.touch #camera-reset span{display:none}
+#compass{gap:18px}#camera-heading{min-width:28px;text-align:center}#compass span{font-size:9px;letter-spacing:1px}
+#pause{max-height:calc(100dvh - 30px);overflow-y:auto;overscroll-behavior:contain}

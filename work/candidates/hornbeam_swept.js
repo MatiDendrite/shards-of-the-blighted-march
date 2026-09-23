@@ -1,0 +1,7 @@
+export default function generate(T){
+ const g=new T.Group(),wood=Object.assign(new T.MeshStandardMaterial({color:0x66523e,roughness:1}),{name:'timber'}),leaves=Object.assign(new T.MeshStandardMaterial({color:0x6b8051,roughness:1,side:T.DoubleSide}),{name:'leaves'});
+ for(let i=0;i<7;i++){const a=i*2.399,curve=new T.CatmullRomCurve3([new T.Vector3(0,.22,0),new T.Vector3(.1,1.8,0),new T.Vector3(Math.cos(a)*.65,3,Math.sin(a)*.65),new T.Vector3(Math.cos(a)*1.6,4.3+(i%3)*.4,Math.sin(a)*1.6)]);const geo=new T.TubeGeometry(curve,10,.13,6,false),p=geo.attributes.position;for(let k=0;k<p.count;k++){const t=p.getY(k)/5,center=curve.getPointAt(Math.min(1,Math.max(0,t)));p.setX(k,center.x+(p.getX(k)-center.x)*(1-t*.55));}geo.computeVertexNormals();g.add(new T.Mesh(geo,wood));
+  for(let j=0;j<10;j++){const b=j*2.399,x=Math.cos(a)*1.5+Math.cos(b)*.75,y=4.1+(i%3)*.4+Math.sin(j)*.55,z=Math.sin(a)*1.5+Math.sin(b)*.75;for(let k=0;k<2;k++){const m=new T.Mesh(new T.PlaneGeometry(2,1.6,2,2),leaves);m.position.set(x,y,z);m.rotation.set(k?-.8:0,b+k*1.57,0);g.add(m);}}
+ }
+ const bounds=new T.Box3(),v=new T.Vector3();g.updateMatrixWorld(true);g.traverse(o=>{if(o.isMesh){const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++)bounds.expandByPoint(v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld));}});const c=bounds.getCenter(new T.Vector3());g.children.forEach(o=>{o.position.x-=c.x;o.position.z-=c.z;o.position.y-=bounds.min.y;});return g;
+}

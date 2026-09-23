@@ -2,3 +2,10 @@ node_modules/
 _artifacts/
 dist/
 game/assets/_verify/
+work/village-verify/_verify/
+work/living-world-verify/
+.env
+.env.*
+*.pem
+*.p12
+*.pfx

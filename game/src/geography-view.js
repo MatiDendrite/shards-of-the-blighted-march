@@ -61,12 +61,18 @@ export function createGeographyView(scene,region){
    vec2 flow=vWaterPoint+vec2(${sea?'-.12,.04':'.035,-.28'})*uWaterTime;
    float ripple=sin(flow.x*6.2+sin(flow.y*3.1))*sin(flow.y*5.7+sin(flow.x*2.8));
    float foamNoise=waterNoise(flow*3.5)*.65+waterNoise(flow*9.0)*.35;
-   float lapping=sin(depth*7.0-uWaterTime*1.25+waterNoise(vWaterPoint*.9)*3.0);
-   float foam=(1.0-smoothstep(.12,1.65,depth))*smoothstep(.25,.8,lapping)*smoothstep(.3,.68,foamNoise);
-   foam+=exp(-depth*8.0)*smoothstep(.4,.7,foamNoise)*.25;
+   float shoreNoise=waterNoise(vWaterPoint*.9);
+   float lapping=sin(depth*7.0-uWaterTime*1.25+shoreNoise*3.0);
+   float foam=(1.0-smoothstep(.12,1.45,depth))*smoothstep(.45,.85,lapping)*smoothstep(.3,.68,foamNoise);
+   // Broken wash bands advance and recede, rather than a painted white edge.
+   float surge=.18+.22*sin(uWaterTime*1.15+shoreNoise*2.0);
+   float wash=1.0-smoothstep(.025,.16,abs(depth-surge));
+   foam+=wash*smoothstep(.34,.76,foamNoise)*${sea?'.48':'.23'};
    vec3 waterColor=mix(uShallowWater,uDeepWater,smoothstep(.05,${sea?'5.0':'3.0'},depth));
-   waterColor+=vec3(.06,.08,.055)*pow(max(0.0,ripple),5.0)*exp(-depth*.85);
-   diffuseColor.rgb=mix(waterColor,vec3(.5,.57,.5),clamp(foam,0.0,.7));
+   float caustic=pow(max(0.0,sin(flow.x*5.1+sin(flow.y*3.3))*sin(flow.y*6.2-flow.x*1.3)),7.0);
+   float fineFade=1.0-smoothstep(.04,.2,length(fwidth(vWaterPoint)));
+   waterColor+=vec3(.08,.10,.065)*(pow(max(0.0,ripple),5.0)*.5+caustic*.6)*exp(-depth*.95)*fineFade;
+   diffuseColor.rgb=mix(waterColor,vec3(.64,.69,.62),clamp(foam,0.0,.68));
   `);
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(.3,.65,clamp(foam,0.0,1.0));');
   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
@@ -78,7 +84,7 @@ export function createGeographyView(scene,region){
    normal=normalize(mat3(viewMatrix)*normalize(vec3(-slope.x,1.0,-slope.y)));
   `);
  };
- material.customProgramCacheKey=()=>`shore-water-v2-${region}`;
+ material.customProgramCacheKey=()=>`shore-water-v3-${region}`;
  const mesh=new T.Mesh(waterGeometry(region),material);mesh.name='regional-water';mesh.position.y=WATER_Y;mesh.receiveShadow=true;scene.add(mesh);
  return {mesh,update(dt){time.value+=Math.min(dt,.1);}};
 }

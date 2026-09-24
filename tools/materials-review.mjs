@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 
 const label=process.argv[2]||'after';
 if(!/^[a-z0-9-]+$/.test(label))throw Error('Use a simple artifact label.');
-const out=`_artifacts/visual-review/${label}`;
+const environment=process.argv.includes('--environment'),out=`_artifacts/${environment?'environment-review':'visual-review'}/${label}`;
 await fs.mkdir(out,{recursive:true});
 const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});
 try{
@@ -27,14 +27,15 @@ try{
   const rig=createRig(T,renderer,scene,{...options,camera}),world=await createWorld(scene,loadArt(renderer));await rig.ready;
   window.captureVisual=async({region,view})=>{
    world.setRegion(region);lighting.setLandscapeLighting(rig,world.atmosphere);
-   const views={town:[[10,12,24],[0,1,8]],house:[[-1,8,8],[-12,2.8,-3]],field:[[-36,12,23],[-36,.5,8]],coast:[[34,10,30],[53,0,15]]};
+   const views={town:[[10,12,24],[0,1,8]],house:[[-1,8,8],[-12,2.8,-3]],field:[[-36,12,23],[-36,.5,8]],coast:[[34,10,30],[53,0,15]],river:[[-35,10,21],[-48,0,7]],grove:[[38,8,20],[49,0,8]],tarn:[[31,11,52],[47,0,38]]};
    const [eye,at]=views[view];camera.position.fromArray(eye);camera.lookAt(...at);rig.refresh(scene);world.update(0,{x:at[0],z:at[2]});
    await renderer.compileAsync(scene,camera);for(let i=0;i<3;i++)rig.render(camera,0);
    return {draws:renderer.info.render.calls,tris:renderer.info.render.triangles,textures:renderer.info.memory.textures};
   };
  });
  const results=[];
- for(const [region,view] of [[0,'town'],[0,'house'],[0,'field'],[1,'town'],[2,'coast'],[3,'town']]){
+ const views=environment?[[0,'field'],[0,'river'],[1,'grove'],[2,'coast'],[3,'tarn']]:[[0,'town'],[0,'house'],[0,'field'],[1,'town'],[2,'coast'],[3,'town']];
+ for(const [region,view] of views){
   const stats=await page.evaluate(o=>window.captureVisual(o),{region,view});
   await page.screenshot({path:`${out}/${region}-${view}.png`});results.push({region,view,...stats});console.log(results.at(-1));
  }

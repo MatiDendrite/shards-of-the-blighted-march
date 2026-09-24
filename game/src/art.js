@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {applySurfaces} from '../lib/surfaces.js';
 import {createSurfaceDetails,shadeArchitecture} from './surface-detail.js';
+import {patchGroundSurface} from './landscape-ground.js';
 
 // These authored bitmap surfaces replace all three procedural maps AND the UVs
 // below. Generating the discarded maps/copies first wastes boot time, not detail.
@@ -45,10 +46,10 @@ export async function loadArt(renderer){
   const ground=m.name==='ground',cover=['foliage','petals'].includes(m.name),wind=['leaves','foliage','banner'].includes(m.name);if(!ground&&!wind&&!cover)return;finished.add(m);
   // Install after tinting/baking: Material.clone does not copy shader callbacks.
   m.onBeforeCompile=shader=>{
-   if(ground){shader.uniforms.uMeadow={value:meadow};shader.uniforms.uRock={value:stone};shader.vertexShader='attribute float meadowWeight; attribute float sandWeight; attribute float rockWeight; varying float vRockWeight; varying float vSandWeight; varying float vMeadowWeight;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvMeadowWeight = meadowWeight; vSandWeight=sandWeight; vRockWeight=rockWeight;');shader.fragmentShader='uniform sampler2D uMeadow; uniform sampler2D uRock; varying float vRockWeight; varying float vSandWeight; varying float vMeadowWeight;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`vec4 soilTex = texture2D(map, vMapUv); vec4 meadowTex = texture2D(uMeadow, vMapUv * .78); vec4 rockTex=texture2D(uRock,vMapUv*.62); float grain=fract(sin(dot(vMapUv*700.0,vec2(12.9898,78.233)))*43758.5453); float ripples=sin(vMapUv.y*65.0+sin(vMapUv.x*23.0))*0.015; vec4 sandTex=vec4(vec3(.78,.68,.51)*(.95+grain*.08+ripples),1.0); vec4 surfaceTex=mix(soilTex,meadowTex,clamp(vMeadowWeight,0.0,1.0)); surfaceTex=mix(surfaceTex,rockTex,clamp(vRockWeight,0.0,1.0)); diffuseColor *= mix(surfaceTex,sandTex,clamp(vSandWeight,0.0,1.0));`);}
+   if(ground)patchGroundSurface(shader,meadow,stone);
    if(wind){shader.uniforms.uLandscapeTime=time;shader.vertexShader='uniform float uLandscapeTime;\n'+shader.vertexShader;const amount=m.name==='leaves'?'.045':m.name==='banner'?'.028':'.08',height=m.name==='foliage'?'position.y-groundBase':'position.y';shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>\nfloat breeze = sin(uLandscapeTime * 1.5 + position.x * .8 + position.z * .55); transformed.x += breeze * ${amount} * min(1.0, max(0.0, ${height})); transformed.z += cos(uLandscapeTime + position.x * .5) * ${amount} * .3 * min(1.0, max(0.0, ${height}));`);}
    if(cover){shader.uniforms.uGrassFocus=focus;shader.vertexShader='attribute float groundBase; uniform vec2 uGrassFocus;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','transformed.y = groundBase + (transformed.y-groundBase)*(1.0-smoothstep(24.0,34.0,distance(position.xz,uGrassFocus)));\n#include <project_vertex>');}
-  };m.customProgramCacheKey=()=>`landscape-relief-v2-${m.name}`;m.needsUpdate=true;
+  };m.customProgramCacheKey=()=>`landscape-relief-v3-${m.name}`;m.needsUpdate=true;
  });}
  return{apply,finish,update(dt,player){time.value+=Math.min(dt,.1);if(player)focus.value.set(player.x,player.z);}};
 }

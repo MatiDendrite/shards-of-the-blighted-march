@@ -30,7 +30,15 @@ A separate visual study introduced original oak and limewash colour textures in 
 
 Roof slate and paving have their own surface treatment instead of sharing the rock colour texture. Individual roof shades and construction shading are stored in vertex colours so that static batching can still combine them. Structural timber posts have bevelled edges, and the roof backing sits below the overlapping shingles. Building footprints, traversal and combat rules are unchanged.
 
-The lighting study keeps one shadow cascade and direct rendering. Balanced uses a 1024-pixel shadow map; High raises it to 2048, subject to device limits, and caps the display pixel ratio at 1.5. Switching quality disposes the old shadow target without rebuilding the world. Fixed-camera comparisons, texture-upload checks and real menu interaction cover these changes. Broader character, vegetation, water and post-processing revisions remain separate work.
+The lighting study keeps one shadow cascade and direct rendering. Balanced uses a 1024-pixel shadow map; High raises it to 2048, subject to device limits, and caps the display pixel ratio at 1.5. Switching quality disposes the old shadow target without rebuilding the world. Fixed-camera comparisons, texture-upload checks and real menu interaction cover these changes. Broader character, vegetation, water and post-processing revisions were left for separate passes.
+
+## Ground cover and shoreline detail
+
+The next environment pass reused the existing images. Ground materials blend at irregular boundaries, with a broad grass sample reducing obvious texture repetition. Moisture depends on both distance to water and terrain elevation, so low banks darken without making nearby elevated ground wet. Fine sand relief fades with distance to limit shimmering.
+
+Small constructor-built ferns, reeds, dune grass and pebbles are placed deterministically around banks and in forest-floor patches. They share geometry and materials through spatially grouped instances, disappear at a bounded distance, and do not introduce collision obstacles. Travel routes and bridge approaches remain clear. Plants near the player shrink below combat warnings, while meadows retain their existing triangle budget with more varied blade widths and colours.
+
+Water keeps the original geometry and collision datum. Broken wash bands and filtered shallow-water highlights add motion without transmission, a second scene render or downloaded textures. These are stylised surface effects, not a fluid simulation. Character model and post-processing work remains separate.
 
 ## Implementation pointers
 
@@ -38,5 +46,6 @@ The lighting study keeps one shadow cascade and direct rendering. Balanced uses 
 - [Meadows](../game/src/meadow-view.js), [water and coastline rendering](../game/src/geography-view.js) and [landscape effects](../game/src/landscape-effects.js).
 - [Cartography](../game/src/cartography.js), [terrain tests](../tools/terrain.test.mjs) and [surface-detail tests](../tools/surface-detail.test.mjs).
 - [Material detail](../game/src/surface-detail.js), [quality profiles](../game/src/visual-quality.js), [material comparisons](../tools/materials-review.mjs) and [quality interaction checks](../tools/visual-quality-playtest.mjs).
+- [Ground shading](../game/src/landscape-ground.js), [bank plants](../game/assets/bank_plants.js), [placement and instancing](../game/src/bank-dressing.js) and [environment checks](../tools/environment-detail.test.mjs).
 
 [Back to development stages](README.md)

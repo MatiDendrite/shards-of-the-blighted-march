@@ -9,6 +9,8 @@ import {cameraTemplate,placeCameraObstacle} from './camera-obstacles.js';
 import {beachWeight,waterDistance,onCrossing} from './geography.js';
 import {createGeographyView} from './geography-view.js';
 import {createMeadowView} from './meadow-view.js';
+import {createBankDressing} from './bank-dressing.js';
+import {groundMoisture} from './landscape-ground.js';
 import {TERRAIN_SIZE,TERRAIN_SEGMENTS,terrainHeight,groundHeight,groundGradient} from './terrain-height.js';
 
 export async function createWorld(host,art){
@@ -36,11 +38,12 @@ export async function createWorld(host,art){
     tint(root,style);
     // The same triangulated field supports actors, paving and ground effects.
     root.traverse(o=>{if(o.isMesh&&o.material.name==='ground'){
-      const geo=new T.PlaneGeometry(TERRAIN_SIZE,TERRAIN_SIZE,TERRAIN_SEGMENTS,TERRAIN_SEGMENTS);geo.rotateX(-Math.PI/2);const p=geo.attributes.position,uv=geo.attributes.uv,colors=new Float32Array(p.count*3),coverage=new Float32Array(p.count),sandCoverage=new Float32Array(p.count),rockCoverage=new Float32Array(p.count),sand=new T.Color(0xffedc3);
+      const geo=new T.PlaneGeometry(TERRAIN_SIZE,TERRAIN_SIZE,TERRAIN_SEGMENTS,TERRAIN_SEGMENTS);geo.rotateX(-Math.PI/2);const p=geo.attributes.position,uv=geo.attributes.uv,colors=new Float32Array(p.count*3),coverage=new Float32Array(p.count),sandCoverage=new Float32Array(p.count),rockCoverage=new Float32Array(p.count),wetness=new Float32Array(p.count),sand=new T.Color(0xffedc3);
       const earth=new T.Color(region===2?0xd4c7ae:region===3?0xbfc1c1:0xf1ead9),green=new T.Color(region===2?0xb3a17b:region===3?0xabb4ab:0xe2e8cc),color=new T.Color();
       for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i),noise=.5+.24*Math.sin(x*.13+z*.19)+.2*Math.cos(z*.31-x*.08),verge=Math.min(1,Math.max(0,(distanceToRoad(region,x,z)-.7)/2.6)),plaza=Math.min(1,Math.max(0,(Math.hypot(x,z-8)-8.5)/2)),court=region===3?Math.min(1,Math.max(0,(Math.hypot(x,z+38)-11)/3)):1,beach=beachWeight(region,x,z),bank=Math.min(1,Math.max(0,(waterDistance(region,x,z)-1.3)/2));sandCoverage[i]=beach;coverage[i]=verge*plaza*court*bank*(1-beach)*(region===2?.24:region===3?.54:.92);color.copy(earth).lerp(green,verge*.45).lerp(sand,beach);color.multiplyScalar(.9+noise*.16);color.toArray(colors,i*3);p.setY(i,terrainHeight(region,x,z));const slope=groundGradient(region,x,z);rockCoverage[i]=Math.min(.82,Math.max(0,(Math.hypot(slope.x,slope.z)-.18)*2))*verge*(1-beach);uv.setXY(i,x/3,z/3);}
+      for(let i=0;i<p.count;i++)wetness[i]=groundMoisture(waterDistance(region,p.getX(i),p.getZ(i)),p.getY(i));
       geo.computeVertexNormals();
-      geo.setAttribute('color',new T.BufferAttribute(colors,3));geo.setAttribute('meadowWeight',new T.BufferAttribute(coverage,1));geo.setAttribute('sandWeight',new T.BufferAttribute(sandCoverage,1));geo.setAttribute('rockWeight',new T.BufferAttribute(rockCoverage,1));o.geometry=geo;o.material.vertexColors=true;
+      geo.setAttribute('color',new T.BufferAttribute(colors,3));geo.setAttribute('meadowWeight',new T.BufferAttribute(coverage,1));geo.setAttribute('sandWeight',new T.BufferAttribute(sandCoverage,1));geo.setAttribute('rockWeight',new T.BufferAttribute(rockCoverage,1));geo.setAttribute('wetWeight',new T.BufferAttribute(wetness,1));o.geometry=geo;o.material.vertexColors=true;
     }});
     if(region>=2){
       const stone=slabs[0].material;
@@ -102,13 +105,14 @@ export async function createWorld(host,art){
     art.finish(scene);
     // Instanced geometry must stay outside bakeStatic, which expands instances.
     const meadow=createMeadowView(scene,region,style,colliders);
+    const banks=createBankDressing(scene,region,colliders);
     const effects=createLandscapeEffects(scene,layout.props,region);
     const geography=createGeographyView(scene,region);
     const dustGeo=new T.BufferGeometry(),points=[];
     for(let i=0;i<300;i++){const x=(rand()-.5)*120,z=(rand()-.5)*120;points.push(x,groundHeight(region,x,z)+.4+rand()*5,z);}
     dustGeo.setAttribute('position',new T.Float32BufferAttribute(points,3));
     const dust=new T.Points(dustGeo,new T.PointsMaterial({color:style.dust,size:region===1?.05:.035,transparent:true,opacity:.6}));scene.add(dust);
-    return {root:scene,colliders,cameraObstacles,dust,effects,geography,meadow,coverChunks};
+    return {root:scene,colliders,cameraObstacles,dust,effects,geography,meadow,banks,coverChunks};
   }
   zones[0]=build(0);host.add(zones[0].root);
   return {
@@ -117,6 +121,6 @@ export async function createWorld(host,art){
     setRegion(region){const created=!zones[region];if(created)zones[region]=build(region);if(region!==active){host.remove(zones[active].root);host.add(zones[region].root);}active=region;return created;},
     canStand(x,z){return canStandIn(zones[active].colliders,x,z);},
     heightAt(x,z){return groundHeight(active,x,z);},
-    update(dt,player={x:0,z:11}){art.update(dt,player);zones[active].effects.update(dt);zones[active].geography.update(dt);zones[active].meadow.update(dt,player);for(const c of zones[active].coverChunks)c.root.visible=Math.hypot(c.x-player.x,c.z-player.z)<42;},
+    update(dt,player={x:0,z:11}){art.update(dt,player);zones[active].effects.update(dt);zones[active].geography.update(dt);zones[active].meadow.update(dt,player);zones[active].banks.update(dt,player);for(const c of zones[active].coverChunks)c.root.visible=Math.hypot(c.x-player.x,c.z-player.z)<42;},
   };
 }

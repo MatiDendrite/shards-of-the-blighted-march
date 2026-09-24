@@ -1,0 +1,13 @@
+Shards of the Blighted March
+
+THIRD-PARTY SOFTWARE
+Three.js 0.169.0, including the bundled addons, retains its MIT license.
+Copyright: Three.js authors. See vendor/THREE-LICENSE.txt and source headers.
+https://github.com/mrdoob/three.js
+
+The 404 recipe helpers lib/assetlib.js, lib/surfaces.js and lib/rig.js
+retain their Apache License 2.0 and upstream attribution.
+See lib/404-LICENSE.txt and source headers.
+https://github.com/404-Repo/404-game-recipe
+
+Keep these license and attribution notices with redistributed copies.

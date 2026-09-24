@@ -4,7 +4,10 @@ import puppeteer from 'puppeteer';
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {CLASSES,SLOT_IDS} from '../game/src/class-data.js';
-const out='_artifacts/classes/play';await fs.mkdir(out,{recursive:true});
+const selected=process.argv.find(a=>a.startsWith('--class='))?.slice(8);
+if(selected!==undefined&&!Object.hasOwn(CLASSES,selected))throw new Error(`Unknown class: ${selected}`);
+const ids=selected?[selected]:['mage','ninja','dwarf','warrior'],first=ids[0];
+const out=`_artifacts/classes/${selected?`play-${selected}`:'play'}`;await fs.mkdir(out,{recursive:true});
 const main=(await fs.readFile('game/src/main.js','utf8')).replace('await rig.ready;',`window.classFixture={model,hero,world,input,progress,combatView,orbit};await rig.ready;`);
 const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});
 const report={scope:'native class selection, casts, movement, inventory and reload using isolated encounter placements; full render',runs:[],errors:[]};
@@ -15,10 +18,10 @@ try{for(const mobile of [false,true]){
  await page.setRequestInterception(true);page.on('request',r=>r.url().endsWith('/src/main.js')?r.respond({status:200,contentType:'text/javascript',body:main}):r.continue());
  await page.goto('http://localhost:4173/preview/');await page.waitForFunction(()=>window.__READY__);
  const tap=selector=>mobile?page.tap(selector):page.click(selector);
- await tap('#welcome-class');await page.waitForSelector('#class-dialog:not([hidden])');await tap('[data-class="mage"]');await page.screenshot({path:`${out}/${label}-selection.png`});await tap('#class-confirm');await page.waitForFunction(()=>document.querySelector('#class-dialog').hidden&&window.__GAME__.classId==='mage');await tap('#startb');await page.waitForFunction(()=>window.__GAME__.started);
+ await tap('#welcome-class');await page.waitForSelector('#class-dialog:not([hidden])');await tap(`[data-class="${first}"]`);await page.screenshot({path:`${out}/${label}-selection.png`});await tap('#class-confirm');await page.waitForFunction(id=>document.querySelector('#class-dialog').hidden&&window.__GAME__.classId===id,{},first);await tap('#startb');await page.waitForFunction(()=>window.__GAME__.started);
  const run={device:label,classes:[]};
- for(const id of ['mage','ninja','dwarf','warrior']){
-  if(id!=='mage'){
+ for(const id of ids){
+  if(id!==first){
    await page.evaluate(()=>{const f=window.classFixture,p=f.model.player;f.input.clear();p.x=0;p.z=11;p.action=null;p.dodge=0;p.queued=null;f.model.projectiles=[];f.model.bombs=[];f.model.enemies=[];});
    if(mobile)await tap('#class-button');else await page.keyboard.press('KeyK');await page.waitForSelector('#class-dialog:not([hidden])');await tap(`[data-class="${id}"]`);
    await page.evaluate(()=>{const p=window.classFixture.model.player;p.hp=54;p.stamina=47;});await tap('#class-confirm');await page.waitForFunction(id=>document.querySelector('#class-dialog').hidden&&window.__GAME__.classId===id,{},id);
@@ -51,8 +54,10 @@ try{for(const mobile of [false,true]){
   run.classes.push({id,casts});console.log(`${label} ${id}: selection, movement, gear portrait and all three native casts PASS`);
  }
  // Save from the class UI, then reload the same isolated context normally.
- await page.evaluate(()=>{const f=window.classFixture;f.model.player.x=0;f.model.player.z=11;f.model.player.action=null;f.model.player.dodge=0;f.model.projectiles=[];f.model.bombs=[];f.model.enemies=[];});await tap('#class-button');await tap('[data-class="dwarf"]');await tap('#class-confirm');await page.waitForFunction(()=>document.querySelector('#class-dialog').hidden);
- await page.reload();await page.waitForFunction(()=>window.__READY__);assert.equal(await page.$eval('#welcome-class-name',e=>e.textContent),'Dwarf');await tap('#startb');await page.waitForFunction(()=>window.__GAME__.started&&window.__GAME__.classId==='dwarf');
+ await page.evaluate(()=>{const f=window.classFixture;f.model.player.x=0;f.model.player.z=11;f.model.player.action=null;f.model.player.dodge=0;f.model.projectiles=[];f.model.bombs=[];f.model.enemies=[];});
+ const savedId=selected||'dwarf',saveOrder=selected?[selected==='dwarf'?'mage':'dwarf',selected]:['dwarf'];
+ for(const id of saveOrder){await tap('#class-button');await page.waitForSelector('#class-dialog:not([hidden])');await tap(`[data-class="${id}"]`);await tap('#class-confirm');await page.waitForFunction(id=>document.querySelector('#class-dialog').hidden&&window.__GAME__.classId===id,{},id);}
+ await page.reload();await page.waitForFunction(()=>window.__READY__);assert.equal(await page.$eval('#welcome-class-name',e=>e.textContent),CLASSES[savedId].name);await tap('#startb');await page.waitForFunction(id=>window.__GAME__.started&&window.__GAME__.classId===id,{},savedId);
  if(mobile){await page.setViewport({width:844,height:390,isMobile:true,hasTouch:true});await page.screenshot({path:`${out}/phone-landscape.png`});}
  const bounds=await page.evaluate(()=>[...document.querySelectorAll('#skills button')].map(e=>{const r=e.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height,visible:r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight};}));assert(bounds.every(b=>b.visible&&b.w>=44&&b.h>=44));run.bounds=bounds;run.reload='PASS';report.runs.push(run);await context.close();
 }assert.deepEqual(report.errors,[]);await fs.writeFile(`${out}/report.json`,JSON.stringify(report,null,2));}finally{await browser.close();}

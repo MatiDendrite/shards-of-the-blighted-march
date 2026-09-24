@@ -50,6 +50,14 @@ Pivots at the shoulders let capes and scarf tails move with their trim attached.
 
 Verification includes fixed-camera comparisons, original model triangle limits, surface sharing and clone independence, grounded dodge poses, late enemy spawning, and keyboard/touch class selection, casts and inventory portraits. Post-processing and larger animation-system changes remain separate work.
 
+## Character volume prototype
+
+Feedback on the equipment pass identified a more fundamental issue: additional trim did not resolve the simple anatomy and flat clothing. The next iteration therefore rebuilds the Mage as a single-class volume prototype, rather than immediately applying another decorative pass to every actor. The other classes retain the preceding designs while this direction awaits visual approval.
+
+Continuous cross-sections shape the torso, tapered sleeves, palms, boots and face. The robe wraps around the legs as two thick, pleated half-shells; an open hood, shoulder cowl and curved mantle have separate inner surfaces. The face includes cheek and eye-socket shaping, a projecting nose, eyelids and a short beard. Bent fingers replace the previous simple grips. A diagonal strap and bound book connect the clothing layers visually.
+
+The model remains constructor-built and stylised, not a scanned or sculpted production character. Its 19,644 triangles remain below the existing 20,000-triangle class limit. Height, named animation joints and gameplay rules are preserved. Surface processing now retains authored cloth-depth colours, and closed mesh seams share averaged normals. Dedicated front, side, back and face views support visual review alongside the existing movement, spell, portrait and save checks.
+
 ## Implementation pointers
 
 - [Geography](../game/src/geography.js), [terrain heights](../game/src/terrain-height.js) and [settlement layout](../game/src/settlement-layout.js).

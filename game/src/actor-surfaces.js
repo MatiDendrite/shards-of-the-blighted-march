@@ -51,8 +51,8 @@ export function applyActorSurfaces(root){
   if(uv){geo.computeBoundingBox();geo.boundingBox.getSize(size);size.multiply(o.scale);const u=Math.max(.18,Math.max(size.x,size.z)/profile.tile),v=Math.max(.18,size.y/profile.tile);for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*u,uv.getY(i)*v);}
   // Deliberately baked low-amplitude construction variation: shared materials
   // still batch within joints, and enemy flash/portrait clones need no shader hooks.
-  const p=geo.attributes.position,n=geo.attributes.normal,colors=new Float32Array(p.count*3),tone=.96+Math.sin(o.position.x*37+o.position.y*23+o.position.z*31)*.025;
-  for(let i=0;i<p.count;i++){const shade=tone*(.96+.04*Math.max(0,n.getY(i)));colors.set([shade,shade,shade],i*3);}
+  const p=geo.attributes.position,n=geo.attributes.normal,authored=geo.attributes.color,colors=new Float32Array(p.count*3),tone=.96+Math.sin(o.position.x*37+o.position.y*23+o.position.z*31)*.025;
+  for(let i=0;i<p.count;i++){const shade=tone*(.96+.04*Math.max(0,n.getY(i)));colors.set(authored?[authored.getX(i)*shade,authored.getY(i)*shade,authored.getZ(i)*shade]:[shade,shade,shade],i*3);}
   geo.setAttribute('color',new T.BufferAttribute(colors,3));o.geometry=geo;o.material.vertexColors=true;
  });return root;
 }

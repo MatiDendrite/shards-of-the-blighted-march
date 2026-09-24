@@ -32,6 +32,21 @@ test('skin, eyes and luminous insets never acquire cloth or wood grain',()=>{
  applyActorSurfaces(root);for(const mesh of root.children){assert.equal(mesh.material.map,null);assert.equal(mesh.material.normalMap,null);assert.equal(mesh.material.emissive.getHex(),0x123456);}
 });
 
+test('authored cloth depth shading survives actor surfacing without mutating its source colours',()=>{
+ const root=new T.Group(),geo=new T.BoxGeometry(.2,.3,.1),m=new T.MeshStandardMaterial({vertexColors:true});m.name='fabric';
+ const colors=new Float32Array(geo.attributes.position.count*3);for(let i=0;i<colors.length;i+=3)colors.set([.6,.4,.2],i);geo.setAttribute('color',new T.BufferAttribute(colors,3));
+ const before=colors.slice(),mesh=new T.Mesh(geo,m);root.add(mesh);applyActorSurfaces(root);const after=mesh.geometry.attributes.color;
+ assert.equal(geo.attributes.color.array,colors);assert.deepEqual(colors,before);assert(Math.abs(after.getX(0)/after.getY(0)-1.5)<1e-6);assert(Math.abs(after.getY(0)/after.getZ(0)-2)<1e-6);assert(after.getX(0)<.6);
+});
+
+test('mage volume study has a projecting face, wrapping cloth, complete colours and smooth closed seams',async()=>{
+ const root=(await import('../game/assets/mage.js')).default(T),bounds=name=>new T.Box3().setFromBufferAttribute(root.getObjectByName(name).geometry.attributes.position);
+ const face=bounds('sculptedFace'),nose=bounds('nose');assert(nose.max.z>face.max.z+.025);
+ for(const name of ['leftRobe','rightRobe','openHood','foldedMantle']){const mesh=root.getObjectByName(name),b=bounds(name);assert(b.max.z-b.min.z>.14,`${name} must wrap around a volume`);assert(mesh.geometry.index.count>400);assert(mesh.geometry.attributes.color.count===mesh.geometry.attributes.position.count);}
+ root.traverse(o=>{if(!o.isMesh)return;const g=o.geometry;assert([...g.attributes.position.array,...g.attributes.normal.array].every(Number.isFinite));if(o.material.vertexColors)assert.equal(g.attributes.color?.count,g.attributes.position.count);});
+ const normal=root.getObjectByName('sculptedFace').geometry.attributes.normal;for(let row=0;row<9;row++){const first=row*37,last=first+36;for(const get of ['getX','getY','getZ'])assert(Math.abs(normal[get](first)-normal[get](last))<1e-6);}
+});
+
 test('raider lining, cloth and embroidery stay distinct without changing shared player materials',()=>{
  const colors=[];for(const color of [0x222a2b,0x793e36,0xb2a078]){
   const m=new T.MeshStandardMaterial({color});m.name='fabric';m.map=actorSurfaceMaps('fabric').map;

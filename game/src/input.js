@@ -4,7 +4,7 @@ export function createInput(canvas,{canPlay=()=>true}={}) {
   let orbitFinger=null,cameraX=0,cameraY=0,cameraTouch=false,cameraWheel=0,cameraReset=false;
   const isTouch=matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0;
   document.body.classList.toggle('touch',isTouch);
-  if(isTouch)document.querySelector('.intro-controls').textContent='Move with the left joystick. Drag the world to look around your character independently. Release the joystick to steer relative to the new view. Use Attack, Dodge and skills on the right. View resets the camera.';
+  if(isTouch)document.querySelector('.intro-controls').textContent='Move with the left joystick. Drag the world to orbit around your character. Movement always follows the current view, even while dragging. Use Attack, Dodge and skills on the right. View resets the camera.';
   const mapped={Space:'dodge',Digit1:'cleave',Digit2:'slam',Digit3:'cry',KeyR:'weapon',KeyQ:'potion'};
   window.addEventListener('keydown',e=>{
     if(!canPlay())return;

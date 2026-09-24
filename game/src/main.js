@@ -18,7 +18,7 @@ import { createAtlasView } from './atlas-view.js';
 import { setLandscapeLighting,applyLandscapePalette } from './landscape-lighting.js';
 import {inTown,WORLD_LIMIT,EXIT,MAPS} from './world-map.js';
 import {createFrameClock} from './frame-clock.js';
-import {CameraOrbit,CameraMovement,cameraHeading} from './camera-orbit.js';
+import {CameraOrbit,cameraRelative,cameraHeading} from './camera-orbit.js';
 import {createClassView} from './class-view.js';
 import {classInfo,skillForSlot,SLOT_IDS} from './class-data.js';
 import {touchAim} from './combat-targeting.js';
@@ -39,10 +39,10 @@ async function boot(){
   mergeJoints(hero);
   scene.add(hero);hero.position.set(0,world.heightAt(0,11)+.06,11);hero.rotation.y=Math.PI;
   const ring=new T.Mesh(new T.RingGeometry(.40,.425,40),new T.MeshBasicMaterial({color:0xc9c4a0,transparent:true,opacity:.32,depthWrite:false}));ring.rotation.x=-Math.PI/2;scene.add(ring);
-  const orbit=new CameraOrbit(),movement=new CameraMovement();
+  const orbit=new CameraOrbit();let cameraLooking=false;
   const input=createInput(canvas,{canPlay:()=>window.__READY__===true&&started&&!paused&&!model.dead}),look=new T.Vector3(),desired=new T.Vector3(),ray=new T.Raycaster();
   const model=new Combat((x,z)=>world.canStand(x,z)&&(model.shard.hp<=0||Math.hypot(x-model.shard.x,z-model.shard.z)>1.12),(x,z)=>world.canStand(x,z));
-  const clearInput=input.clear;input.clear=()=>{clearInput();orbit.stop();movement.clear();model.clearBufferedInput();};
+  const clearInput=input.clear;input.clear=()=>{clearInput();orbit.stop();cameraLooking=false;model.clearBufferedInput();};
   const audio=createAudio(),combatView=await createCombatView(scene,hero,model,audio,{assets:combatAssets,prepare:root=>rig.refresh(root)});
   const store=saveStore({getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value)}),saved=store.load();
   let progress=new Progression(saved);const campaign=new Campaign(progress,model);progress.restore(model);world.setRegion(campaign.region);diagnosticObstacles=snapshotObstacles();if(campaign.region!==0)rig.setTime(world.atmosphere);
@@ -87,7 +87,7 @@ async function boot(){
   addEventListener('keydown',e=>{if(e.code==='KeyM'&&!e.repeat&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)){e.preventDefault();atlas.open();}});
   function resize(){input.clear();inventoryStill=0;renderDirty=true;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);rig.resize(innerWidth,innerHeight);}
   addEventListener('resize',resize);
-  function resetCamera(){if(!started)return;input.clearCamera();orbit.reset(paused);inventoryStill=0;renderDirty=true;document.activeElement?.blur();}
+  function resetCamera(){if(!started)return;input.clearCamera();cameraLooking=false;orbit.reset(paused);inventoryStill=0;renderDirty=true;document.activeElement?.blur();}
   $('#camera-reset').onclick=()=>{if(!paused&&!model.dead)resetCamera();};$('#camera-defaults').onclick=resetCamera;
   function pause(value){if(!$('#class-dialog').hidden){classView.close();return;}if(!$('#atlas-dialog').hidden){atlas.close();return;}if(!$('#town-dialog').hidden){townView.close();return;}if(!started||model.dead||!$('#victory').hidden)return;if(!$('#journal').hidden){closeJournal();return;}if(!$('#inventory').hidden){closeBag();return;}paused=value;$('#pause').hidden=!value;input.clear();if(!value)audio.unlock();else save();}
   $('#menu-button').onclick=()=>pause(true);$('#resume').onclick=()=>pause(false);
@@ -110,13 +110,14 @@ async function boot(){
   rig.refresh(scene);
   function sim(dt){
     if(!started||paused||model.dead)return;
-    const raw=input.read(),m={...raw,...movement.move(raw.x,raw.z,orbit.yaw)},p=model.player,actions=input.consume();
+    // Held movement follows the current view immediately, including during orbit.
+    const raw=input.read(),m={...raw,...cameraRelative(raw.x,raw.z,orbit.yaw)},p=model.player,actions=input.consume();
     const moving=Math.hypot(m.x,m.z)>.08;
     let angle=p.angle,aimPoint=null;
     if(moving)angle=Math.atan2(m.x,m.z);
     // Hover can preview a bomb, but only combat input turns toward the cursor.
     // Looking around or moving the idle mouse never spins the character.
-    if(input.pointer.active&&!input.isTouch&&!movement.looking){ray.setFromCamera(input.pointer,camera);const aim=intersectGroundRay(campaign.region,ray.ray.origin,ray.ray.direction);if(aim){aimPoint={x:aim.x,z:aim.z};if(m.attack||actions.some(a=>a==='attack'||SLOT_IDS.includes(a)))angle=Math.atan2(aim.x-p.x,aim.z-p.z);}}
+    if(input.pointer.active&&!input.isTouch&&!cameraLooking){ray.setFromCamera(input.pointer,camera);const aim=intersectGroundRay(campaign.region,ray.ray.origin,ray.ray.direction);if(aim){aimPoint={x:aim.x,z:aim.z};if(m.attack||actions.some(a=>a==='attack'||SLOT_IDS.includes(a)))angle=Math.atan2(aim.x-p.x,aim.z-p.z);}}
     if(input.isTouch){const assisted=touchAim(model,actions,m.attack,angle);angle=assisted.angle;aimPoint=assisted.point;}
     for(const action of actions){if(action==='weapon'){model.cycleWeapon();progress.sync(model);}else if(action==='potion'){if(progress.potion(model))save();}else if(action==='dodge')model.dodge(m.x,m.z);else model.requestAttack(action==='attack'?'basic':SLOT_IDS.includes(action)?skillForSlot(p.classId,action):action,angle,aimPoint);}
     const oldX=p.x,oldZ=p.z;model.update(dt,{...m,aim:angle,aimPoint});actualSpeed=Math.hypot(p.x-oldX,p.z-oldZ)/dt;hero.position.set(p.x,world.heightAt(p.x,p.z)+.06,p.z);hero.rotation.y=p.angle;
@@ -128,7 +129,7 @@ async function boot(){
   }
   function frame(now){
     const realDt=frameSeconds(now);if(realDt>0)fps=T.MathUtils.lerp(fps,1/Math.max(realDt,.001),.05);const dt=Math.min(realDt,.1);elapsed+=dt;if(hitStop>0)hitStop=Math.max(0,hitStop-dt);else acc+=dt;
-    const turn=input.consumeCamera();if(started&&!paused&&!model.dead){movement.look(orbit.yaw,turn.active||!!turn.x||!!turn.y);if(turn.reset)resetCamera();else{orbit.drag(turn.x,turn.y,turn.touch);orbit.wheel(turn.wheel);}orbit.advance(dt);}
+    const turn=input.consumeCamera();if(started&&!paused&&!model.dead){cameraLooking=turn.active||!!turn.x||!!turn.y;if(turn.reset)resetCamera();else{orbit.drag(turn.x,turn.y,turn.touch);orbit.wheel(turn.wheel);}orbit.advance(dt);}
     while(acc>=1/60){sim(1/60);acc-=1/60;}
     const portrait=innerWidth<innerHeight;
     hero.position.y=world.heightAt(model.player.x,model.player.z)+.06;

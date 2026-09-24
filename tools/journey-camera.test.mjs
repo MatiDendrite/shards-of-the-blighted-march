@@ -4,7 +4,7 @@ import {Combat} from '../game/src/combat-model.js';
 import {Progression,validSave,saveStore} from '../game/src/progression.js';
 import {Campaign} from '../game/src/campaign.js';
 import {CLASS_IDS} from '../game/src/class-data.js';
-import {CameraOrbit,CameraMovement,cameraRelative} from '../game/src/camera-orbit.js';
+import {CameraOrbit,cameraRelative} from '../game/src/camera-orbit.js';
 
 const close=(a,b)=>assert(Math.abs(a-b)<1e-7,`${a} != ${b}`);
 function fixture(){
@@ -42,17 +42,26 @@ test('full orbit never depends on or modifies character facing',()=>{
   for(let i=0;i<=36;i++){c.yaw=i*Math.PI/18;const eye=c.position(p,1/60,false);close(p.angle,facing);close(Math.atan2(Math.sin(Math.atan2(eye.x-p.x,eye.z-p.z)-c.yaw),Math.cos(Math.atan2(eye.x-p.x,eye.z-p.z)-c.yaw)),0);}
  }
 });
-test('free look preserves held world movement, including after releasing the camera',()=>{
- const control=new CameraMovement();control.look(.3,true);const initial=cameraRelative(0,-1,.3);
- for(const yaw of [.3,1,2,3,-2,-1]){const v=control.move(0,-1,yaw);close(v.x,initial.x);close(v.z,initial.z);}
- control.look(-1,false);assert.deepEqual(control.move(0,-1,-1),initial);
- control.move(0,0,-1);assert.deepEqual(control.move(0,-1,-1),cameraRelative(0,-1,-1));
+test('held forward movement follows the smoothed camera every tick without releasing',()=>{
+ const c=new CameraOrbit(),m=new Combat();m.enemies=[];Object.assign(m.player,{x:0,z:-25});c.drag(-210,0);
+ for(let i=0;i<90;i++){
+  c.advance(1/60);const v=cameraRelative(0,-1,c.yaw),before={x:m.player.x,z:m.player.z};
+  m.update(1/60,{...v,attack:false,aim:Math.atan2(v.x,v.z)});
+  close(m.player.x-before.x,-Math.sin(c.yaw)*3.4/60);close(m.player.z-before.z,-Math.cos(c.yaw)*3.4/60);
+ }
+ assert(m.player.x<-4);close(c.yaw,1.26);
 });
-test('joystick diagonals retain their magnitude and adopt the new view after neutral',()=>{
- const c=new CameraMovement();c.look(1,true);const first=c.move(.3,-.4,1);const second=c.move(.3,-.4,2);assert.deepEqual(first,second);close(Math.hypot(first.x,first.z),.5);
- c.look(2,false);c.move(0,0,2);assert.deepEqual(c.move(.3,-.4,2),cameraRelative(.3,-.4,2));
+test('held joystick diagonals retain magnitude and screen direction throughout a full orbit',()=>{
+ for(let yaw=-Math.PI;yaw<=Math.PI;yaw+=.1){
+  const v=cameraRelative(.3,-.4,yaw);close(Math.hypot(v.x,v.z),.5);
+  close(v.x*Math.cos(yaw)-v.z*Math.sin(yaw),.3);close(v.x*Math.sin(yaw)+v.z*Math.cos(yaw),-.4);
+ }
 });
-test('paused, cancelled or reset controls cannot retain a stale movement lock',()=>{
- const c=new CameraMovement();c.look(1,true);c.move(0,-1,1);c.clear();assert(!c.looking);assert.equal(c.moveYaw,null);assert.deepEqual(c.move(0,-1,2),cameraRelative(0,-1,2));
- c.look(2,true);c.move(0,0,2);assert.deepEqual(c.move(0,-1,3),cameraRelative(0,-1,2));
+test('camera reset updates held movement and directional dodge without a neutral input',()=>{
+ const c=new CameraOrbit(),m=new Combat();c.yaw=c.targetYaw=1.8;c.reset();
+ for(let i=0;i<90;i++){
+  c.advance(1/60);const v=cameraRelative(0,-1,c.yaw);close(v.x,-Math.sin(c.yaw));close(v.z,-Math.cos(c.yaw));
+  if(i===12){assert(m.dodge(v.x,v.z));close(m.player.dodgeX,v.x);close(m.player.dodgeZ,v.z);}
+ }
+ const final=cameraRelative(0,-1,c.yaw);close(final.x,0);close(final.z,-1);
 });

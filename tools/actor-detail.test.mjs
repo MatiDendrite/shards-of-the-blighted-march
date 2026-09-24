@@ -47,11 +47,55 @@ test('mage volume study has a projecting face, wrapping cloth, complete colours 
  const normal=root.getObjectByName('sculptedFace').geometry.attributes.normal;for(let row=0;row<9;row++){const first=row*37,last=first+36;for(const get of ['getX','getY','getZ'])assert(Math.abs(normal[get](first)-normal[get](last))<1e-6);}
 });
 
+for(const [id,height,budget,volumes] of [
+ ['wanderer',1.85,18000,['forgedCuirass','foldedMantle','leftTabard','rightTabard','openHelmet']],
+ ['ninja',1.78,20000,['lamellarVest0','shapedMask','leftTunicSkirt','rightTunicSkirt','leftFoldedScarf','rightFoldedScarf']],
+ ['dwarf',1.4,20000,['forgedCuirass','smithApron','openHelmet','beardMass']]
+])test(`${id}: rebuilt anatomy has volumetric clothing, articulated grips and the original size/budget`,async()=>{
+ const root=(await import(`../game/assets/${id}.js`)).default(T),bounds=new T.Box3().setFromObject(root,true);let triangles=0;
+ assert(Math.abs(bounds.min.y)<1e-6);assert(Math.abs(bounds.getSize(new T.Vector3()).y-height)<1e-6);
+ for(const name of volumes){
+  const mesh=root.getObjectByName(name);assert(mesh?.isMesh,name);assert(mesh.geometry.index.count>200,name);
+  const b=new T.Box3().setFromBufferAttribute(mesh.geometry.attributes.position);assert(b.max.z-b.min.z>.04,`${name} must have depth`);
+ }
+ for(const side of ['left','right']){
+  const fore=root.userData.joints[side+'Forearm'];assert(root.getObjectByName(side+'Palm').parent===fore);
+  for(let i=0;i<4;i++)assert.equal(root.getObjectByName(side+'Finger'+i).parent,fore);
+  assert.equal(root.getObjectByName(side+'Thumb').parent,fore);
+ }
+ const face=root.getObjectByName('sculptedFace'),nose=root.getObjectByName('nose');
+ assert(new T.Box3().setFromBufferAttribute(nose.geometry.attributes.position).max.z>new T.Box3().setFromBufferAttribute(face.geometry.attributes.position).max.z+.02);
+ const normal=face.geometry.attributes.normal;
+ for(let row=0;row<9;row++)for(const get of ['getX','getY','getZ'])assert(Math.abs(normal[get](row*29)-normal[get](row*29+28))<1e-6);
+ root.traverse(o=>{if(!o.isMesh)return;const g=o.geometry;triangles+=(g.index?.count||g.attributes.position.count)/3;assert.notEqual(g.type,'PlaneGeometry');assert([...g.attributes.position.array,...g.attributes.normal.array].every(Number.isFinite));if(o.material.vertexColors)assert.equal(g.attributes.color?.count,g.attributes.position.count);});
+ assert(triangles<budget,`${triangles} triangles exceeds ${budget}`);
+});
+
 test('raider lining, cloth and embroidery stay distinct without changing shared player materials',()=>{
  const colors=[];for(const color of [0x222a2b,0x793e36,0xb2a078]){
   const m=new T.MeshStandardMaterial({color});m.name='fabric';m.map=actorSurfaceMaps('fabric').map;
   const copy=styleRaiderMaterial(m.clone());colors.push(copy.color.getHex());assert.equal(m.color.getHex(),color);assert.equal(copy.map,m.map);
  }assert.equal(new Set(colors).size,3);
+});
+
+for(const [id,ceiling] of [['wanderer',31],['ninja',42],['dwarf',34]])test(`${id}: compact palettes preserve linear colours and raider tint while bounding joint batches`,async()=>{
+ const make=(await import(`../game/assets/${id}.js`)).default,plain=make(T),compact=make(T);
+ plain.userData.compactActorPalette=false;
+ const meshes=root=>{const out=[];root.traverse(o=>{if(o.isMesh)out.push(o);});return out;};
+ const originals=meshes(compact).map(o=>({geometry:o.geometry,colors:o.geometry.attributes.color?.array.slice()}));
+ applyActorSurfaces(plain);applyActorSurfaces(compact);const before=meshes(plain),after=meshes(compact);assert.equal(before.length,after.length);
+ for(let n=0;n<before.length;n++){
+  const a=before[n],b=after[n];assert.deepEqual(originals[n].geometry.attributes.color?.array,originals[n].colors);
+  assert.deepEqual(a.geometry.attributes.position.array,b.geometry.attributes.position.array);
+  for(const prop of ['roughness','metalness','map','normalMap','roughnessMap'])assert.equal(a.material[prop],b.material[prop]);
+  for(const raider of [false,true]){
+   const ma=raider?styleRaiderMaterial(a.material.clone()):a.material,mb=raider?styleRaiderMaterial(b.material.clone()):b.material;
+   const ca=ma.vertexColors?a.geometry.attributes.color:null,cb=mb.vertexColors?b.geometry.attributes.color:null;
+   for(let i=0;i<a.geometry.attributes.position.count;i++)for(const [channel,get] of [['r','getX'],['g','getY'],['b','getZ']])assert(Math.abs(ma.color[channel]*(ca?ca[get](i):1)-mb.color[channel]*(cb?cb[get](i):1))<1e-6);
+  }
+ }
+ mergeJoints(compact);assert(meshes(compact).length<=ceiling);
+ for(const key of ['head','torso','leftArm','rightArm','leftForearm','rightForearm','leftLeg','rightLeg','leftShin','rightShin','leftFoot','rightFoot'])assert(compact.userData.joints[key]?.isGroup);
 });
 
 for(const id of ['wanderer','mage','ninja','dwarf','blighted_wolf','fallen_warden'])test(`${id}: detailed materials survive joint batching and cloned actors remain independent`,async()=>{

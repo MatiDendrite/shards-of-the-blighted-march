@@ -54,7 +54,23 @@ export function applyActorSurfaces(root){
   const p=geo.attributes.position,n=geo.attributes.normal,authored=geo.attributes.color,colors=new Float32Array(p.count*3),tone=.96+Math.sin(o.position.x*37+o.position.y*23+o.position.z*31)*.025;
   for(let i=0;i<p.count;i++){const shade=tone*(.96+.04*Math.max(0,n.getY(i)));colors.set(authored?[authored.getX(i)*shade,authored.getY(i)*shade,authored.getZ(i)*shade]:[shade,shade,shade],i*3);}
   geo.setAttribute('color',new T.BufferAttribute(colors,3));o.geometry=geo;o.material.vertexColors=true;
- });return root;
+ });
+ if(root.userData.compactActorPalette)compactActorPalette(root);
+ return root;
+}
+// Bake only base colour, in linear space. Compatible skin/eye/metal/leather materials
+// can then share a joint batch without custom shaders or losing their colours.
+// Fabric keeps its semantic palette for raider lining/embroidery recolouring.
+function compactActorPalette(root){
+ const materials=new Map();
+ root.traverse(o=>{
+  if(!o.isMesh||Array.isArray(o.material)||!['metal','skin','eyes','leather'].includes(o.material.name))return;
+  const m=o.material,g=o.geometry.clone(),p=g.attributes.position,authored=m.vertexColors?g.attributes.color:null,colors=new Float32Array(p.count*3);
+  for(let i=0;i<p.count;i++)colors.set([m.color.r*(authored?authored.getX(i):1),m.color.g*(authored?authored.getY(i):1),m.color.b*(authored?authored.getZ(i):1)],i*3);
+  g.setAttribute('color',new T.BufferAttribute(colors,3));o.geometry=g;
+  if(!materials.has(m)){const copy=m.clone();copy.color.setRGB(1,1,1);copy.vertexColors=true;copy.needsUpdate=true;materials.set(m,copy);}
+  o.material=materials.get(m);
+ });
 }
 export async function loadActorAsset(url,options={}){return applyActorSurfaces(await ASSET(url,{...options,surfaces:false}));}
 

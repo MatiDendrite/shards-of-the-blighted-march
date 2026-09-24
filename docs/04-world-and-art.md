@@ -52,11 +52,21 @@ Verification includes fixed-camera comparisons, original model triangle limits, 
 
 ## Character volume prototype
 
-Feedback on the equipment pass identified a more fundamental issue: additional trim did not resolve the simple anatomy and flat clothing. The next iteration therefore rebuilds the Mage as a single-class volume prototype, rather than immediately applying another decorative pass to every actor. The other classes retain the preceding designs while this direction awaits visual approval.
+Feedback on the equipment pass identified a more fundamental issue: additional trim did not resolve the simple anatomy and flat clothing. The next iteration therefore rebuilt the Mage as a single-class volume prototype. The other classes retained the preceding designs during that review. Acceptance of the Mage's direction then led to the remaining class rebuilds described below.
 
 Continuous cross-sections shape the torso, tapered sleeves, palms, boots and face. The robe wraps around the legs as two thick, pleated half-shells; an open hood, shoulder cowl and curved mantle have separate inner surfaces. The face includes cheek and eye-socket shaping, a projecting nose, eyelids and a short beard. Bent fingers replace the previous simple grips. A diagonal strap and bound book connect the clothing layers visually.
 
 The model remains constructor-built and stylised, not a scanned or sculpted production character. Its 19,644 triangles remain below the existing 20,000-triangle class limit. Height, named animation joints and gameplay rules are preserved. Surface processing now retains authored cloth-depth colours, and closed mesh seams share averaged normals. Dedicated front, side, back and face views support visual review alongside the existing movement, spell, portrait and save checks.
+
+## Extending the approved volume direction
+
+The Warrior, Ninja and Dwarf now use continuous torso and limb profiles, curved palms with separate bent fingers, and modelled faces beneath their headwear. Inner surfaces and joined edges give skirts, scarves, masks, armour and aprons thickness. Thin trim uses fewer radial segments than fingers and other visible anatomy, keeping the original geometry limits intact. Each generator remains standalone and import-free; none decodes an imported mesh.
+
+The Warrior has a convex cuirass, overlapping shoulder plates, shaped greaves and an open helmet. A split tabard and curved mantle follow their existing animation pivots. The Ninja keeps a narrower silhouette, with a cheek-following mask, curved leather vest, wrapped cuffs and two thick scarf tails. The Dwarf has a broad cuirass, a leather apron that wraps the belly, and continuous tapered beard braids with metal bands. These are still stylised designs and authored secondary motion, not realistic cloth or hair simulation.
+
+The rebuilt models contain 17,916, 18,420 and 18,904 triangles respectively. Their heights remain 1.85, 1.78 and 1.40 metres. Skill rules, equipment effects, collision radii and save formats are unchanged. Raiders inherit the Warrior geometry, making encounter rendering and neutral-pose cloning important regression checks in addition to the player portraits. Fixed-camera reviews include side, back, face, walking and dodge views; keyboard and emulated-touch checks exercise each class's movement, abilities, inventory and reload behaviour.
+
+Dense encounter review exposed the cost of separate detail materials. The rebuilt actors therefore opt into linear-colour baking for compatible metal, skin, eye and leather surfaces. Their base colours move into vertex attributes while physical surface properties stay on the materials, allowing more pieces to share each joint's render batch. Fabric keeps its separate palette so enemy recolouring still distinguishes lining, cloth and trim. Rigid construction pivots for faces and pouches are folded into their parents; actual animation joints remain independent. Colour-equivalence, enemy-tint and batch-count tests protect this optimisation without increasing the scene budgets.
 
 ## Implementation pointers
 

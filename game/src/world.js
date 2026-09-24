@@ -30,7 +30,7 @@ export async function createWorld(host,art){
   }
   function terrainFor(region,style){
     const root=models[0].clone(),slabs=[];
-    root.traverse(o=>{if(o.isMesh&&o.material.name==='stone')slabs.push(o);});
+    root.traverse(o=>{if(o.isMesh&&o.material.name==='paving')slabs.push(o);});
     if(!slabs.length)throw new Error('Terrain paving hierarchy is missing.');
     slabs.forEach(o=>o.removeFromParent());
     tint(root,style);

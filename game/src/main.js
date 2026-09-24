@@ -15,7 +15,8 @@ import { REGIONS } from './campaign-data.js';
 import { createCampaignView } from './campaign-view.js';
 import { createTownView } from './town-view.js';
 import { createAtlasView } from './atlas-view.js';
-import { setLandscapeLighting,applyLandscapePalette } from './landscape-lighting.js';
+import { setLandscapeLighting,applyLandscapePalette,LANDSCAPE_RENDER_OPTIONS } from './landscape-lighting.js';
+import {applyVisualQuality} from './visual-quality.js';
 import {inTown,WORLD_LIMIT,EXIT,MAPS} from './world-map.js';
 import {createFrameClock} from './frame-clock.js';
 import {CameraOrbit,cameraRelative,cameraHeading} from './camera-orbit.js';
@@ -31,7 +32,7 @@ async function boot(){
   const canvas=$('#world'),renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(1);renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(44,innerWidth/innerHeight,.1,140);
-  const rig=createRig(T,renderer,scene,{camera,tier:'phone',hour:16.5,azimuth:245,post:false,cascades:1,shadowMap:1024,shadowDist:36,exposure:1.15,sunColor:0xffe6bd,sunIntensity:2.25,fill:1.3,envIntensity:.5,bounce:.4,fogStart:19,fogDensity:.022});
+  const rig=createRig(T,renderer,scene,{...LANDSCAPE_RENDER_OPTIONS,camera});
   const artReady=loadArt(renderer),assetsReady=loadCombatAssets();
   const [world,hero,combatAssets]=await Promise.all([createWorld(scene,artReady),ASSET(new URL('../assets/wanderer.js',import.meta.url).href,{keepHierarchy:true,height:1.85,surfaces:true}),assetsReady]);
   const snapshotObstacles=()=>Object.freeze(world.colliders.map(c=>Object.freeze({...c})));let diagnosticObstacles=snapshotObstacles();
@@ -93,7 +94,7 @@ async function boot(){
   $('#menu-button').onclick=()=>pause(true);$('#resume').onclick=()=>pause(false);
   addEventListener('keydown',e=>{if(e.code==='Escape')pause(!paused);});
   addEventListener('blur',()=>{if($('#class-dialog').hidden&&$('#inventory').hidden&&$('#journal').hidden&&$('#town-dialog').hidden&&$('#atlas-dialog').hidden)pause(true);});document.addEventListener('visibilitychange',()=>{if(document.hidden){if(started)save();if($('#class-dialog').hidden&&$('#inventory').hidden&&$('#journal').hidden&&$('#town-dialog').hidden&&$('#atlas-dialog').hidden)pause(true);}});
-  $('#quality').onchange=e=>{renderer.setPixelRatio(e.target.value==='high'?Math.min(devicePixelRatio,1.5):1);resize();};
+  $('#quality').onchange=e=>{applyVisualQuality(renderer,rig,e.target.value,devicePixelRatio);resize();};
   function reset(fresh=false,classId=progress.data.classId){if(!progress.beginJourney(model,{fresh,classId}))return false;for(const id of ['#pause','#defeat','#victory','#inventory','#journal','#town-dialog'])$(id).hidden=true;regionChanged();orbit.reset(true);orbit.distance=0;audio.unlock();return true;}
   function restart(){classView.open('expedition');}
   $('#reset-view').onclick=restart;$('#replay').onclick=restart;$('#retry').onclick=()=>{campaign.retry();regionChanged();};

@@ -24,10 +24,19 @@ Water received a richer animated surface and shoreline treatment. Meadows became
 
 Visual density was balanced with performance work: static scenery is batched, repetitive cover is organised into spatial groups, textures are prepared before the first playable frame, and map backgrounds are cached. These techniques reduce repeated work without changing the underlying encounter rules.
 
+## Material study and construction detail
+
+A separate visual study introduced original oak and limewash colour textures in `game/textures/oak-albedo.webp` and `game/textures/limewash-albedo.webp`. These are 1024-pixel WebP images. Tileable normal and roughness maps are generated in code and shared across scenery; the subtle relief is procedural, not measured displacement reconstructed from the colour images.
+
+Roof slate and paving have their own surface treatment instead of sharing the rock colour texture. Individual roof shades and construction shading are stored in vertex colours so that static batching can still combine them. Structural timber posts have bevelled edges, and the roof backing sits below the overlapping shingles. Building footprints, traversal and combat rules are unchanged.
+
+The lighting study keeps one shadow cascade and direct rendering. Balanced uses a 1024-pixel shadow map; High raises it to 2048, subject to device limits, and caps the display pixel ratio at 1.5. Switching quality disposes the old shadow target without rebuilding the world. Fixed-camera comparisons, texture-upload checks and real menu interaction cover these changes. Broader character, vegetation, water and post-processing revisions remain separate work.
+
 ## Implementation pointers
 
 - [Geography](../game/src/geography.js), [terrain heights](../game/src/terrain-height.js) and [settlement layout](../game/src/settlement-layout.js).
 - [Meadows](../game/src/meadow-view.js), [water and coastline rendering](../game/src/geography-view.js) and [landscape effects](../game/src/landscape-effects.js).
 - [Cartography](../game/src/cartography.js), [terrain tests](../tools/terrain.test.mjs) and [surface-detail tests](../tools/surface-detail.test.mjs).
+- [Material detail](../game/src/surface-detail.js), [quality profiles](../game/src/visual-quality.js), [material comparisons](../tools/materials-review.mjs) and [quality interaction checks](../tools/visual-quality-playtest.mjs).
 
 [Back to development stages](README.md)

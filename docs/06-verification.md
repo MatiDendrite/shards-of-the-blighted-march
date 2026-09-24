@@ -48,6 +48,14 @@ With Node.js 22 available, the bundled folder check is:
 node tools/404/ship.mjs game
 ```
 
-It checks module parsing and paths within the playable folder. It is not the live-site jam gate. Publication remains a separate step performed by the project owner: after hosting the game, verify the actual public address with the current official jam tooling and match the submitted revision to that build. Local development results do not establish the loading behaviour or correctness of a later deployment.
+It checks module parsing and paths within the playable folder. It is not the live-site jam gate. After hosting the game, verify the actual public address with the current official jam tooling and match the submitted revision to that build. Local development results do not establish the loading behaviour or correctness of a later deployment.
+
+## Automatic GitHub Pages deployment
+
+The [Pages workflow](../.github/workflows/pages.yml) runs after each push to `main`, or manually from the repository's Actions tab with `main` selected. It installs the locked test dependencies using Node.js 22, runs the unit suite and checks the standalone folder. Only after these checks pass does it publish the contents of `game/` as the site root. Documentation, development tools and local test artifacts are not included in the website.
+
+Before the first deployment, select **Settings → Pages → Build and deployment → Source → GitHub Actions** in the repository. Push the workflow to `main` after enabling this setting, or run it manually if it was already pushed. No personal access token or additional repository secret is needed; deployment uses GitHub's built-in credentials with Pages-specific permissions. See the [GitHub Pages setup instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site#publishing-with-a-custom-github-actions-workflow).
+
+The published URL appears in the workflow's `github-pages` deployment environment. For an ordinary project repository without a custom domain, it has the form `https://<owner>.github.io/<repository>/`; there is no additional `/game/` suffix. The owner controls publication by pushing to `main`. Experimental branches are not deployed. Browser playtests and the live-site jam gate remain separate checks, not guarantees provided by this workflow.
 
 [Back to development stages](README.md)

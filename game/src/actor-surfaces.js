@@ -60,11 +60,13 @@ export function applyActorSurfaces(root){
 }
 // Bake only base colour, in linear space. Compatible skin/eye/metal/leather materials
 // can then share a joint batch without custom shaders or losing their colours.
-// Fabric keeps its semantic palette for raider lining/embroidery recolouring.
+// Player fabric keeps its semantic palette for legacy tint comparisons. New
+// cast costumes opt in separately because their colours are authored per role.
 function compactActorPalette(root){
  const materials=new Map();
+ const names=['metal','skin','eyes','leather',...(root.userData.compactActorFabric?['fabric']:[])];
  root.traverse(o=>{
-  if(!o.isMesh||Array.isArray(o.material)||!['metal','skin','eyes','leather'].includes(o.material.name))return;
+  if(!o.isMesh||Array.isArray(o.material)||!names.includes(o.material.name))return;
   const m=o.material,g=o.geometry.clone(),p=g.attributes.position,authored=m.vertexColors?g.attributes.color:null,colors=new Float32Array(p.count*3);
   for(let i=0;i<p.count;i++)colors.set([m.color.r*(authored?authored.getX(i):1),m.color.g*(authored?authored.getY(i):1),m.color.b*(authored?authored.getZ(i):1)],i*3);
   g.setAttribute('color',new T.BufferAttribute(colors,3));o.geometry=g;

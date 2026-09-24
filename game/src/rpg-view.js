@@ -1,7 +1,6 @@
 import * as T from 'three';
-import { ASSET } from '../lib/assetlib.js';
+import {loadNpcActor,createNpcMotion} from './npc-actors.js';
 import { itemName,itemPower,xpNeeded,SMITH,sellPrice } from './progression.js';
-import { mergeJoints } from './combat-view.js';
 import { WEAPONS,basicAttack } from './combat-model.js';
 import { createGroundLoot } from './ground-loot.js';
 import {groundHeight,groundGradient} from './terrain-height.js';
@@ -11,7 +10,7 @@ export async function createRpgView(scene,progress,combat,store,onChange,portrai
  const $=s=>document.querySelector(s),text=createTextWriter(),panel=$('#inventory'),list=$('#item-list'),drops=new Map();let mode='inventory',rendered=-1,selected=1,filter='all',pendingSale=null;
  const kindNames={sword:'Sword',axe:'Axe',spear:'Spear',armor:'Armour'};
  let portraits,portraitClass;
- const smith=await ASSET(new URL('../assets/wanderer.js',import.meta.url).href,{keepHierarchy:true,height:1.85,surfaces:true});mergeJoints(smith);smith.position.set(SMITH.x,.07,SMITH.z);smith.rotation.y=1.7;smith.traverse(o=>{if(o.isMesh){o.material=o.material.clone();if(o.material.name==='fabric')o.material.color.setHex(0x57472f);}});scene.add(smith);
+ const smith=await loadNpcActor('smith'),animateSmith=createNpcMotion(smith,'smith');smith.position.set(SMITH.x,.07,SMITH.z);smith.rotation.y=1.7;scene.add(smith);
  const glow=new T.PointLight(0xffc07c,9,6,2);glow.position.set(SMITH.x,2,SMITH.z);scene.add(glow);
  const smithLabel=document.createElement('div');smithLabel.className='smith-label';smithLabel.textContent='BORIN · BLACKSMITH · UPGRADES';$('#enemy-labels').append(smithLabel);
  const heightAt=(x,z)=>groundHeight(combat.region,x,z),groundLoot=createGroundLoot(lootModels,heightAt,(x,z)=>groundGradient(combat.region,x,z));
@@ -88,7 +87,7 @@ export async function createRpgView(scene,progress,combat,store,onChange,portrai
     label.style.left=`${sx}px`;label.style.top=`${sy}px`;if(!label.hidden)labelRects.push({left:sx-half,right:sx+half,top:sy-height,bottom:sy});
    }
   }
-  smith.position.y=heightAt(SMITH.x,SMITH.z)+.07;glow.position.y=heightAt(SMITH.x,SMITH.z)+2;
+  smith.position.y=heightAt(SMITH.x,SMITH.z)+.07;if(smith.visible)animateSmith(combat.time);glow.position.y=heightAt(SMITH.x,SMITH.z)+2;
   projected.set(SMITH.x,heightAt(SMITH.x,SMITH.z)+2.5,SMITH.z).project(camera);smithLabel.hidden=!inCamp||projected.z<0||projected.z>1||Math.abs(projected.x)>.9||Math.abs(projected.y)>.85;smithLabel.style.left=`${(projected.x*.5+.5)*innerWidth}px`;smithLabel.style.top=`${(-projected.y*.5+.5)*innerHeight}px`;
  }
  function clearDrops(){for(const g of drops.values()){g.userData.label.remove();scene.remove(g);}drops.clear();}

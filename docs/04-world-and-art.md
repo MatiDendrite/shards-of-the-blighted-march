@@ -68,6 +68,20 @@ The rebuilt models contain 17,916, 18,420 and 18,904 triangles respectively. The
 
 Dense encounter review exposed the cost of separate detail materials. The rebuilt actors therefore opt into linear-colour baking for compatible metal, skin, eye and leather surfaces. Their base colours move into vertex attributes while physical surface properties stay on the materials, allowing more pieces to share each joint's render batch. Fabric keeps its separate palette so enemy recolouring still distinguishes lining, cloth and trim. Rigid construction pivots for faces and pouches are folded into their parents; actual animation joints remain independent. Colour-equivalence, enemy-tint and batch-count tests protect this optimisation without increasing the scene budgets.
 
+## Settlement cast and enemy silhouettes
+
+The next visual stage separated the town cast from the player classes. Borin wears a fitted leather apron with tools and works a hammer over a small anvil. Mara has a long skirt, shoulder shawl, braids, a ledger and a coin. Alden carries a hooked staff and wears a long robe and cowl. Rowan has a travel vest, backpack, bedroll, bow and compass. These are decorative role identifiers; they do not create new equipment, purchases or abilities.
+
+Their faces, hands, sleeves and garments use shaped cross-sections rather than flat costume panels. A shared standalone constructor builds the five-role cast, including a separate Hollow Raider with a lowered hood, face covering, laced leather jerkin and one scavenged shoulder plate. The raider no longer clones the Warrior. Inventory armour portraits still use the neutral player model, and the accepted player classes and wolf are unchanged.
+
+Borin's work cycle has a slow lift, quick strike and a short rest over the workpiece. Mara inspects her ledger and coin, Alden makes restrained head movements, and Rowan alternates his gaze while holding his compass. Their poses use simulation time and reset to authored transforms on each update. Dialogue, inventory and other pauses therefore freeze the animation without accumulating drift. Role positions, interaction distances, service prices and the blacksmith's availability only in Hearthstead are preserved.
+
+The Fallen Warden keeps his original height and combat rig. A convex cuirass, layered rounded shoulders, tapered greaves, articulated grips and a thick torn mantle replace the flatter armour construction. His free arm and head distinguish sweep and slam preparation. Enemy axes now attach at their actual grip to the forearm, remaining in the palm through the attack poses. Damage windows, warning shapes, collision radii, difficulty and save data are unchanged.
+
+The cast bundle contains 33,652 triangles; the Warden contains 11,228, below his existing 12,000-triangle limit. Static construction pieces merge inside the moving joints. These new costumes also opt into linear-colour baking for fabric, allowing their different cloth colours to share a render batch without recolouring the player assets. Town actors use 15–17 mesh batches each, the raider uses 22 and the Warden uses 29 before attaching his weapon. No new downloaded artwork, lights or post-processing passes are required.
+
+Checks cover role-specific geometry, heights, material colour preservation, independent clones, paused poses, hammer contact and weapon grip alignment. Fixed-camera comparisons show costumes from multiple sides and the Warden's attack preparation. Runtime checks exercise late enemy spawning, forging, selling, reloads, portal travel and keyboard/touch interaction, alongside the existing bounded scene-rendering fixtures. These are functional and rendering checks, not claims about frame rates on physical phones.
+
 ## Implementation pointers
 
 - [Geography](../game/src/geography.js), [terrain heights](../game/src/terrain-height.js) and [settlement layout](../game/src/settlement-layout.js).
@@ -76,5 +90,6 @@ Dense encounter review exposed the cost of separate detail materials. The rebuil
 - [Material detail](../game/src/surface-detail.js), [quality profiles](../game/src/visual-quality.js), [material comparisons](../tools/materials-review.mjs) and [quality interaction checks](../tools/visual-quality-playtest.mjs).
 - [Ground shading](../game/src/landscape-ground.js), [bank plants](../game/assets/bank_plants.js), [placement and instancing](../game/src/bank-dressing.js) and [environment checks](../tools/environment-detail.test.mjs).
 - [Actor surfaces](../game/src/actor-surfaces.js), [secondary motion](../game/src/actor-motion.js), [actor checks](../tools/actor-detail.test.mjs) and [character comparisons](../tools/character-review.mjs).
+- [Town cast constructor](../game/assets/marchfolk.js), [NPC loading and motion](../game/src/npc-actors.js), [enemy poses and grips](../game/src/enemy-motion.js), [cast checks](../tools/cast-detail.test.mjs) and [cast comparisons](../tools/cast-review.mjs).
 
 [Back to development stages](README.md)

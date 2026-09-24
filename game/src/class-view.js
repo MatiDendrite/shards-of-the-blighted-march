@@ -2,7 +2,7 @@ import {CLASSES,CLASS_IDS,SKILLS,SLOT_IDS,classInfo,skillIcon,skillDetails,ARCAN
 
 export function createClassView(model,progress,{open,close,apply}){
  const panel=document.querySelector('#class-dialog'),choices=document.querySelector('#class-choices'),details=document.querySelector('#class-skills'),confirm=document.querySelector('#class-confirm'),message=document.querySelector('#class-message');
- let selected=progress.data.classId,busy=false,returnFocus;
+ let selected=progress.data.classId,busy=false,returnFocus,mode='change';
  const buttons=CLASS_IDS.map(id=>{
   const info=CLASSES[id],button=document.createElement('button');button.type='button';button.dataset.class=id;button.style.setProperty('--class-color',info.color);
   button.innerHTML=`<img src="${skillIcon(info.skills[2])}" alt="" width="64" height="64"><strong>${info.name}</strong><small>${info.role}</small>`;
@@ -12,16 +12,19 @@ export function createClassView(model,progress,{open,close,apply}){
   const info=classInfo(selected);buttons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.class===selected)));
   document.querySelector('#class-description').textContent=info.description;
   details.replaceChildren(...info.skills.map((id,index)=>{const s=SKILLS[id],item=document.createElement('article');item.innerHTML=`<img src="${skillIcon(id)}" alt="" width="64" height="64"><div><h3><kbd>${index+1}</kbd> ${s.name}</h3><small>${s.cost} stamina · ${s.cooldown}s cooldown${s.damage?` · ${s.damage} base damage`:''}</small><p>${s.description}</p></div>`;return item;}));
-  const current=selected===progress.data.classId;confirm.disabled=busy||current||!model.canChangeClass();confirm.textContent=busy?'Preparing character…':current?'Current class':`Become a ${info.name}`;
-  message.textContent=busy?'Loading the character. Your current class is kept until it is ready.':!model.canChangeClass()?'Return to a settlement and finish any active attack, projectile or poison effect to change class.':'Equipment, gold, level and quests are kept. Health, stamina and cooldowns do not reset.';
+  const journey=mode!=='change',current=selected===progress.data.classId;
+  document.querySelector('#class-title').textContent=journey?mode==='fresh'?'New journey · choose a class':'New expedition · choose a class':'Classes & skills';
+  document.querySelector('#class-close').textContent=journey?'Cancel ×':'Close ×';
+  confirm.disabled=busy||!journey&&(current||!model.canChangeClass());confirm.textContent=busy?'Preparing character…':journey?`Begin as ${info.name}`:current?'Current class':`Become a ${info.name}`;
+  message.textContent=busy?'Loading the character. Your current class and save are kept until it is ready.':mode==='fresh'?'Start at level 1 with starter equipment. Your saved level, equipment, gold and quests will be erased only after confirmation. Cancel keeps your current journey.':mode==='expedition'?'Restart all four quests and remove uncollected loot. Keep your equipment, level and gold. Choose any class, including your current one.':!model.canChangeClass()?'Return to a settlement and finish any active attack, projectile or poison effect to change class.':'Equipment, gold, level and quests are kept. Health, stamina and cooldowns do not reset.';
  }
  function refresh(){const info=classInfo(progress.data.classId);document.querySelector('#class-name').textContent=info.name;document.querySelector('#welcome-class-name').textContent=info.name;document.querySelector('#class-button').setAttribute('aria-label',`${info.name} · view classes and skills (K)`);document.documentElement.dataset.playerClass=progress.data.classId;}
- function show(){if(busy||!open())return;returnFocus=document.activeElement;selected=progress.data.classId;panel.hidden=false;render();buttons[CLASS_IDS.indexOf(selected)].focus();}
+ function show(nextMode='change'){const previous=document.activeElement;if(busy||!panel.hidden||!['change','fresh','expedition'].includes(nextMode)||!open(nextMode))return false;mode=nextMode;returnFocus=previous;selected=progress.data.classId;panel.hidden=false;render();buttons[CLASS_IDS.indexOf(selected)].focus();return true;}
  function hide(resume=true){if(panel.hidden||busy)return false;panel.hidden=true;close(resume);if(resume&&returnFocus?.isConnected)returnFocus.focus();return true;}
- confirm.onclick=async()=>{if(confirm.disabled)return;busy=true;render();try{if(await apply(selected)){refresh();busy=false;hide();}else{busy=false;render();}}catch{busy=false;render();message.textContent='The character could not load. Your previous class and save are unchanged. Try again.';}};
- document.querySelector('#class-close').onclick=()=>hide();document.querySelector('#class-button').onclick=show;document.querySelector('#welcome-class').onclick=show;
+ confirm.onclick=async()=>{if(confirm.disabled)return;busy=true;render();try{if(await apply(selected,mode)){refresh();busy=false;hide();}else{busy=false;render();}}catch{busy=false;render();message.textContent='The character could not load. Your previous class and save are unchanged. Try again.';}};
+ document.querySelector('#class-close').onclick=()=>hide();document.querySelector('#class-button').onclick=()=>show();document.querySelector('#welcome-class').onclick=()=>show();
  panel.addEventListener('keydown',e=>{if(e.key!=='Tab')return;const all=[...panel.querySelectorAll('button:not(:disabled)')],first=all[0],last=all.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
- refresh();return{open:show,close:hide,refresh,get busy(){return busy;}};
+ refresh();return{open:show,close:hide,refresh,get busy(){return busy;},get journey(){return !panel.hidden&&mode!=='change';}};
 }
 
 export function createSkillHud(){

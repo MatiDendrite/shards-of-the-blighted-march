@@ -14,7 +14,7 @@ try{
  await tap('#item-list [data-select-item="2"]');await page.$eval('[data-item-action="equip"][data-id="2"]',e=>e.scrollIntoView({block:'center'}));await tap('[data-item-action="equip"][data-id="2"]');await wait(()=>window.__GAME__.weapon==='axe');await tap('#bag-close');
  await page.reload({waitUntil:'domcontentloaded'});await wait(()=>window.__READY__);await tap('#startb');await wait(()=>window.__GAME__.started);assert.equal(await page.evaluate(()=>window.__GAME__.rpg.potions),2);assert.equal(await page.evaluate(()=>window.__GAME__.weapon),'axe');
  // Cancelling an explicit reset must preserve the saved journey.
- await tap('#menu-button');page.once('dialog',d=>d.dismiss());await tap('#new-journey');assert.equal(await page.evaluate(()=>window.__GAME__.rpg.potions),2);
- page.once('dialog',d=>d.accept());await tap('#new-journey');await wait(()=>window.__GAME__.rpg.potions===3&&window.__GAME__.weapon==='sword');
+ await tap('#menu-button');await tap('#new-journey');page.once('dialog',d=>d.dismiss());await tap('#class-confirm');assert.equal(await page.evaluate(()=>window.__GAME__.rpg.potions),2);
+ page.once('dialog',d=>d.accept());await tap('#class-confirm');await wait(()=>document.querySelector('#class-dialog').hidden&&window.__GAME__.rpg.potions===3&&window.__GAME__.weapon==='sword');
  assert.deepEqual(errors,[]);await fs.writeFile('_artifacts/combat/mobile-rpg.json',JSON.stringify({result:'PASS',errors,state:await page.evaluate(()=>window.__GAME__)},null,2));console.log('Mobile damage, potion, inventory/equip, reload, cancel/reset journey: PASS');
 }finally{await browser.close();}

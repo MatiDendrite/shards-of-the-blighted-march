@@ -4,7 +4,7 @@ export function createInput(canvas,{canPlay=()=>true}={}) {
   let orbitFinger=null,cameraX=0,cameraY=0,cameraTouch=false,cameraWheel=0,cameraReset=false;
   const isTouch=matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0;
   document.body.classList.toggle('touch',isTouch);
-  if(isTouch)document.querySelector('.intro-controls').textContent='Move with the left joystick. Drag the free world view to rotate the camera. Use Attack, Dodge and skills on the right. View resets the camera.';
+  if(isTouch)document.querySelector('.intro-controls').textContent='Move with the left joystick. Drag the world to look around your character independently. Release the joystick to steer relative to the new view. Use Attack, Dodge and skills on the right. View resets the camera.';
   const mapped={Space:'dodge',Digit1:'cleave',Digit2:'slam',Digit3:'cry',KeyR:'weapon',KeyQ:'potion'};
   window.addEventListener('keydown',e=>{
     if(!canPlay())return;
@@ -51,5 +51,5 @@ export function createInput(canvas,{canPlay=()=>true}={}) {
       button.addEventListener('click',e=>{if(canPlay()&&e.detail===0)actions.push('attack');});
     }else button.addEventListener('click',()=>{if(canPlay())actions.push(button.dataset.action);button.blur();});
   }
-  return {pointer,isTouch,clear,clearCamera,consume:()=>actions.splice(0),consumeCamera(){const result={x:cameraX,y:cameraY,touch:cameraTouch,wheel:cameraWheel,reset:cameraReset};cameraX=cameraY=cameraWheel=0;cameraReset=false;return result;},read(){let x=touch.x+Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));let z=touch.y+Number(keys.has('KeyS')||keys.has('ArrowDown'))-Number(keys.has('KeyW')||keys.has('ArrowUp'));const d=Math.hypot(x,z);if(d>1){x/=d;z/=d;}return {x,z,attack:attacks.size>0};}};
+  return {pointer,isTouch,clear,clearCamera,consume:()=>actions.splice(0),consumeCamera(){const result={x:cameraX,y:cameraY,touch:cameraTouch,wheel:cameraWheel,reset:cameraReset,active:!!orbitFinger};cameraX=cameraY=cameraWheel=0;cameraReset=false;return result;},read(){let x=touch.x+Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));let z=touch.y+Number(keys.has('KeyS')||keys.has('ArrowDown'))-Number(keys.has('KeyW')||keys.has('ArrowUp'));const d=Math.hypot(x,z);if(d>1){x/=d;z/=d;}return {x,z,attack:attacks.size>0};}};
 }

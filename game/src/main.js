@@ -11,14 +11,14 @@ import { Progression,saveStore } from './progression.js';
 import { createRpgView } from './rpg-view.js';
 import { createItemPortraits } from './item-portraits.js';
 import { Campaign } from './campaign.js';
-import { REGIONS, freshCampaign } from './campaign-data.js';
+import { REGIONS } from './campaign-data.js';
 import { createCampaignView } from './campaign-view.js';
 import { createTownView } from './town-view.js';
 import { createAtlasView } from './atlas-view.js';
 import { setLandscapeLighting,applyLandscapePalette } from './landscape-lighting.js';
 import {inTown,WORLD_LIMIT,EXIT,MAPS} from './world-map.js';
 import {createFrameClock} from './frame-clock.js';
-import {CameraOrbit,cameraRelative,cameraHeading} from './camera-orbit.js';
+import {CameraOrbit,CameraMovement,cameraHeading} from './camera-orbit.js';
 import {createClassView} from './class-view.js';
 import {classInfo,skillForSlot,SLOT_IDS} from './class-data.js';
 import {touchAim} from './combat-targeting.js';
@@ -39,10 +39,10 @@ async function boot(){
   mergeJoints(hero);
   scene.add(hero);hero.position.set(0,world.heightAt(0,11)+.06,11);hero.rotation.y=Math.PI;
   const ring=new T.Mesh(new T.RingGeometry(.40,.425,40),new T.MeshBasicMaterial({color:0xc9c4a0,transparent:true,opacity:.32,depthWrite:false}));ring.rotation.x=-Math.PI/2;scene.add(ring);
-  const orbit=new CameraOrbit();
+  const orbit=new CameraOrbit(),movement=new CameraMovement();
   const input=createInput(canvas,{canPlay:()=>window.__READY__===true&&started&&!paused&&!model.dead}),look=new T.Vector3(),desired=new T.Vector3(),ray=new T.Raycaster();
   const model=new Combat((x,z)=>world.canStand(x,z)&&(model.shard.hp<=0||Math.hypot(x-model.shard.x,z-model.shard.z)>1.12),(x,z)=>world.canStand(x,z));
-  const clearInput=input.clear;input.clear=()=>{clearInput();orbit.stop();model.clearBufferedInput();};
+  const clearInput=input.clear;input.clear=()=>{clearInput();orbit.stop();movement.clear();model.clearBufferedInput();};
   const audio=createAudio(),combatView=await createCombatView(scene,hero,model,audio,{assets:combatAssets,prepare:root=>rig.refresh(root)});
   const store=saveStore({getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value)}),saved=store.load();
   let progress=new Progression(saved);const campaign=new Campaign(progress,model);progress.restore(model);world.setRegion(campaign.region);diagnosticObstacles=snapshotObstacles();if(campaign.region!==0)rig.setTime(world.atmosphere);
@@ -55,19 +55,27 @@ async function boot(){
   const campaignView=createCampaignView(scene,campaign);
   const frameSeconds=createFrameClock();
   let started=false,paused=false,elapsed=0,acc=0,fps=60,hitStop=0,won=false,ended=false,saveTimer=0,actualSpeed=0,inventoryStill=0,renderDirty=true;
-  let atlas,classView;
-  const townView=await createTownView(scene,model,progress,campaign,{open(){if(!started||model.dead||classView?.busy||!$('#pause').hidden||!$('#victory').hidden)return false;classView?.close(false);atlas?.close(false);closeBag();closeJournal();paused=true;input.clear();return true;},close(){paused=false;input.clear();},journal:openJournal,trade:()=>openBag('merchant'),save});
-  atlas=createAtlasView(model,progress,campaign,{open(){if(!started||model.dead||classView?.busy||!$('#pause').hidden||!$('#victory').hidden)return false;classView?.close(false);townView.close();closeBag();closeJournal();paused=true;input.clear();return true;},close(){paused=false;input.clear();}});
+  let atlas,classView,journeyOrigin=null;
+  const townView=await createTownView(scene,model,progress,campaign,{open(){if(!started||model.dead||(classView?.busy||classView?.journey)||!$('#pause').hidden||!$('#victory').hidden)return false;classView?.close(false);atlas?.close(false);closeBag();closeJournal();paused=true;input.clear();return true;},close(){paused=false;input.clear();},journal:openJournal,trade:()=>openBag('merchant'),save});
+  atlas=createAtlasView(model,progress,campaign,{open(){if(!started||model.dead||(classView?.busy||classView?.journey)||!$('#pause').hidden||!$('#victory').hidden)return false;classView?.close(false);townView.close();closeBag();closeJournal();paused=true;input.clear();return true;},close(){paused=false;input.clear();}});
   classView=createClassView(model,progress,{
-    open(){if(!window.__READY__||model.dead||!$('#pause').hidden||!$('#victory').hidden)return false;townView.close();atlas.close(false);closeBag();closeJournal();paused=true;input.clear();$('#welcome').inert=$('#hud').inert=true;return true;},
-    close(resume){$('#welcome').inert=$('#hud').inert=false;if(resume)paused=false;input.clear();renderDirty=true;},
-    async apply(id){await combatView.loadClass(id);if(!progress.chooseClass(id,model))return false;combatView.setClass(id);renderDirty=true;inventoryStill=0;save();combatView.notice(`${classInfo(id).name} · your journey is kept`);return true;},
+    open(mode){const journey=mode!=='change';if(!window.__READY__||model.dead||!journey&&(!$('#pause').hidden||!$('#victory').hidden))return false;
+      journeyOrigin=journey?!$('#pause').hidden?'#pause':!$('#victory').hidden?'#victory':null:null;if(journey&&!journeyOrigin)return false;
+      townView.close();atlas.close(false);closeBag();closeJournal();if(journeyOrigin)$(journeyOrigin).hidden=true;paused=true;input.clear();$('#welcome').inert=$('#hud').inert=true;return true;},
+    close(resume){$('#welcome').inert=$('#hud').inert=false;if(journeyOrigin){$(journeyOrigin).hidden=false;journeyOrigin=null;paused=true;}else if(resume)paused=false;input.clear();renderDirty=true;},
+    async apply(id,mode){
+      if(mode!=='change'&&!confirm(mode==='fresh'?'Erase your saved level, equipment and gold on this browser and begin a new journey?':'Restart all four quests and remove uncollected loot? Your equipment, level and gold are kept.'))return false;
+      // Load first: cancelling or a failed character download must never erase a save.
+      await combatView.loadClass(id);
+      if(mode!=='change'){if(mode==='fresh')store.allowNew();journeyOrigin=null;reset(mode==='fresh',id);return true;}
+      if(!progress.chooseClass(id,model))return false;combatView.setClass(id);renderDirty=true;inventoryStill=0;save();combatView.notice(`${classInfo(id).name} · your journey is kept`);return true;
+    },
   });
   if(saved)$('#startb').firstChild.textContent='Continue journey ';
   function closeBag(){if($('#inventory').hidden)return;$('#inventory').hidden=true;paused=false;input.clear();document.activeElement?.blur();}
-  function openBag(mode){if(classView?.busy)return;classView?.close();townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden)closeJournal();if(!$('#inventory').hidden){closeBag();return;}if(mode==='smith'&&!progress.nearSmith(model.player)){combatView.notice('Borin upgrades equipment at Hearthstead market. M marks his forge; southern portals lead back.');return;}if(mode==='merchant'&&!progress.nearMerchant(model.player))return;paused=true;input.clear();rpgView.open(mode);}
+  function openBag(mode){if((classView?.busy||classView?.journey))return;classView?.close();townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden)closeJournal();if(!$('#inventory').hidden){closeBag();return;}if(mode==='smith'&&!progress.nearSmith(model.player)){combatView.notice('Borin upgrades equipment at Hearthstead market. M marks his forge; southern portals lead back.');return;}if(mode==='merchant'&&!progress.nearMerchant(model.player))return;paused=true;input.clear();rpgView.open(mode);}
   function closeJournal(){if($('#journal').hidden)return;$('#journal').hidden=true;paused=false;input.clear();document.activeElement?.blur();}
-  function openJournal(){if(classView?.busy)return;classView?.close();townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden){closeJournal();return;}if(!$('#inventory').hidden)closeBag();paused=true;input.clear();campaignView.open();save();}
+  function openJournal(){if((classView?.busy||classView?.journey))return;classView?.close();townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden){closeJournal();return;}if(!$('#inventory').hidden)closeBag();paused=true;input.clear();campaignView.open();save();}
   function regionChanged(){classView?.close(false);classView?.refresh();combatView.setClass(model.player.classId);atlas?.close(false);combatView.reset();rpgView.clearDrops();if(world.setRegion(campaign.region))rig.refresh(scene);diagnosticObstacles=snapshotObstacles();setLandscapeLighting(rig,world.atmosphere);input.clear();hitStop=0;acc=0;actualSpeed=0;inventoryStill=0;hero.rotation.set(0,Math.PI,0);hero.position.set(model.player.x,world.heightAt(model.player.x,model.player.z)+.06,model.player.z);$('#journal').hidden=true;$('#defeat').hidden=true;$('#victory').hidden=true;paused=ended=false;won=campaign.complete;save();combatView.notice(REGIONS[campaign.region].name);document.activeElement?.blur();}
   function travel(region){if(!started||paused||model.dead)return;if(campaign.travel(region))regionChanged();else combatView.notice('Approach an unlocked portal and leave combat before travelling.');}
   $('#journal-button').onclick=openJournal;$('#journal-close').onclick=closeJournal;$('#gate-button').onclick=()=>{if(!paused&&campaign.nearPortal)travel(campaign.nearPortal.destination);};
@@ -86,14 +94,14 @@ async function boot(){
   addEventListener('keydown',e=>{if(e.code==='Escape')pause(!paused);});
   addEventListener('blur',()=>{if($('#class-dialog').hidden&&$('#inventory').hidden&&$('#journal').hidden&&$('#town-dialog').hidden&&$('#atlas-dialog').hidden)pause(true);});document.addEventListener('visibilitychange',()=>{if(document.hidden){if(started)save();if($('#class-dialog').hidden&&$('#inventory').hidden&&$('#journal').hidden&&$('#town-dialog').hidden&&$('#atlas-dialog').hidden)pause(true);}});
   $('#quality').onchange=e=>{renderer.setPixelRatio(e.target.value==='high'?Math.min(devicePixelRatio,1.5):1);resize();};
-  function reset(fresh=false){if(fresh===true){progress.data.campaign=freshCampaign();model.reset();progress.potionCD=0;progress.messages.length=0;progress.sync(model,true);}else progress.nextRun(model);for(const id of ['#pause','#defeat','#victory','#inventory','#journal','#town-dialog'])$(id).hidden=true;regionChanged();orbit.reset(true);orbit.distance=0;audio.unlock();}
-  function restart(){if(confirm('Restart all four quests and remove uncollected loot? Your equipment, level and gold are kept.'))reset();}
+  function reset(fresh=false,classId=progress.data.classId){if(!progress.beginJourney(model,{fresh,classId}))return false;for(const id of ['#pause','#defeat','#victory','#inventory','#journal','#town-dialog'])$(id).hidden=true;regionChanged();orbit.reset(true);orbit.distance=0;audio.unlock();return true;}
+  function restart(){classView.open('expedition');}
   $('#reset-view').onclick=restart;$('#replay').onclick=restart;$('#retry').onclick=()=>{campaign.retry();regionChanged();};
   $('#explore').onclick=()=>{$('#victory').hidden=true;paused=false;input.clear();};
   $('#sound').onchange=e=>audio.setMuted(!e.target.checked);
   $('#startb').onclick=()=>{audio.unlock();started=true;$('#welcome').hidden=true;$('#hud').hidden=false;input.clear();save();document.activeElement?.blur();};
   $('#reset-view').textContent='Restart expedition · keep equipment';
-  const fresh=document.createElement('button');fresh.id='new-journey';fresh.textContent='New journey · erase local progress';$('#pause').append(fresh);fresh.onclick=()=>{if(!confirm('Erase your saved level, equipment and gold on this browser?'))return;progress.data=new Progression().data;progress.revision++;store.allowNew();reset(true);};
+  const fresh=document.createElement('button');fresh.id='new-journey';fresh.textContent='New journey · choose class';$('#pause').append(fresh);fresh.onclick=()=>classView.open('fresh');
   await rig.ready;
   // An overcast palette: keep the rig's directional haze while removing sunset amber.
   // The correct environment is already built. Reapply only the sky palette;
@@ -102,12 +110,13 @@ async function boot(){
   rig.refresh(scene);
   function sim(dt){
     if(!started||paused||model.dead)return;
-    const raw=input.read(),m={...raw,...cameraRelative(raw.x,raw.z,orbit.yaw)},p=model.player;
+    const raw=input.read(),m={...raw,...movement.move(raw.x,raw.z,orbit.yaw)},p=model.player,actions=input.consume();
     const moving=Math.hypot(m.x,m.z)>.08;
     let angle=p.angle,aimPoint=null;
     if(moving)angle=Math.atan2(m.x,m.z);
-    if(input.pointer.active&&!input.isTouch){ray.setFromCamera(input.pointer,camera);const aim=intersectGroundRay(campaign.region,ray.ray.origin,ray.ray.direction);if(aim){aimPoint={x:aim.x,z:aim.z};angle=Math.atan2(aim.x-p.x,aim.z-p.z);}}
-    const actions=input.consume();
+    // Hover can preview a bomb, but only combat input turns toward the cursor.
+    // Looking around or moving the idle mouse never spins the character.
+    if(input.pointer.active&&!input.isTouch&&!movement.looking){ray.setFromCamera(input.pointer,camera);const aim=intersectGroundRay(campaign.region,ray.ray.origin,ray.ray.direction);if(aim){aimPoint={x:aim.x,z:aim.z};if(m.attack||actions.some(a=>a==='attack'||SLOT_IDS.includes(a)))angle=Math.atan2(aim.x-p.x,aim.z-p.z);}}
     if(input.isTouch){const assisted=touchAim(model,actions,m.attack,angle);angle=assisted.angle;aimPoint=assisted.point;}
     for(const action of actions){if(action==='weapon'){model.cycleWeapon();progress.sync(model);}else if(action==='potion'){if(progress.potion(model))save();}else if(action==='dodge')model.dodge(m.x,m.z);else model.requestAttack(action==='attack'?'basic':SLOT_IDS.includes(action)?skillForSlot(p.classId,action):action,angle,aimPoint);}
     const oldX=p.x,oldZ=p.z;model.update(dt,{...m,aim:angle,aimPoint});actualSpeed=Math.hypot(p.x-oldX,p.z-oldZ)/dt;hero.position.set(p.x,world.heightAt(p.x,p.z)+.06,p.z);hero.rotation.y=p.angle;
@@ -119,7 +128,7 @@ async function boot(){
   }
   function frame(now){
     const realDt=frameSeconds(now);if(realDt>0)fps=T.MathUtils.lerp(fps,1/Math.max(realDt,.001),.05);const dt=Math.min(realDt,.1);elapsed+=dt;if(hitStop>0)hitStop=Math.max(0,hitStop-dt);else acc+=dt;
-    const turn=input.consumeCamera();if(started&&!paused&&!model.dead){if(turn.reset)resetCamera();else{orbit.drag(turn.x,turn.y,turn.touch);orbit.wheel(turn.wheel);}orbit.advance(dt);}
+    const turn=input.consumeCamera();if(started&&!paused&&!model.dead){movement.look(orbit.yaw,turn.active||!!turn.x||!!turn.y);if(turn.reset)resetCamera();else{orbit.drag(turn.x,turn.y,turn.touch);orbit.wheel(turn.wheel);}orbit.advance(dt);}
     while(acc>=1/60){sim(1/60);acc-=1/60;}
     const portrait=innerWidth<innerHeight;
     hero.position.y=world.heightAt(model.player.x,model.player.z)+.06;

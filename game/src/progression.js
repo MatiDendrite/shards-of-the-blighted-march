@@ -80,6 +80,14 @@ export class Progression{
  buyPotion(player){if(!this.nearSmith(player)||this.data.gold<25||this.data.potions>=20)return false;this.data.gold-=25;this.data.potions++;this.touch('Bought a healing draught');return true;}
  buySupplies(player){if(!this.nearMerchant(player)||this.data.gold<25||this.data.potions>=20)return false;this.data.gold-=25;this.data.potions++;this.touch('Mara · healing draught added');return true;}
  potion(combat){const p=combat.player;if(p.hp<=0||p.hp>=p.maxHp||this.data.potions<1||this.potionCD>0)return false;this.data.potions--;p.hp=Math.min(p.maxHp,p.hp+65);this.potionCD=8;this.touch('Healing draught · +65 health');return true;}
- nextRun(combat){this.data.run++;Object.assign(this.data,emptyEncounter());if(this.data.campaign)this.data.campaign=freshCampaign();combat.reset();combat.player.weapon=this.data.weapon;this.potionCD=0;this.sync(combat,true);this.touch('A new expedition · your equipment and level are kept');}
+ beginJourney(combat,{fresh=false,classId=this.data.classId}={}){
+  if(!CLASS_IDS.includes(classId))return false;
+  if(fresh){this.data=new Progression().data;this.data.campaign=freshCampaign();}
+  else{this.data.run++;Object.assign(this.data,emptyEncounter());if(this.data.campaign)this.data.campaign=freshCampaign();}
+  this.data.classId=classId;this.messages=[];this.fullDrop=null;this.potionCD=0;
+  combat.reset();combat.player.weapon=this.data.weapon;this.sync(combat,true);
+  this.touch(fresh?'A new journey begins':'A new expedition · your equipment and level are kept');return true;
+ }
+ nextRun(combat){return this.beginJourney(combat);}
  tick(dt){this.potionCD=Math.max(0,this.potionCD-dt);}
 }

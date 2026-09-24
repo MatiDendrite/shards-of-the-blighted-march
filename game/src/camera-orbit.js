@@ -6,6 +6,19 @@ export const CAMERA_DEFAULTS={zoom:.88,minZoom:.7,maxZoom:1.35,minPitch:.48,maxP
 export function cameraRelative(x,z,yaw){const c=Math.cos(yaw),s=Math.sin(yaw);return{x:x*c+z*s,z:z*c-x*s};}
 export function cameraHeading(yaw){return ['N','NE','E','SE','S','SW','W','NW'][(Math.round(-yaw/(Math.PI/4))+8)%8];}
 
+// Free look changes the view, not an already-held movement direction. Release
+// the keys/joystick to choose a new direction relative to the new camera view.
+export class CameraMovement{
+ constructor(){this.clear();}
+ clear(){this.looking=false;this.lookYaw=null;this.moveYaw=null;}
+ look(yaw,active){if(active&&!this.looking)this.lookYaw=yaw;this.looking=!!active;if(!active)this.lookYaw=null;}
+ move(x,z,yaw){
+  if(Math.hypot(x,z)<.05)this.moveYaw=null;
+  else if(this.looking&&this.moveYaw===null)this.moveYaw=this.lookYaw;
+  return cameraRelative(x,z,this.moveYaw??yaw);
+ }
+}
+
 // Slab intersection on a finite boom. Bounds are precomputed once per region.
 export function boxEntry(origin,direction,length,box,padding=.24){
  let entry=0,exit=length;

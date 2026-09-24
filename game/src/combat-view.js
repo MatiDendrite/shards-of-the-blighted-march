@@ -13,6 +13,8 @@ import {createClassActors} from './class-actors.js';
 import {createClassEffects} from './class-effects.js';
 import {groundHeight} from './terrain-height.js';
 import {drapeGround} from './ground-projection.js';
+import {loadActorAsset,styleRaiderMaterial} from './actor-surfaces.js';
+import {createActorSecondaryMotion} from './actor-motion.js';
 
 export function mergeJoints(root){const nodes=[],owned=[];root.traverse(n=>{if(n.isGroup)nodes.push(n);});for(const node of nodes){const meshes=node.children.filter(n=>n.isMesh);if(meshes.length<2)continue;const rigid=new T.Group();meshes.forEach(m=>rigid.add(m));const baked=bakeStatic(rigid);baked.traverse(o=>{if(o.isMesh)owned.push(o.geometry);});node.add(baked);}return owned;}
 
@@ -25,7 +27,7 @@ export function cloneActor(root){
 
 export async function loadCombatAssets(){
  const ids={sword:'iron_sword',axe:'bearded_axe',spear:'ash_spear',wolf:'blighted_wolf',boss:'fallen_warden',shard:'blighted_shard'};
- const assets={};await Promise.all(Object.entries(ids).map(async([id,file])=>{const asset=await ASSET(new URL(`../assets/${file}.js`,import.meta.url).href,{keepHierarchy:id==='wolf'||id==='boss',surfaces:true});let count=0;asset.traverse(o=>{if(o.isMesh)count++;});if(!count)throw Error(`Missing combat asset: ${file}`);assets[id]=asset;}));
+ const assets={};await Promise.all(Object.entries(ids).map(async([id,file])=>{const actor=id==='wolf'||id==='boss',asset=await (actor?loadActorAsset:ASSET)(new URL(`../assets/${file}.js`,import.meta.url).href,{keepHierarchy:actor,surfaces:true});let count=0;asset.traverse(o=>{if(o.isMesh)count++;});if(!count)throw Error(`Missing combat asset: ${file}`);assets[id]=asset;}));
  // Rigid geometry is identical for every instance: merge once, not per spawn.
  for(const kind of ['wolf','boss']){mergeJoints(assets[kind]);assets[kind].traverse(o=>{delete o.userData.joints;});}
  return assets;
@@ -52,14 +54,14 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   const root=assets[e.kind].clone(true);root.name=`enemy-${e.id}`;root.rotation.set(0,0,0);
   // Hero clone includes the player's weapon; remove it before attaching enemy equipment.
   if(e.kind!=='wolf'){root.traverse(o=>{if(o.name==='heroWeaponMount')o.visible=false;});}
-  const nodes={},materials=new Map();root.traverse(o=>{if(o.isGroup&&o.name)nodes[o.name]=o;if(o.isMesh){if(!materials.has(o.material)){const m=o.material.clone();if(e.kind==='raider'){m.color.multiplyScalar(.76);if(m.name==='fabric')m.color.setHex(0x39463a);}m.userData.restEmissive=m.emissive.clone();materials.set(o.material,m);}o.material=materials.get(o.material);}});
+  const nodes={},materials=new Map();root.traverse(o=>{if(o.isGroup&&o.name)nodes[o.name]=o;if(o.isMesh){if(!materials.has(o.material)){const m=o.material.clone();if(e.kind==='raider')styleRaiderMaterial(m);m.userData.restEmissive=m.emissive.clone();materials.set(o.material,m);}o.material=materials.get(o.material);}});
   if(e.kind!=='wolf'&&nodes.rightArm){const blade=assets.axe.clone();blade.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.userData.restEmissive=o.material.emissive.clone();}});blade.position.set(.12,e.kind==='boss'?-.98:-.76,.02);blade.rotation.x=Math.PI/2;if(e.kind==='boss')blade.scale.setScalar(1.65);nodes.rightArm.add(blade);}
   const d=enemyAttack({...e,attackKind:'sweep'}),sweep=new T.RingGeometry(0,d.range+.28,48,8,-Math.PI/2-d.arc/2,d.arc),slam=e.kind==='boss'?new T.RingGeometry(0,enemyAttack({...e,attackKind:'slam'}).range+.28,64,10):null;
   const telegraph=new T.Mesh(sweep,new T.MeshBasicMaterial({color:0xe0a949,side:T.DoubleSide,transparent:true,opacity:.32,depthWrite:false}));telegraph.name=`warning-${e.id}`;telegraph.rotation.x=-Math.PI/2;telegraph.visible=false;scene.add(telegraph);scene.add(root);
   const name=e.kind==='boss'?'The Fallen Warden':e.kind==='wolf'?'Blighted Wolf':'Hollow Raider';
   const edgeGeometry=new T.RingGeometry(d.range+.20,d.range+.28,48,1,-Math.PI/2-d.arc/2,d.arc),slamEdge=e.kind==='boss'?new T.RingGeometry(4.7,4.78,64):null;
   const edge=new T.Mesh(edgeGeometry,new T.MeshBasicMaterial({color:d.color,transparent:true,opacity:.8,side:T.DoubleSide,depthWrite:false}));edge.rotation.x=-Math.PI/2;edge.visible=false;scene.add(edge);
-  const label=makeLabel(name),flashMaterials=new Set();root.traverse(o=>{if(o.isMesh&&o.material.emissive)flashMaterials.add(o.material);});prepare(root);prepare(telegraph);prepare(edge);const view={root,nodes,telegraph,edge,edgeGeometry,slamEdge,name,label,flashMaterials,flashing:false,sweep,slam,deathAge:0};views.set(e.id,view);return view;
+  const label=makeLabel(name),flashMaterials=new Set();root.traverse(o=>{if(o.isMesh&&o.material.emissive)flashMaterials.add(o.material);});prepare(root);prepare(telegraph);prepare(edge);const view={root,nodes,telegraph,edge,edgeGeometry,slamEdge,name,label,flashMaterials,flashing:false,sweep,slam,deathAge:0,secondary:createActorSecondaryMotion(root)};views.set(e.id,view);return view;
  }
  weaponMount.name='heroWeaponMount';
  function equip(){if(weapon===model.player.weapon)return;weapon=model.player.weapon;weaponMount.clear();const obj=assets[weapon].clone();obj.position.y=weapon==='sword'?-.21:weapon==='axe'?-.26:-.85;if(weapon==='axe')obj.position.x=.15;weaponMount.add(obj);document.querySelector('#weapon-name').textContent=WEAPONS[weapon].name;document.querySelector('#weapon-button span').textContent=WEAPONS[weapon].name;}
@@ -93,6 +95,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
     const flashing=e.flash>0;if(flashing!==v.flashing){for(const m of v.flashMaterials){if(flashing)m.emissive.setHex(0x392e20);else m.emissive.copy(m.userData.restEmissive);}v.flashing=flashing;}
     v.root.rotation.z=e.flash>0?Math.sin(e.flash/.18*Math.PI)*.075:0;
     const d=enemyAttack(e),charge=windupProgress(e),swing=e.phase==='idle'?Math.sin(e.walk)*.48:0;
+    v.secondary(model.time+e.id*.37,{gait:Math.abs(swing)/.48,windup:e.phase==='windup'?charge:0,recovery:e.phase==='recovery'?Math.max(0,1-(d.recovery-e.timer)/.4):0});
     if(e.kind==='wolf'){for(const [name,sign] of [['leftFront',1],['rightFront',-1],['leftRear',-1],['rightRear',1]])if(v.nodes[name])v.nodes[name].rotation.x=swing*sign;v.nodes.head.rotation.x=e.phase==='windup'?-.23:0;v.root.position.y+=e.phase==='windup'?-.1:e.phase==='recovery'?Math.sin(Math.min(1,(.9-e.timer)/.3)*Math.PI)*.23:0;}
     else{v.nodes.leftLeg.rotation.x=swing;v.nodes.rightLeg.rotation.x=-swing;const follow=e.phase==='recovery'?Math.max(0,1-(d.recovery-e.timer)/.4):0;v.nodes.rightArm.rotation.x=e.phase==='windup'?-1.1-charge*1.25:e.phase==='recovery'?-.35-follow*.4:0;v.nodes.rightArm.rotation.z=e.phase==='windup'&&e.attackKind!=='slam'?-.35*charge:0;v.nodes.torso.rotation.y=e.phase==='windup'?-.22*charge:follow*.22;
       if(v.nodes.leftShin)v.nodes.leftShin.rotation.x=Math.max(0,-swing)*.8;if(v.nodes.rightShin)v.nodes.rightShin.rotation.x=Math.max(0,swing)*.8;

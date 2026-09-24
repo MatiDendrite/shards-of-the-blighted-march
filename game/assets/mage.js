@@ -3,7 +3,7 @@ export default function generate(T){
 
  const root=new T.Group(),frame=new T.Group();root.add(frame);
  const material=(name,color,metalness=0)=>Object.assign(new T.MeshStandardMaterial({color,roughness:metalness?.52:.9,metalness,side:T.DoubleSide}),{name});
- const cloth=material('fabric',0x444b70),lining=material('fabric',0x202634),trim=material('fabric',0xb0abc2),iron=material('metal',0x69777c,.6),brass=material('metal',0xb29a67,.55),leather=material('timber',0x382e28),skin=material('fabric',0xb9957e),hair=material('fabric',0x75422b);
+ const cloth=material('fabric',0x444b70),lining=material('fabric',0x202634),trim=material('fabric',0xb0abc2),iron=material('metal',0x69777c,.6),brass=material('metal',0xb29a67,.55),leather=material('leather',0x382e28),skin=material('skin',0xb9957e);
  const put=(p,g,m,x=0,y=0,z=0)=>{const o=new T.Mesh(g,m);o.position.set(x,y,z);p.add(o);return o;};
  const ball=(p,m,x,y,z,w,h,d)=>{const o=put(p,new T.SphereGeometry(1,12,8),m,x,y,z);o.scale.set(w,h,d);return o;};
  const box=(p,m,x,y,z,w,h,d)=>put(p,new T.BoxGeometry(w,h,d),m,x,y,z);
@@ -50,12 +50,30 @@ export default function generate(T){
  for(let n=0;n<3;n++)shell(torso,cloth,[[.23,.23],[.31,.29],[.25,.37]],.68,0,-n*.055,0);
  const capeGeo=new T.PlaneGeometry(.69,1.09,12,14),pos=capeGeo.attributes.position;
  for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i),t=(.545-y)/1.09;pos.setXYZ(i,x*(.7+t*.34),y,-.04*Math.cos(x*31)-t*.08);}
- capeGeo.computeVertexNormals();put(torso,capeGeo,cloth,0,-.12,-.215);
- function stitch(ax,ay,bx,by){const length=Math.hypot(bx-ax,by-ay),steps=Math.ceil(length/.025);for(let n=0;n<steps;n++){const t=(n+.5)/steps,x=ax+(bx-ax)*t,y=ay+(by-ay)*t,fall=(.425-y)/1.09,z=-.215-.04*Math.cos(x*31)-fall*.08-.008;const thread=box(torso,trim,x,y,z,.009,length/steps+.002,.006);thread.rotation.z=-Math.atan2(bx-ax,by-ay);}}
+ const cape=joint('mantle',0,.40,-.215,torso);
+ capeGeo.computeVertexNormals();put(cape,capeGeo,cloth,0,-.52,0);
+ function stitch(ax,ay,bx,by){const length=Math.hypot(bx-ax,by-ay),steps=Math.ceil(length/.025);for(let n=0;n<steps;n++){const t=(n+.5)/steps,x=ax+(bx-ax)*t,y=ay+(by-ay)*t,fall=(.425-y)/1.09,z=-.04*Math.cos(x*31)-fall*.08-.008;const thread=box(cape,trim,x,y-.40,z,.009,length/steps+.002,.006);thread.rotation.z=-Math.atan2(bx-ax,by-ay);}}
  for(const s of [-1,1])stitch(s*.224,.41,s*.34,-.65);
  stitch(0,.13,.13,-.12);stitch(.13,-.12,0,-.37);stitch(0,-.37,-.13,-.12);stitch(-.13,-.12,0,.13);
  const clasp=put(torso,new T.CylinderGeometry(.042,.042,.019,12),brass,0,.285,.22);clasp.rotation.x=Math.PI/2;
  for(const side of ['left','right']){const arm=limbs[side].arm;shell(arm,iron,[[.14,-.07],[.15,0],[.10,.07]],1,0,.005,0);ball(arm,iron,0,.028,0,.105,.059,.10);}
+
+ // Bound grimoire, tooled corners and an inset clasp: readable class equipment.
+ const pages=material('paper',0xc8bb98),gem=material('gem',0x83b9c4,.18);gem.emissive.setHex(0x183d50);gem.emissiveIntensity=.32;
+ const book=joint('grimoire',-.29,-.13,.035,torso);book.rotation.set(.07,0,-.13);
+ box(book,pages,0,0,0,.13,.24,.073);
+ for(const z of [-.05,.05]){
+  box(book,leather,0,0,z,.16,.28,.022);
+  for(const s of [-1,1])for(const y of [-.112,.112])box(book,brass,s*.057,y,z+Math.sign(z)*.013,.035,.035,.006);
+ }
+ box(book,leather,-.075,0,0,.021,.28,.12);box(book,brass,.01,0,.066,.085,.031,.012);
+ for(let i=0;i<3;i++)box(book,brass,-.087,(i-1)*.075,0,.012,.018,.105);
+ for(const s of [-1,1]){
+  // A double border frames the hood opening without hiding the face slit.
+  const cord=box(head,trim,s*.151,-.025,.085,.018,.26,.021);cord.rotation.z=s*.08;
+  for(let i=0;i<5;i++){const rune=box(limbs[s<0?'left':'right'].leg,brass,s*.07,-.12-i*.072,.168,.025,.025,.008);rune.rotation.z=Math.PI/4;}
+ }
+ const jewel=put(torso,new T.OctahedronGeometry(.034),gem,0,.286,.24);jewel.scale.z=.45;
 
  // Measure actual transformed vertices, not rotated bounding-box corners.
  frame.scale.set(0.97,1,1);

@@ -1,5 +1,5 @@
 import * as T from 'three';
-import { ASSET } from '../lib/assetlib.js';
+import {loadActorAsset} from './actor-surfaces.js';
 import { createRig } from '../lib/rig.js';
 import { createInput } from './input.js';
 import { createWorld } from './world.js';
@@ -34,7 +34,7 @@ async function boot(){
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(44,innerWidth/innerHeight,.1,140);
   const rig=createRig(T,renderer,scene,{...LANDSCAPE_RENDER_OPTIONS,camera});
   const artReady=loadArt(renderer),assetsReady=loadCombatAssets();
-  const [world,hero,combatAssets]=await Promise.all([createWorld(scene,artReady),ASSET(new URL('../assets/wanderer.js',import.meta.url).href,{keepHierarchy:true,height:1.85,surfaces:true}),assetsReady]);
+  const [world,hero,combatAssets]=await Promise.all([createWorld(scene,artReady),loadActorAsset(new URL('../assets/wanderer.js',import.meta.url).href,{keepHierarchy:true,height:1.85}),assetsReady]);
   const snapshotObstacles=()=>Object.freeze(world.colliders.map(c=>Object.freeze({...c})));let diagnosticObstacles=snapshotObstacles();
   if(!hero.userData.joints?.leftLeg)throw new Error('The Wanderer joint hierarchy did not load.');
   mergeJoints(hero);

@@ -1,4 +1,5 @@
 import {DODGE_DURATION} from './combat-model.js';
+import {createActorSecondaryMotion} from './actor-motion.js';
 const clamp=n=>Math.max(0,Math.min(1,n));
 const ease=n=>{n=clamp(n);return n*n*(3-2*n);};
 
@@ -25,7 +26,7 @@ export function dodgePose(p){
 }
 
 export function createHeroMotion(hero){
- const j=hero.userData.joints;
+ const j=hero.userData.joints,secondary=createActorSecondaryMotion(hero);
  const rest=Object.values(j).map(node=>({node,position:node.position.clone(),rotation:node.rotation.clone()}));
  return (p,time)=>{
   // Rebuild from the authored rest pose, never from last frame's dodge/attack.
@@ -36,6 +37,7 @@ export function createHeroMotion(hero){
   j.leftShin.rotation.x=Math.max(0,-swing)*.9;j.rightShin.rotation.x=Math.max(0,swing)*.9;
   j.leftArm.rotation.x=-swing*.65;j.rightArm.rotation.x=swing*.65;
   j.torso.position.y+=((p.gait||0)>0.01?Math.abs(Math.sin(p.walk||0))*.023:Math.sin(time*1.6)*.006)*(1-w);
+  secondary(time,{gait:(p.gait||0)*(1-w)});
   if(!p.dodge)return pose;
   for(const node of [j.torso,j.head,j.leftArm,j.rightArm,j.leftLeg,j.rightLeg])node.position.y-=pose.drop;
   for(const [leg,shin,foot,bend] of [[j.leftLeg,j.leftShin,j.leftFoot,pose.left],[j.rightLeg,j.rightShin,j.rightFoot,pose.right]]){

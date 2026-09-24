@@ -3,7 +3,7 @@ export default function generate(T){
 
  const root=new T.Group(),frame=new T.Group();root.add(frame);
  const material=(name,color,metalness=0)=>Object.assign(new T.MeshStandardMaterial({color,roughness:metalness?.52:.9,metalness,side:T.DoubleSide}),{name});
- const cloth=material('fabric',0x92703e),lining=material('fabric',0x323634),trim=material('fabric',0x917c58),iron=material('metal',0x69777c,.6),brass=material('metal',0xb29a67,.55),leather=material('timber',0x382e28),skin=material('fabric',0xb9957e),hair=material('fabric',0x75422b);
+ const cloth=material('fabric',0x92703e),lining=material('fabric',0x323634),trim=material('fabric',0x917c58),iron=material('metal',0x69777c,.6),brass=material('metal',0xb29a67,.55),leather=material('leather',0x382e28),skin=material('skin',0xb9957e),hair=material('hair',0x75422b);
  const put=(p,g,m,x=0,y=0,z=0)=>{const o=new T.Mesh(g,m);o.position.set(x,y,z);p.add(o);return o;};
  const ball=(p,m,x,y,z,w,h,d)=>{const o=put(p,new T.SphereGeometry(1,12,8),m,x,y,z);o.scale.set(w,h,d);return o;};
  const box=(p,m,x,y,z,w,h,d)=>put(p,new T.BoxGeometry(w,h,d),m,x,y,z);
@@ -76,6 +76,20 @@ export default function generate(T){
  for(const s of [-1,1])box(torso,brass,s*.19,-.28,.207,.014,.36,.014);
  for(let i=0;i<5;i++){const badge=box(torso,brass,(i-2)*.064,-.45,.21,.036,.036,.008);badge.rotation.z=Math.PI/4;}
  const buckle=box(torso,brass,0,-.032,.225,.11,.075,.03);buckle.rotation.z=0;
+
+ // Forged helmet ribs and inset geometric marks replace featureless large plates.
+ for(const s of [-1,1]){
+  plate(head,brass,[[-.008,.045],[.008,.045],[.012,.185],[0,.207],[-.012,.185]],.016,s*.072,.015,.115);
+  const arm=limbs[s<0?'left':'right'].arm;
+  for(let n=0;n<3;n++){const mark=box(arm,brass,(n-1)*.066,-.015,.162,.026,.026,.012);mark.rotation.z=Math.PI/4;}
+  const glove=limbs[s<0?'left':'right'].fore;
+  for(let n=0;n<3;n++)box(glove,iron,(n-1)*.035,-.276,.093,.025,.077,.023);
+ }
+ // Hammer-and-anvil device sits on the apron; it is geometry, not a decal.
+ plate(torso,brass,[[-.075,.045],[.075,.045],[.041,.006],[.028,-.035],[-.04,-.035],[-.045,.004]],.01,0,-.26,.212);
+ const haft=box(torso,brass,.008,-.17,.213,.017,.13,.01);haft.rotation.z=-.4;
+ const hammer=box(torso,brass,-.013,-.113,.213,.094,.037,.018);hammer.rotation.z=-.4;
+ for(let n=0;n<3;n++)box(torso,trim,(n-1)*.10,.12,-.178,.015,.23,.012);
 
  // Measure actual transformed vertices, not rotated bounding-box corners.
  frame.scale.set(1.23,0.78,1);

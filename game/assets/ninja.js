@@ -3,7 +3,7 @@ export default function generate(T){
 
  const root=new T.Group(),frame=new T.Group();root.add(frame);
  const material=(name,color,metalness=0)=>Object.assign(new T.MeshStandardMaterial({color,roughness:metalness?.52:.9,metalness,side:T.DoubleSide}),{name});
- const cloth=material('fabric',0x31575a),lining=material('fabric',0x232d30),trim=material('fabric',0x607776),iron=material('metal',0x69777c,.6),brass=material('metal',0xb29a67,.55),leather=material('timber',0x382e28),skin=material('fabric',0xb9957e),hair=material('fabric',0x75422b);
+ const cloth=material('fabric',0x31575a),lining=material('fabric',0x232d30),trim=material('fabric',0x607776),iron=material('metal',0x69777c,.6),brass=material('metal',0xb29a67,.55),leather=material('leather',0x382e28),skin=material('skin',0xb9957e);
  const put=(p,g,m,x=0,y=0,z=0)=>{const o=new T.Mesh(g,m);o.position.set(x,y,z);p.add(o);return o;};
  const ball=(p,m,x,y,z,w,h,d)=>{const o=put(p,new T.SphereGeometry(1,12,8),m,x,y,z);o.scale.set(w,h,d);return o;};
  const box=(p,m,x,y,z,w,h,d)=>put(p,new T.BoxGeometry(w,h,d),m,x,y,z);
@@ -49,10 +49,26 @@ export default function generate(T){
  for(const s of [-1,1]){
   const scarfGeo=new T.PlaneGeometry(.14,.79,4,12),pos=scarfGeo.attributes.position;
   for(let i=0;i<pos.count;i++){const t=(.395-pos.getY(i))/.79;pos.setXYZ(i,pos.getX(i)+s*t*.15,pos.getY(i),-t*.16+Math.sin(t*5)*.05);}
-  scarfGeo.computeVertexNormals();put(torso,scarfGeo,cloth,s*.10,-.065,-.20);
+  const scarf=joint(s<0?'scarfLeft':'scarfRight',s*.10,.33,-.20,torso);
+  scarfGeo.computeVertexNormals();put(scarf,scarfGeo,cloth,0,-.395,0);
+  for(let n=0;n<12;n++){const t=(n+.5)/12;box(scarf,trim,s*(.058+t*.15),-t*.79,-t*.16+Math.sin(t*5)*.05-.007,.01,.065,.008);}
   const flap=plate(torso,cloth,[[-.13,0],[.13,0],[.105,-.39],[-.12,-.32]],.025,s*.12,-.09,.11);flap.rotation.z=-s*.13;
  }
  for(let i=0;i<3;i++){const x=.055+i*.061;box(torso,leather,x,-.16,.19,.033,.20,.04);put(torso,new T.CylinderGeometry(.014,.014,.065,8),iron,x,-.023,.205);const ring=put(torso,new T.TorusGeometry(.025,.007,4,10),iron,x,.021,.205);ring.rotation.x=.1;}
+
+ // Cross-laced lamellar vest and a compact sheathed utility blade at the hip.
+ for(let row=0;row<4;row++)for(const s of [-1,1]){
+  const lace=box(torso,trim,s*.133,.045+row*.07,.179,.012,.075,.008);lace.rotation.z=s*.45;
+ }
+ const sheath=joint('utilitySheath',-.25,-.17,-.035,torso);sheath.rotation.z=-.3;
+ plate(sheath,leather,[[-.034,.06],[.034,.06],[.026,-.27],[0,-.32],[-.026,-.27]],.052);
+ box(sheath,iron,0,.048,.002,.086,.025,.06);box(sheath,lining,0,.11,0,.039,.10,.035);
+ for(let n=0;n<4;n++)box(sheath,trim,0,.075+n*.022,.021,.045,.007,.008);
+ for(const s of [-1,1]){
+  const arm=limbs[s<0?'left':'right'].arm;
+  plate(arm,leather,[[-.105,.025],[.105,.025],[.095,-.12],[0,-.165],[-.095,-.12]],.035,0,-.015,.113);
+  box(arm,iron,0,-.065,.137,.015,.14,.009);
+ }
 
  // Measure actual transformed vertices, not rotated bounding-box corners.
  frame.scale.set(0.92,1,1);

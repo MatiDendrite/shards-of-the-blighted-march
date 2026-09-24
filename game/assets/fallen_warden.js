@@ -2,7 +2,7 @@
 export default function generate(T){
  const root=new T.Group(),joints={};
  const mat=(name,color,roughness=.6,metalness=0)=>Object.assign(new T.MeshStandardMaterial({color,roughness,metalness}),{name});
- const iron=mat('metal',0x4d5661,.44,.72),edge=mat('metal',0xaca48a,.42,.65),black=mat('fabric',0x22282a),cloth=mat('fabric',0x50334f,.95),leather=mat('timber',0x372d28),rune=mat('rune',0xb294cd,.4,.25);rune.emissive.setHex(0x503563);rune.emissiveIntensity=.65;
+ const iron=mat('metal',0x4d5661,.44,.72),edge=mat('metal',0xaca48a,.42,.65),black=mat('fabric',0x22282a),cloth=mat('fabric',0x50334f,.95),leather=mat('leather',0x372d28),rune=mat('rune',0xb294cd,.4,.25);rune.emissive.setHex(0x503563);rune.emissiveIntensity=.65;
  const put=(p,geo,m,x=0,y=0,z=0)=>{const o=new T.Mesh(geo,m);o.position.set(x,y,z);p.add(o);return o;};
  function joint(name,x,y,z,parent=root){const g=new T.Group();g.name=name;g.position.set(x,y,z);parent.add(g);joints[name]=g;return g;}
  function plate(p,m,points,depth,x,y,z){const s=new T.Shape();points.forEach(([a,b],i)=>i?s.lineTo(a,b):s.moveTo(a,b));s.closePath();const geo=new T.ExtrudeGeometry(s,{depth,bevelEnabled:true,bevelSize:.008,bevelThickness:.007,bevelSegments:1,steps:1});geo.translate(0,0,-depth/2);return put(p,geo,m,x,y,z);}
@@ -20,17 +20,18 @@ export default function generate(T){
  }
  const belt=put(torso,new T.CylinderGeometry(.315,.32,.09,14),leather,0,-.03,0);belt.scale.z=.72;
  plate(torso,edge,[[-.068,0],[0,.072],[.068,0],[0,-.072]],.036,0,-.03,.26);
+ const mantle=joint('mantle',0,.33,-.265,torso);
  for(let strip=0;strip<9;strip++){
   const x=(strip-4)*.094,len=1.12+(strip%3)*.055,geo=new T.PlaneGeometry(.106,len,2,12),p=geo.attributes.position;
   for(let i=0;i<p.count;i++){const t=(len/2-p.getY(i))/len;p.setXYZ(i,p.getX(i)*(1+t*.35),p.getY(i),-.055*Math.cos((x+p.getX(i))*29)-t*.16);}
-  geo.computeVertexNormals();cloth.side=T.DoubleSide;put(torso,geo,cloth,x,.33-len/2,-.265);
-  put(torso,new T.BoxGeometry(.081,.017,.012),edge,x,.33-len,-.42);
+  geo.computeVertexNormals();cloth.side=T.DoubleSide;put(mantle,geo,cloth,x,-len/2,0);
+  put(mantle,new T.BoxGeometry(.081,.017,.012),edge,x,-len,-.155);
  }
  const thread=mat('fabric',0x9b869c,1);
  function embroidery(points){for(let n=1;n<points.length;n++){
   const [ax,ay]=points[n-1],[bx,by]=points[n],steps=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)/.025));
   for(let k=0;k<steps;k++){const t=(k+.5)/steps,x=ax+(bx-ax)*t,y=ay+(by-ay)*t,strip=Math.max(0,Math.min(8,Math.round(x/.094)+4)),len=1.12+(strip%3)*.055,fall=(.33-y)/len,z=-.265-.055*Math.cos(x*29)-fall*.16-.014;
-   const stitch=put(torso,new T.BoxGeometry(.013,Math.hypot(bx-ax,by-ay)/steps+.004,.008),thread,x,y,z);stitch.rotation.z=-Math.atan2(bx-ax,by-ay);
+   const stitch=put(mantle,new T.BoxGeometry(.013,Math.hypot(bx-ax,by-ay)/steps+.004,.008),thread,x,y-.33,z+.265);stitch.rotation.z=-Math.atan2(bx-ax,by-ay);
   }
  }}
  embroidery([[0,.18],[.19,-.15],[0,-.50],[-.19,-.15],[0,.18]]);
@@ -61,5 +62,15 @@ export default function generate(T){
   plate(fore,iron,[[-.11,.05],[.11,.05],[.084,-.29],[-.084,-.29]],.175,0,-.07,.015);ell(fore,leather,0,-.38,.04,.097,.117,.10);
   for(let k=0;k<3;k++)put(fore,new T.BoxGeometry(.044,.12,.04),iron,(k-1)*.054,-.38,.12);
  }
+ // Inset heraldry and crown vanes distinguish the Warden from ordinary raiders.
+ for(const s of [-1,1]){
+  const arm=joints[s<0?'leftArm':'rightArm'];
+  plate(arm,edge,[[-.10,.03],[0,.095],[.10,.03],[.07,-.07],[0,-.12],[-.07,-.07]],.012,0,.005,.172);
+  plate(arm,iron,[[-.065,.02],[0,.058],[.065,.02],[0,-.077]],.014,0,.005,.184);
+  const vane=plate(head,iron,[[-.04,-.08],[-.025,.12],[0,.20],[.035,.02],[.035,-.08]],.022,s*.13,.11,-.13);vane.rotation.z=-s*.25;
+  for(let i=0;i<3;i++)put(torso,new T.BoxGeometry(.01,.10,.008),edge,s*(.14+i*.037),.16-i*.022,.255).rotation.z=s*.35;
+ }
+ plate(torso,edge,[[-.063,0],[0,.082],[.063,0],[0,-.082]],.014,0,.28,.268);
+ plate(torso,rune,[[-.025,0],[0,.045],[.025,0],[0,-.045]],.012,0,.28,.28);
  const box=new T.Box3(),v=new T.Vector3();root.updateMatrixWorld(true);root.traverse(n=>{const p=n.isMesh&&n.geometry.attributes.position;if(p)for(let i=0;i<p.count;i++)box.expandByPoint(v.fromBufferAttribute(p,i).applyMatrix4(n.matrixWorld));});const c=box.getCenter(new T.Vector3());root.children.forEach(n=>{n.position.x-=c.x;n.position.y-=box.min.y;n.position.z-=c.z;});root.userData.joints=joints;return root;
 }

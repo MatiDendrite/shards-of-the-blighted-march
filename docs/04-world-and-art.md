@@ -38,7 +38,17 @@ The next environment pass reused the existing images. Ground materials blend at 
 
 Small constructor-built ferns, reeds, dune grass and pebbles are placed deterministically around banks and in forest-floor patches. They share geometry and materials through spatially grouped instances, disappear at a bounded distance, and do not introduce collision obstacles. Travel routes and bridge approaches remain clear. Plants near the player shrink below combat warnings, while meadows retain their existing triangle budget with more varied blade widths and colours.
 
-Water keeps the original geometry and collision datum. Broken wash bands and filtered shallow-water highlights add motion without transmission, a second scene render or downloaded textures. These are stylised surface effects, not a fluid simulation. Character model and post-processing work remains separate.
+Water keeps the original geometry and collision datum. Broken wash bands and filtered shallow-water highlights add motion without transmission, a second scene render or downloaded textures. These are stylised surface effects, not a fluid simulation.
+
+## Character surfaces and equipment detail
+
+The following pass separated actor materials from scenery treatments. Brushed metal, woven cloth, leather grain and directional fur use shared, periodic 128-pixel colour, normal and roughness maps generated in code. Skin, eyes, teeth and luminous insets keep their own simpler materials. Small baked colour differences distinguish constructed parts without adding shader hooks that would be lost when enemies or inventory portraits are cloned.
+
+All four classes received details inside their existing geometry budgets: the Warrior has chased shoulder plates and a helmet ridge; the Mage carries a bound grimoire and embroidered robe details; the Ninja has lacing, shoulder guards and a sheathed utility blade; the Dwarf has forged helmet ribs, plated gloves and an anvil device. These are cosmetic additions, not usable inventory items or new abilities. The Fallen Warden received inset heraldry and crown vanes, while the wolf gained chest and cheek tufts and a hinged lower jaw.
+
+Pivots at the shoulders let capes and scarf tails move with their trim attached. Their restrained secondary motion, the wolf's jaw and its tail are evaluated from simulation time, so paused frames cannot accumulate movement. This is authored animation, not cloth or fur simulation. Named combat joints, model heights, collision radii, skill timing and damage rules remain unchanged. Rigid pieces still batch within their animated joints, and each class is loaded only when needed.
+
+Verification includes fixed-camera comparisons, original model triangle limits, surface sharing and clone independence, grounded dodge poses, late enemy spawning, and keyboard/touch class selection, casts and inventory portraits. Post-processing and larger animation-system changes remain separate work.
 
 ## Implementation pointers
 
@@ -47,5 +57,6 @@ Water keeps the original geometry and collision datum. Broken wash bands and fil
 - [Cartography](../game/src/cartography.js), [terrain tests](../tools/terrain.test.mjs) and [surface-detail tests](../tools/surface-detail.test.mjs).
 - [Material detail](../game/src/surface-detail.js), [quality profiles](../game/src/visual-quality.js), [material comparisons](../tools/materials-review.mjs) and [quality interaction checks](../tools/visual-quality-playtest.mjs).
 - [Ground shading](../game/src/landscape-ground.js), [bank plants](../game/assets/bank_plants.js), [placement and instancing](../game/src/bank-dressing.js) and [environment checks](../tools/environment-detail.test.mjs).
+- [Actor surfaces](../game/src/actor-surfaces.js), [secondary motion](../game/src/actor-motion.js), [actor checks](../tools/actor-detail.test.mjs) and [character comparisons](../tools/character-review.mjs).
 
 [Back to development stages](README.md)

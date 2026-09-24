@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {ASSET} from '../lib/assetlib.js';
+import {loadActorAsset} from './actor-surfaces.js';
 import {createHeroMotion} from './combat-motion.js';
 import {CLASS_IDS} from './class-data.js';
 
@@ -11,7 +11,7 @@ export function createClassActors(hero,weaponMount,{mergeJoints,cloneActor,prepa
  const cache=new Map([['warrior',entry(warrior)]]);let current='warrior';
  async function load(id){
   if(!CLASS_IDS.includes(id))throw Error('Unknown class');if(cache.has(id))return;
-  const root=await ASSET(new URL(`../assets/${id}.js`,import.meta.url).href,{keepHierarchy:true,surfaces:true});
+  const root=await loadActorAsset(new URL(`../assets/${id}.js`,import.meta.url).href,{keepHierarchy:true});
   for(const name of ['head','torso','leftArm','rightArm','leftLeg','rightLeg','leftShin','rightShin'])if(!root.userData.joints?.[name])throw Error(`Missing ${id} joint: ${name}`);
   mergeJoints(root);cache.set(id,entry(root));prepare(root);
  }

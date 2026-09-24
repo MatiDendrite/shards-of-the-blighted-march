@@ -20,7 +20,7 @@ try{
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(32,1.6,.1,80),rig=createRig(T,renderer,scene,{tier:'phone',hour:16.5,azimuth:220,post:false,cascades:1,shadowMap:2048,shadowDist:16,exposure:1.08,sunIntensity:2.65,fill:1.08,envIntensity:.65,bounce:.48,camera});await rig.ready;
   scene.background=new T.Color(0x293336);scene.fog=null;const floor=new T.Mesh(new T.PlaneGeometry(100,100),new T.MeshStandardMaterial({color:0x4c5352,roughness:1}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
   const actors=[];for(const id of ['wanderer','mage','ninja','dwarf','blighted_wolf','fallen_warden']){const root=await load(new URL(`./assets/${id}.js`,location.href).href,{keepHierarchy:true,...(id==='wanderer'?{height:1.85}:{})});mergeJoints(root);actors.push(root);}
-  const motions=actors.slice(0,4).map(createHeroMotion);
+  const motions=actors.slice(0,4).map((root,i)=>createHeroMotion(root,{classId:['warrior','mage','ninja','dwarf'][i]}));
   let raider;if(baseline){raider=await load(new URL('./assets/wanderer.js',location.href).href,{keepHierarchy:true,height:1.85});mergeJoints(raider);const tinted=new Map();raider.traverse(o=>{if(!o.isMesh)return;if(!tinted.has(o.material)){const m=o.material.clone();m.color.multiplyScalar(.76);if(m.name==='fabric')m.color.setHex(0x39463a);tinted.set(o.material,m);}o.material=tinted.get(o.material);});}else raider=await (await import('./src/npc-actors.js')).loadNpcActor('raider');actors.push(raider);
   window.captureActors=async view=>{
    for(const root of actors)scene.remove(root);

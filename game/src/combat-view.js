@@ -3,7 +3,6 @@ import {inTown} from './world-map.js';
 import { ASSET } from '../lib/assetlib.js';
 import { WEAPONS,enemyAttack,windupProgress } from './combat-model.js';
 import { REGIONS } from './campaign-data.js';
-import { attackPose } from './combat-motion.js';
 import { createCombatEffects } from './combat-effects.js';
 import { createCombatRings } from './combat-rings.js';
 import { createTextWriter } from './hud-bindings.js';
@@ -18,6 +17,7 @@ import {createActorSecondaryMotion} from './actor-motion.js';
 import {loadNpcActor} from './npc-actors.js';
 import {mergeJoints} from './actor-batching.js';
 import {attachEnemyAxe,createEnemyMotion} from './enemy-motion.js';
+import {HERO_GRIP,equipHeroWeapon} from './hero-equipment.js';
 
 export {mergeJoints};
 
@@ -42,7 +42,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  // Serialized Object3D declarations are not portrait animation state.
  armorPortrait.traverse(o=>{delete o.userData.joints;});
  const heightAt=(x,z)=>groundHeight(model.region,x,z),impacts=createCombatEffects(scene,heightAt),rings=createCombatRings(scene,prepare,heightAt),text=createTextWriter();
- let joints=hero.userData.joints;const weaponMount=new T.Group();weaponMount.name='heroWeaponMount';weaponMount.position.set(0,-.53,.04);weaponMount.rotation.x=Math.PI/2;joints.rightArm.add(weaponMount);
+ const weaponMount=new T.Group();weaponMount.name='heroWeaponMount';weaponMount.position.set(HERO_GRIP.x,HERO_GRIP.y,HERO_GRIP.z);weaponMount.rotation.x=Math.PI/2;hero.userData.joints.rightForearm.add(weaponMount);
  const actors=createClassActors(hero,weaponMount,{mergeJoints,cloneActor,prepare}),skillHud=createSkillHud(),classEffects=createClassEffects(scene);
  let weapon='';const views=new Map(),labels=document.querySelector('#enemy-labels'),numbers=[];
  const shard=assets.shard;shard.position.set(model.shard.x,.05,model.shard.z);scene.add(shard);
@@ -62,7 +62,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   const label=makeLabel(name),flashMaterials=new Set();root.traverse(o=>{if(o.isMesh&&o.material.emissive)flashMaterials.add(o.material);});prepare(root);prepare(telegraph);prepare(edge);const view={root,nodes,telegraph,edge,edgeGeometry,slamEdge,name,label,flashMaterials,flashing:false,sweep,slam,deathAge:0,secondary:createActorSecondaryMotion(root),animate:e.kind==='wolf'?null:createEnemyMotion(root,e.kind)};views.set(e.id,view);return view;
  }
  weaponMount.name='heroWeaponMount';
- function equip(){if(weapon===model.player.weapon)return;weapon=model.player.weapon;weaponMount.clear();const obj=assets[weapon].clone();obj.position.y=weapon==='sword'?-.21:weapon==='axe'?-.26:-.85;if(weapon==='axe')obj.position.x=.15;weaponMount.add(obj);document.querySelector('#weapon-name').textContent=WEAPONS[weapon].name;document.querySelector('#weapon-button span').textContent=WEAPONS[weapon].name;}
+ function equip(){if(weapon===model.player.weapon)return;weapon=model.player.weapon;equipHeroWeapon(weaponMount,assets[weapon],weapon);document.querySelector('#weapon-name').textContent=WEAPONS[weapon].name;document.querySelector('#weapon-button span').textContent=WEAPONS[weapon].name;}
  const ring=rings.pulse;
  function notice(text,duration=3.5){document.querySelector('#notice').textContent=text;document.querySelector('#notice').hidden=false;noticeTimer=duration;}
  function process(events){for(const e of events){
@@ -85,8 +85,8 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  const projected=new T.Vector3(),hudPanels=[...document.querySelectorAll('#action-bar,#location,#utility,#objective,#navigation-map,#boss-bar')];let hudBounds=[];
  function positionLabel(label,x,y,z,camera){projected.set(x,heightAt(x,z)+y,z).project(camera);const sx=(projected.x*.5+.5)*innerWidth,sy=(-projected.y*.5+.5)*innerHeight;const behindHud=label.fill&&hudBounds.some(r=>sx+45>r.left&&sx-45<r.right&&sy>r.top&&sy-32<r.bottom);const visible=projected.z>-1&&projected.z<1&&Math.abs(projected.x)<1.2&&Math.abs(projected.y)<1.2&&!behindHud;label.el.hidden=!visible;if(visible){label.el.style.left=`${sx}px`;label.el.style.top=`${sy}px`;}}
  function update(dt,camera){
-  equip();const p=model.player,a=p.action;impacts.update(dt);hudBounds=hudPanels.map(el=>el.getBoundingClientRect()).filter(r=>r.width&&r.height);
-  actors.animate(p,model.time);joints=actors.joints;classEffects.update(model);
+  equip();const p=model.player;impacts.update(dt);hudBounds=hudPanels.map(el=>el.getBoundingClientRect()).filter(r=>r.width&&r.height);
+  actors.animate(p,model.time);classEffects.update(model);
   for(const e of model.enemies){const near=(e.x-p.x)**2+(e.z-p.z)**2<44**2;let v=views.get(e.id);if(!v){if(e.hp<=0||!near)continue;v=createEnemy(e);}v.root.position.set(e.x,heightAt(e.x,e.z)+.06,e.z);v.root.rotation.set(0,e.angle,0);
     if(e.hp<=0){v.deathAge+=dt;v.root.rotation.z=Math.min(Math.PI/2,v.deathAge*3);v.root.position.y=heightAt(e.x,e.z)+.06-Math.max(0,v.deathAge-1)*.5;v.root.visible=v.deathAge<2.8;v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
     v.root.visible=near;if(!near){v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
@@ -106,16 +106,6 @@ export async function createCombatView(scene,hero,model,audio,options={}){
     // world-space name overlaps it when the Warden is north of the player.
     if(e.kind==='boss')v.label.el.hidden=true;
   }
-  if(a){const pose=attackPose(a),slam=a.kind==='slam',cry=a.kind==='cry',thrust=a.weapon==='spear'&&!slam&&!cry;
-    joints.rightArm.rotation.x=cry?-1.6*pose.lift:thrust?-1.05-pose.thrust*.45:-.25-2*pose.lift+1.9*pose.cut;
-    joints.rightArm.rotation.y=slam||cry?0:thrust?-.12:pose.twist*1.25;
-    joints.torso.rotation.y=slam||cry?0:pose.twist*.32;weaponMount.position.z=thrust?-.12*pose.lift+pose.thrust*.72:.04;
-    if(cry||slam)joints.leftArm.rotation.x=-1.5*pose.lift+1.2*pose.cut;
-    if(['projectile','frost','ward','smoke','blink'].includes(a.effect)){joints.rightArm.rotation.set(-1.25*pose.lift,0,-.18*pose.lift);joints.leftArm.rotation.x=-1.1*pose.lift;joints.torso.rotation.y=0;weaponMount.position.z=.04;}
-    if(a.kind==='forgeblow'){joints.rightArm.rotation.x=-2.4*pose.lift+2.1*pose.cut;joints.leftArm.rotation.x=-1.4*pose.lift+1.1*pose.cut;joints.torso.rotation.y=0;}
-  }
-  else{joints.rightArm.rotation.y=0;joints.torso.rotation.y=0;weaponMount.position.z=.04;}
-  if(!p.dodge){if(joints.leftForearm)joints.leftForearm.rotation.x=p.moving?-.12:0;if(joints.rightForearm)joints.rightForearm.rotation.x=a?-.22:0;}
   const shardY=heightAt(model.shard.x,model.shard.z);shard.position.set(model.shard.x,shardY+.05,model.shard.z);shardLight.position.set(model.shard.x,shardY+1.8,model.shard.z);blastRing.position.set(model.shard.x,.09,model.shard.z);const shardTitle=REGIONS[model.region].shard||'';if(shardLabel.el.firstChild.textContent!==shardTitle)shardLabel.el.firstChild.textContent=shardTitle;
   shard.visible=model.shard.hp>0;shardLight.intensity=shard.visible?6+Math.sin(model.time*2)*2:0;blastRing.visible=model.shard.blast>0;blastRing.material.opacity=.3+Math.sin(model.time*25)**2*.45;
   if(blastRing.visible)drapeGround(blastRing,heightAt,.09);
@@ -132,5 +122,5 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   return shake;
  }
  function reset(){impacts.clear();rings.clear();for(const v of views.values()){scene.remove(v.root,v.telegraph,v.edge);v.label.el.remove();v.sweep.dispose();v.slam?.dispose();v.edgeGeometry.dispose();v.slamEdge?.dispose();v.telegraph.material.dispose();v.edge.material.dispose();v.flashMaterials.forEach(m=>m.dispose());}views.clear();for(const n of numbers)n.el.remove();numbers.length=0;noticeTimer=flash=shake=0;document.querySelector('#notice').hidden=true;}
- return{update,process,reset:()=>{reset();classEffects.clear();},notice,loadClass:actors.load,setClass:actors.activate,characterPortrait:actors.portrait,portraitModels:{sword:assets.sword,axe:assets.axe,spear:assets.spear,armor:armorPortrait}};
+ return{update,process,reset:()=>{reset();classEffects.clear();actors.resetMotion();},notice,loadClass:actors.load,setClass:actors.activate,characterPortrait:actors.portrait,portraitModels:{sword:assets.sword,axe:assets.axe,spear:assets.spear,armor:armorPortrait}};
 }

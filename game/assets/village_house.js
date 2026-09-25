@@ -3,19 +3,30 @@ export default function generate(T){
  const g=new T.Group(),mat=(name,color)=>Object.assign(new T.MeshStandardMaterial({color,roughness:.95}),{name});
  const stone=mat('stone',0x929183),wood=mat('timber',0x49382d),plaster=mat('plaster',0xc0b99c),roof=mat('tile',0x43584f),dark=mat('metal',0x263330),glass=mat('glass',0xd7ac68);
  glass.emissive.setHex(0xe1a64e);glass.emissiveIntensity=.32;glass.roughness=.35;
- const box=(m,x,y,z,w,h,d)=>{const o=new T.Mesh(new T.BoxGeometry(w,h,d),m);o.position.set(x,y,z);g.add(o);return o;};
+ const box=(m,x,y,z,w,h,d)=>{
+  let geo;
+  // Bevel structural posts, not every nail: grazing light catches real edges
+  // while the existing collision footprint and small-detail budget stay intact.
+  if(m===wood&&h>3){
+   const b=.014,s=new T.Shape(),hw=w/2-b,hh=h/2-b;
+   s.moveTo(-hw,-hh);s.lineTo(hw,-hh);s.lineTo(hw,hh);s.lineTo(-hw,hh);s.closePath();
+   geo=new T.ExtrudeGeometry(s,{depth:d-2*b,bevelEnabled:true,bevelSize:b,bevelThickness:b,bevelSegments:1,steps:1});geo.translate(0,0,-d/2+b);
+  }else geo=new T.BoxGeometry(w,h,d);
+  const o=new T.Mesh(geo,m);o.position.set(x,y,z);g.add(o);return o;
+ };
  box(stone,0,.25,0,5.6,.5,4.8);box(plaster,0,1.95,0,5.4,3.4,4.6);
  for(const z of [-2.35,2.35])for(const x of [-2.72,0,2.72])box(wood,x,2,z,.18,3.6,.18);
  for(const y of [.65,3.6]){for(const z of [-2.38,2.38])box(wood,0,y,z,5.65,.18,.18);for(const x of [-2.78,2.78])box(wood,x,y,0,.18,.18,4.8);}
  // Triangular gables are profiles, tiled slopes are separate overlapping rows.
  for(const z of [-2.3,2.3]){const s=new T.Shape();s.moveTo(-2.7,3.6);s.lineTo(2.7,3.6);s.lineTo(0,6.1);s.closePath();const o=new T.Mesh(new T.ExtrudeGeometry(s,{depth:.15,bevelEnabled:false}),plaster);o.position.z=z-.075;g.add(o);}
  const slope=Math.atan2(2.6,3.1);
- for(const side of [-1,1]){const under=box(roof,side*1.55,4.82,0,4.05,.1,5.65);under.rotation.z=-side*slope;}
+ for(const side of [-1,1]){const under=box(roof,side*1.55,4.76,0,4.05,.1,5.65);under.rotation.z=-side*slope;}
  // Six-sided shingle outlines expose clipped, uneven lower corners. Three
- // shared profiles add variation without hundreds of unique geometries.
+ // shared profiles add variation without hundreds of unique geometries; each
+ // slate's lower edge lifts a little so every course casts a shadow line.
  const shingles=Array.from({length:3},(_,i)=>{const s=new T.Shape(),cut=.035+i*.018;s.moveTo(-.285,-.28);s.lineTo(.285-cut,-.28);s.lineTo(.285,-.28+cut);s.lineTo(.285,.28-cut);s.lineTo(.285-cut,.28);s.lineTo(-.285,.28);s.closePath();const geo=new T.ExtrudeGeometry(s,{depth:.065,bevelEnabled:false});geo.rotateX(-Math.PI/2);return geo;});
  for(const side of [-1,1])for(let row=0;row<8;row++)for(let col=0;col<11;col++){
-   const t=(row+.5)/8,o=new T.Mesh(shingles[(row+col)%3],roof);o.position.set(side*t*3.1,6.17-t*2.6,(col-5)*.5+(row%2)*.1);o.quaternion.setFromAxisAngle(new T.Vector3(0,0,1),-side*slope);if(side<0)o.quaternion.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI));g.add(o);
+   const t=(row+.5)/8,o=new T.Mesh(shingles[(row+col)%3],roof);o.position.set(side*t*3.1,6.17-t*2.6+((row+col)%3)*.008,(col-5)*.5+(row%2)*.1);o.quaternion.setFromAxisAngle(new T.Vector3(0,0,1),-side*slope);if(side<0)o.quaternion.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI));o.quaternion.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,0,1),.07+((row*3+col)%4)*.012));g.add(o);
  }
  for(const z of [-2.62,2.62])for(const side of [-1,1]){const o=box(wood,side*1.55,4.88,z,4.14,.16,.18);o.rotation.z=-side*slope;}
  box(wood,0,6.2,0,.18,.2,5.6);box(stone,1.6,5.25,-.6,.7,2.3,.7);box(stone,1.6,6.45,-.6,.85,.16,.85);

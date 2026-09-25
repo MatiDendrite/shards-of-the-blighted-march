@@ -31,3 +31,7 @@ Validation rejects malformed save data, including inconsistent campaign state an
 - [Progression tests](../tools/progression.test.mjs), [campaign tests](../tools/campaign.test.mjs) and [service tests](../tools/services.test.mjs).
 
 [Back to development stages](README.md)
+
+## Shore fishing
+
+Rivers, the sea, the tarn, bridges and piers are fishing spots. Pressing E beside open water casts a line when no enemy is near; when the float dives the player has a short window to hook the fish, and a missed bite simply waits for the next. Moving, attacking, dodging or an approaching enemy reels the line in. Catches of three rarities — Silver Perch, Rainbow Trout and Golden Carp — go into a saved creel of up to twenty fish and are eaten with G to restore health, smallest first, on their own short cooldown. Older saves without a creel load unchanged.

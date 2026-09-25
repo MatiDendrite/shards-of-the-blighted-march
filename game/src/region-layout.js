@@ -2,13 +2,16 @@
 import {WORLD_LIMIT,TOWN,EXIT,NPCS,MAPS,inTown,landmarks,roads,distanceToRoad} from './world-map.js';
 import {geographyColliders,geographyProps,waterDistance,onCrossing,riverX} from './geography.js';
 import {buildingSites,gateSites} from './settlement-layout.js';
+import {hallColliders,hallFloor} from './interiors.js';
+import {decorLayout,DECOR} from './decor.js';
+import {landmarkLayout,LANDMARK_SIZE} from './landmarks.js';
 import {groundHeight} from './terrain-height.js';
 export {WORLD_LIMIT};
 export const LANDSCAPES = [
- {ground:0xffffff,stone:0xfff5e3,needles:0xffffff,leaves:0xffffff,grass:0x6c794b,light:0xffac52,dust:0xc1c5a0,hour:16.5,azimuth:245,cover:16000},
- {ground:0xb5c4a5,stone:0xbac4ad,needles:0xa1bc95,leaves:0xafc99c,grass:0x617744,light:0xcce49c,dust:0xc7e58f,hour:16,azimuth:205,cover:12000},
- {ground:0xb4a18a,stone:0xc4aa92,needles:0x7b6552,grass:0xaca077,light:0xffb474,dust:0xc7aa8f,hour:17.6,azimuth:285,cover:2300},
- {ground:0x83848d,stone:0xbab7cb,needles:0x9096b3,grass:0x737a6c,light:0xb2baff,dust:0xbeb7e4,hour:17.9,azimuth:225,cover:3600},
+ {ground:0xffffff,stone:0xe6d6bb,paving:0xf4dcb4,needles:0xffffff,leaves:0xffffff,grass:0x86a24c,light:0xffac52,dust:0xc9ccaa,hour:15,azimuth:245,cover:16000},
+ {ground:0xb5c4a5,stone:0xcfc9ae,paving:0xeadfbc,needles:0xa1bc95,leaves:0xafc99c,grass:0x719b46,light:0xd8eca4,dust:0xcfe99a,hour:14.6,azimuth:205,cover:12000},
+ {ground:0xb4a18a,stone:0xc4aa92,paving:0xf2d4ae,needles:0x7b6552,grass:0xb8ac72,light:0xffb474,dust:0xd2b898,hour:15.4,azimuth:285,cover:2300},
+ {ground:0xb4a88e,stone:0xcdbb9e,paving:0xecd3b0,needles:0x98a78a,grass:0x86965c,light:0xffc98a,dust:0xd6cdb8,hour:15.8,azimuth:225,cover:3600},
 ];
 export function seeded(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
 export function sceneryLayout(region){
@@ -35,7 +38,10 @@ export function sceneryLayout(region){
   }
  };
  // A real central settlement, with open cardinal streets and exterior-only houses.
- for(const p of buildingSites(region))building(p.kind,p.x,p.z,p.scale,p.rotation);
+ // Market houses with interiors keep doorways; their floors only repel scenery.
+ const floors=[];
+ const clear=(x,z)=>canStandIn(colliders,x,z)&&canStandIn(floors,x,z);
+ for(const p of buildingSites(region)){if(p.hall){props.push({kind:'house',x:p.x,z:p.z,sx:p.scale,sy:p.scale,sz:p.scale,rotation:p.rotation,hall:p.hall});colliders.push(...hallColliders(p));floors.push(hallFloor(p));}else building(p.kind,p.x,p.z,p.scale,p.rotation);}
  for(const n of NPCS)colliders.push({x:n.x,z:n.z,r:.35});
  // The northern exit is separate from the settlement gates.
  for(const p of gateSites(region))gate(p.x,p.z,p.rotation);
@@ -62,12 +68,12 @@ export function sceneryLayout(region){
  // Human-scale courtyard edges. Keep entrances and the four roads unobstructed.
  for(const side of [-1,1]){
   for(const [x,z,k] of [[7.3,15.4,.72],[17,-9,.85],[17,27,.75]]){
-   const px=x*side;if(canStandIn(colliders,px,z)){add('hornbeam',px,z,k);colliders.push({x:px,z,r:.32*k});}
+   const px=x*side;if(clear(px,z)){add('hornbeam',px,z,k);colliders.push({x:px,z,r:.32*k});}
   }
   for(const [x,z] of [[6,-1.8],[6,23]]){
-   const px=x*side;if([-1.95,0,1.95].every(dx=>canStandIn(colliders,px+dx,z))){add('garden',px,z);colliders.push({x:px,z,w:3.9,d:.9});}
+   const px=x*side;if([-1.95,0,1.95].every(dx=>clear(px+dx,z))){add('garden',px,z);colliders.push({x:px,z,w:3.9,d:.9});}
   }
-  for(const z of [-11,27]){const x=side*3.7;if(canStandIn(colliders,x-.37,z)){add('standard',x,z);colliders.push({x:x-.37,z,r:.36});}}
+  for(const z of [-11,27]){const x=side*3.7;if(clear(x-.37,z)){add('standard',x,z);colliders.push({x:x-.37,z,r:.36});}}
  }
  const protectedPoints=landmarks(region);
  const count=[390,500,130,200][region];
@@ -82,17 +88,40 @@ export function sceneryLayout(region){
  }
  // Collision footprints remain the accepted X/Z layout. Visual bounds receive
  // exactly the same elevation as the placed mesh, including camera obstacles.
+ props.push(...landmarkLayout(region,{colliders,floors,canStandIn}));
+ props.push(...decorLayout(region,{colliders,floors,canStandIn,rand:seeded(5150+region*97)}));
+ // Every prop settles to the lowest ground under its footprint (a ring plus
+ // the box corners), so no side hangs above a slope.
+ // Houses and wells keep their graded settlement pads; plinths cover the edge.
+ const round={stone:[.7,.7],cliff:[4.5,3],pine:[.22,.22],hornbeam:[.3,.3],bush:[.7,.7],sign:[.3,.3],standard:[.3,.3]},boxed={stall:[1.7,1.1],garden:[1.95,.45],gate:[5,.6],stone:[.6,.6],cliff:[3.6,2.4]};
+ for(const [kind,d] of Object.entries(DECOR))if(!round[kind])boxed[kind]=[d.w/2,d.d/2];
+ Object.assign(boxed,LANDMARK_SIZE);
  for(const p of props)if(p.kind!=='bridge'){
   p.y=groundHeight(region,p.x,p.z);
-  const footprint={stone:[.7,.7],cliff:[4.5,3],pine:[.22,.22],hornbeam:[.3,.3]}[p.kind];
-  if(footprint){const c=Math.cos(p.rotation),s=Math.sin(p.rotation);for(let i=0;i<8;i++){const a=i*Math.PI/4,x=Math.cos(a)*footprint[0]*p.sx,z=Math.sin(a)*footprint[1]*p.sz;p.y=Math.min(p.y,groundHeight(region,p.x+x*c+z*s,p.z-x*s+z*c));}p.y-=.025;}
+  const ring=round[p.kind],box=boxed[p.kind],c=Math.cos(p.rotation),s=Math.sin(p.rotation),probe=(x,z)=>{x*=p.sx;z*=p.sz;p.y=Math.min(p.y,groundHeight(region,p.x+x*c+z*s,p.z-x*s+z*c));};
+  if(ring)for(let i=0;i<8;i++){const a=i*Math.PI/4;probe(Math.cos(a)*ring[0],Math.sin(a)*ring[1]);}
+  if(box)for(const [lx,lz] of [[-1,-1],[1,-1],[-1,1],[1,1],[0,1],[0,-1],[1,0],[-1,0],[.5,.5],[-.5,.5],[.5,-.5],[-.5,-.5]])probe(lx*box[0],lz*box[1]);
+  if(ring||box)p.y-=.03;
  }
  for(const p of lanterns)p.y=groundHeight(region,p.x,p.z);
- return {props,colliders,lanterns};
+ return {props,colliders,lanterns,floors};
 }
+// A 4 m grid over each collider list; rebuilt when the list grows. Scenery
+// scattering and per-frame movement then test a handful of shapes, not all.
+const COLLIDER_INDEX=new WeakMap(),CELL=4,cellKey=(cx,cz)=>(cx+512)*1024+cz+512;
+function colliderIndex(colliders){
+ let index=COLLIDER_INDEX.get(colliders);if(index&&index.length===colliders.length)return index.cells;
+ const cells=new Map();
+ for(const c of colliders){const hw=c.r?c.r+.3:c.w/2+.28,hd=c.r?c.r+.3:c.d/2+.28;
+  for(let cx=Math.floor((c.x-hw)/CELL);cx<=Math.floor((c.x+hw)/CELL);cx++)for(let cz=Math.floor((c.z-hd)/CELL);cz<=Math.floor((c.z+hd)/CELL);cz++){const k=cellKey(cx,cz);let list=cells.get(k);if(!list)cells.set(k,list=[]);list.push(c);}}
+ COLLIDER_INDEX.set(colliders,{length:colliders.length,cells});return cells;
+}
+const hits=(c,x,z)=>c.r?Math.hypot(x-c.x,z-c.z)<c.r+.3:Math.abs(x-c.x)<c.w/2+.28&&Math.abs(z-c.z)<c.d/2+.28;
 export function canStandIn(colliders,x,z){
  if(Math.abs(x)>WORLD_LIMIT||Math.abs(z)>WORLD_LIMIT)return false;
- return !colliders.some(c=>c.r?Math.hypot(x-c.x,z-c.z)<c.r+.3:Math.abs(x-c.x)<c.w/2+.28&&Math.abs(z-c.z)<c.d/2+.28);
+ if(colliders.length<32)return !colliders.some(c=>hits(c,x,z));
+ const list=colliderIndex(colliders).get(cellKey(Math.floor(x/CELL),Math.floor(z/CELL)));
+ return !list||!list.some(c=>hits(c,x,z));
 }
 export function pavingLayout(region){
  const tiles=[],used=new Set(),rand=seeded(7504+region);

@@ -6,7 +6,7 @@ export function createCombatEffects(scene,heightAt=()=>0){
  mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.frustumCulled=false;mesh.visible=false;scene.add(mesh);
  function burst(e){const count=e.heavy?12:7,seed=++serial;
   for(let i=0;i<count;i++){const p=particles[cursor];cursor=(cursor+1)%capacity;const a=i/count*Math.PI*2+seed*.71,speed=e.heavy?2.2:1.4;
-   Object.assign(p,{x:e.x,y:heightAt(e.x,e.z)+(e.target==='wolf'?.65:1.05),z:e.z,vx:Math.sin(a)*speed,vy:1.2+(i%3)*.48,vz:Math.cos(a)*speed,age:0,life:.25+(i%4)*.04,heavy:e.heavy});
+   Object.assign(p,{x:e.x,y:heightAt(e.x,e.z)+(e.target==='wolf'||e.target==='boar'?.65:e.target==='brute'?1.5:1.05),z:e.z,vx:Math.sin(a)*speed,vy:1.2+(i%3)*.48,vz:Math.cos(a)*speed,age:0,life:.25+(i%4)*.04,heavy:e.heavy});
    color.setHex(e.target==='shard'?0xc3a0e3:e.heavy?0xf0c27e:0xd5d0ae);mesh.setColorAt((cursor+capacity-1)%capacity,color);
   }mesh.instanceColor.needsUpdate=true;mesh.visible=true;
  }

@@ -1,9 +1,11 @@
 import * as T from 'three';
 import {applySurfaces} from '../lib/surfaces.js';
+import {createSurfaceDetails,shadeArchitecture} from './surface-detail.js';
+import {patchGroundSurface} from './landscape-ground.js';
 
 // These authored bitmap surfaces replace all three procedural maps AND the UVs
 // below. Generating the discarded maps/copies first wastes boot time, not detail.
-const bitmapOnly=new Set(['timber','plaster','tile','needles','leaves']);
+const bitmapOnly=new Set(['stone','paving','timber','plaster','tile','needles','leaves']);
 export function applyScenerySurfaces(root){
  return applySurfaces(T,{traverse(visitor){root.traverse(o=>{if(!o.isMesh||!bitmapOnly.has(o.material.name))visitor(o);});}});
 }
@@ -11,36 +13,51 @@ export async function loadArt(renderer){
  // Decode/orient bitmaps before upload instead of doing that work in the first
  // draw. Keep the original dimensions, compression and transparent leaf edges.
  const bitmap=typeof createImageBitmap==='function',loader=bitmap?new T.ImageBitmapLoader().setOptions({imageOrientation:'flipY',premultiplyAlpha:'none'}):new T.TextureLoader();
- const [floor,stone,fir,timber,plaster,meadow,leaves]=await Promise.all(['forest-floor','stone','fir','timber-detail','plaster-detail','meadow','hornbeam-leaves'].map(async n=>{
+ const [floor,stone,fir,timber,plaster,meadow,leaves]=await Promise.all(['forest-floor','stone','fir','oak-albedo','limewash-albedo','meadow','hornbeam-leaves'].map(async n=>{
   const image=await loader.loadAsync(new URL(`../textures/${n}.webp`,import.meta.url).href),texture=bitmap?new T.Texture(image):image;
   texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());if(!['fir','hornbeam-leaves'].includes(n))texture.wrapS=texture.wrapT=T.RepeatWrapping;texture.needsUpdate=true;
   // Upload each completed file while the other transfers and world construction
   // continue. Do not leave all seven uploads for the first visible draw.
   renderer.initTexture?.(texture);return texture;
  }));
- const time={value:0},focus={value:new T.Vector2(0,11)},finished=new WeakSet();
+ const details=createSurfaceDetails(renderer),time={value:0},focus={value:new T.Vector2(0,11)},hero={value:new T.Vector3(0,1,11)},finished=new WeakSet();
  function apply(root){const materials=new Map();root.traverse(o=>{
-  if(!o.isMesh)return;const original=o.material,name=original.name;if(!['ground','stone','needles','leaves','timber','plaster','tile'].includes(name))return;
+  if(!o.isMesh)return;const original=o.material,name=original.name;if(!['ground','stone','paving','needles','leaves','timber','plaster','tile'].includes(name))return;
   if(!materials.has(original)){const m=original.clone();
    if(name==='needles'||name==='leaves'){m.map=name==='leaves'?leaves:fir;m.color.setHex(name==='leaves'?0xe1e4cf:0xd0d5bd);m.alphaTest=.42;m.side=T.DoubleSide;m.normalMap=null;m.roughnessMap=null;m.roughness=1;}
-   else if(name==='timber'||name==='plaster'||name==='tile'){m.map=name==='timber'?timber:name==='plaster'?plaster:stone;m.color.setHex(name==='timber'?0xc5b7a4:name==='plaster'?0xe4ddc8:0x738779);m.normalMap=null;m.roughnessMap=null;m.roughness=.91;m.bumpMap=m.map;m.bumpScale=name==='timber'?.035:.018;}
-   else{m.map=name==='ground'?floor:stone;m.color.setHex(name==='ground'?0xf2efdf:0xc0c3b4);m.normalScale?.setScalar(name==='ground'?.35:.65);m.roughness=.95;m.bumpMap=m.map;m.bumpScale=name==='ground'?.045:.035;}
+   else if(['timber','plaster','tile','stone','paving'].includes(name)){
+    const maps=details(name==='paving'?'stone':name);m.map=name==='timber'?timber:name==='plaster'?plaster:name==='stone'?stone:maps.map;
+    if(name==='stone'||name==='paving')m.color.setHex(name==='stone'?0xc0c3b4:0xa4a59c);
+    else m.color.setHex(name==='timber'?0xb7a28d:name==='plaster'?0xf1e7d5:0x606769);
+    m.normalMap=maps.normalMap;m.normalScale.setScalar(name==='plaster'?.45:name==='timber'||name==='tile'?.5:.75);
+    m.roughnessMap=maps.roughnessMap;m.roughness=1;m.metalness=0;m.bumpMap=null;m.bumpScale=0;
+   }
+   else{m.map=floor;m.color.setHex(0xf2efdf);m.normalScale?.setScalar(.35);m.roughness=.95;m.bumpMap=m.map;m.bumpScale=.045;}
    m.needsUpdate=true;materials.set(original,m);
   }o.material=materials.get(original);
   if(name!=='needles'&&name!=='leaves'){const geo=o.geometry.clone(),p=geo.attributes.position,n=geo.attributes.normal,uv=geo.attributes.uv,density=name==='ground'?1/3:name==='timber'?.65:name==='plaster'?.55:1/1.6;
    geo.computeBoundingBox();const size=geo.boundingBox.getSize(new T.Vector3()),grain=size.x>size.y&&size.x>size.z?'x':size.z>size.y?'z':'y';
    for(let i=0;i<p.count;i++){const nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));let u=ny>=nx&&ny>=nz?p.getX(i):nx>nz?p.getZ(i):p.getX(i),v=ny>=nx&&ny>=nz?p.getZ(i):p.getY(i);if(name==='timber'&&grain!=='y'){u=p.getY(i)+(grain==='x'?p.getZ(i):p.getX(i));v=grain==='x'?p.getX(i):p.getZ(i);}uv.setXY(i,u*density,v*density);}o.geometry=geo;
+   if(name!=='ground')shadeArchitecture(o,name,original.color);
   }
  });return root;}
  function finish(root){root.traverse(o=>{if(!o.isMesh)return;const m=o.material;
   if(finished.has(m))return;
-  const ground=m.name==='ground',cover=['foliage','petals'].includes(m.name),wind=['leaves','foliage','banner'].includes(m.name);if(!ground&&!wind&&!cover)return;finished.add(m);
+  const ground=m.name==='ground',cover=['foliage','petals'].includes(m.name),wind=['leaves','foliage','banner'].includes(m.name),canopy=['leaves','needles'].includes(m.name);if(!ground&&!wind&&!cover&&!canopy)return;finished.add(m);
   // Install after tinting/baking: Material.clone does not copy shader callbacks.
   m.onBeforeCompile=shader=>{
-   if(ground){shader.uniforms.uMeadow={value:meadow};shader.uniforms.uRock={value:stone};shader.vertexShader='attribute float meadowWeight; attribute float sandWeight; attribute float rockWeight; varying float vRockWeight; varying float vSandWeight; varying float vMeadowWeight;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvMeadowWeight = meadowWeight; vSandWeight=sandWeight; vRockWeight=rockWeight;');shader.fragmentShader='uniform sampler2D uMeadow; uniform sampler2D uRock; varying float vRockWeight; varying float vSandWeight; varying float vMeadowWeight;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`vec4 soilTex = texture2D(map, vMapUv); vec4 meadowTex = texture2D(uMeadow, vMapUv * .78); vec4 rockTex=texture2D(uRock,vMapUv*.62); float grain=fract(sin(dot(vMapUv*700.0,vec2(12.9898,78.233)))*43758.5453); float ripples=sin(vMapUv.y*65.0+sin(vMapUv.x*23.0))*0.015; vec4 sandTex=vec4(vec3(.78,.68,.51)*(.95+grain*.08+ripples),1.0); vec4 surfaceTex=mix(soilTex,meadowTex,clamp(vMeadowWeight,0.0,1.0)); surfaceTex=mix(surfaceTex,rockTex,clamp(vRockWeight,0.0,1.0)); diffuseColor *= mix(surfaceTex,sandTex,clamp(vSandWeight,0.0,1.0));`);}
+   if(ground)patchGroundSurface(shader,meadow,stone);
    if(wind){shader.uniforms.uLandscapeTime=time;shader.vertexShader='uniform float uLandscapeTime;\n'+shader.vertexShader;const amount=m.name==='leaves'?'.045':m.name==='banner'?'.028':'.08',height=m.name==='foliage'?'position.y-groundBase':'position.y';shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>\nfloat breeze = sin(uLandscapeTime * 1.5 + position.x * .8 + position.z * .55); transformed.x += breeze * ${amount} * min(1.0, max(0.0, ${height})); transformed.z += cos(uLandscapeTime + position.x * .5) * ${amount} * .3 * min(1.0, max(0.0, ${height}));`);}
+   // Canopy cut-out: leaves between the camera and the hero dissolve in a
+   // screen-fixed stipple, so crowns never hide the fight. Shadows are unchanged.
+   if(canopy){shader.uniforms.uCanopyHero=hero;shader.vertexShader='varying vec3 vCanopyWorld;\n'+shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvCanopyWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader='uniform vec3 uCanopyHero; varying vec3 vCanopyWorld;\n'+shader.fragmentShader.replace('void main() {',`void main() {
+ vec3 canopyHead = uCanopyHero + vec3(0.0, 1.2, 0.0), canopyRay = cameraPosition - canopyHead;
+ float canopyT = clamp(dot(vCanopyWorld - canopyHead, canopyRay) / dot(canopyRay, canopyRay), 0.0, 1.0);
+ float canopyCut = (1.0 - smoothstep(1.3, 2.4, distance(vCanopyWorld, canopyHead + canopyRay * canopyT))) * step(0.02, canopyT) * step(uCanopyHero.y + 0.8, vCanopyWorld.y);
+ if (canopyCut > 0.0 && fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453) < canopyCut * 0.82) discard;`);}
    if(cover){shader.uniforms.uGrassFocus=focus;shader.vertexShader='attribute float groundBase; uniform vec2 uGrassFocus;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','transformed.y = groundBase + (transformed.y-groundBase)*(1.0-smoothstep(24.0,34.0,distance(position.xz,uGrassFocus)));\n#include <project_vertex>');}
-  };m.customProgramCacheKey=()=>`landscape-relief-v2-${m.name}`;m.needsUpdate=true;
+  };m.customProgramCacheKey=()=>`landscape-relief-v4-${m.name}`;m.needsUpdate=true;
  });}
- return{apply,finish,update(dt,player){time.value+=Math.min(dt,.1);if(player)focus.value.set(player.x,player.z);}};
+ return{apply,finish,update(dt,player,y=0){time.value+=Math.min(dt,.1);if(player){focus.value.set(player.x,player.z);hero.value.set(player.x,y,player.z);}}};
 }

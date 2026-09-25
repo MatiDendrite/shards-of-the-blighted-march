@@ -31,3 +31,9 @@ Solid scenery matters in combat as well as movement. Melee and ranged checks cov
 - [Dodge checks](../tools/dodge-encounter.test.mjs) and [character regression checks](../tools/actor-regression.mjs).
 
 [Back to development stages](README.md)
+
+## Regional enemies
+
+Thornwood and the Ashen Causeway field three enemies beyond wolves and raiders. Thornback Boars telegraph a narrow cone and then charge through it, carrying their body forward with the strike. Cairn Brutes are slow stone giants whose Cairn Slam fills a full circle, rewarding players who leave the ring rather than trade blows. Ashen Archers keep their distance: they loose only along a clear line of sight, back away from close pursuit and fire along a long, narrow warning that a sidestep avoids.
+
+The new kinds take over existing guardian IDs in later regions, so saved kills, rewards and quest counts stay valid without a migration. Their models load after the world is playable, keeping them off the start-up path of the first region, which fields only wolves and raiders. Campaign simulations with all four classes still complete every region.

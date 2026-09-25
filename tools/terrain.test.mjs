@@ -46,7 +46,9 @@ for(let region=0;region<4;region++){
  });
  test(`relief ${region}: rigid settlement footings meet the sampled ground`,()=>{
   const {props}=sceneryLayout(region);
-  for(const p of props.filter(p=>['house','stall','well','gate','lantern'].includes(p.kind)))close(p.y,groundHeight(region,p.x,p.z));
+  for(const p of props.filter(p=>['house','well','lantern'].includes(p.kind)))close(p.y,groundHeight(region,p.x,p.z));
+  // Stalls and gates settle to their lowest footing so no leg or pillar hangs.
+  for(const p of props.filter(p=>['stall','gate'].includes(p.kind))){const [hw,hd]=p.kind==='gate'?[5,.6]:[1.7,1.1],c=Math.cos(p.rotation),s=Math.sin(p.rotation);for(const [lx,lz] of [[-1,-1],[1,-1],[-1,1],[1,1],[0,0]]){const x=lx*hw*p.sx,z=lz*hd*p.sz;assert(p.y<=groundHeight(region,p.x+x*c+z*s,p.z-x*s+z*c)+1e-6,`${p.kind} at ${p.x},${p.z} hangs`);}assert(groundHeight(region,p.x,p.z)-p.y<1,`${p.kind} sunk too deep`);}
   for(const p of props.filter(p=>p.kind==='house'))for(const x of [-2.7,2.7])for(const z of [-2.7,2.7]){const c=Math.cos(p.rotation),s=Math.sin(p.rotation),y=groundHeight(region,p.x+x*p.sx*c+z*p.sz*s,p.z-x*p.sx*s+z*p.sz*c);assert(Math.abs(y-p.y)<.13,`house at ${p.x},${p.z}: footing gap ${y-p.y}`);}
  });
 }

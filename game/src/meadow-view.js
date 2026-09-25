@@ -11,11 +11,12 @@ export function meadowGeometry(first=0,count=3){
  for(let b=first;b<first+count;b++){
   const angle=b*2.399963,h=.57+(b%4)*.115,bend=.16+(b%3)*.055,c=Math.cos(angle),s=Math.sin(angle),start=positions.length/3;
   for(let row=0;row<4;row++){
-   const t=row/3,width=row===3?0:.045*Math.sin((.13+t*.87)*Math.PI),lean=t*t*bend;
+   const t=row/3,width=row===3?0:(.029+(b%3)*.011)*Math.sin((.13+t*.87)*Math.PI),lean=t*t*bend;
    for(let side=0;side<(row===3?1:2);side++){
     const x=(side?1:-1)*width;
-    positions.push(c*x+s*lean+s*.21,t*h,-s*x+c*lean+c*.21);
-    const shade=.36+.64*t;colors.push(shade*(b%3===0?1.07:1),shade,shade*.86);
+    const spread=.12+(b%3)*.055;
+    positions.push(c*x+s*lean+s*spread,t*h,-s*x+c*lean+c*spread);
+    const shade=.32+.68*t,warm=b%3===0;colors.push(shade*(warm?1.13:.93),shade,shade*(warm?.68:.86));
    }
   }
   for(let row=0;row<2;row++){const i=start+row*2;indices.push(i,i+1,i+2,i+1,i+3,i+2);}
@@ -34,7 +35,7 @@ export function meadowPlacements(region,style,colliders){
   if((patch<-.46&&random()>.34)||(inTown(x,z)&&random()>.3))continue;
   const slope=groundGradient(region,x,z),scale=.72+random()*.48,key=`${Math.floor(x/12)},${Math.floor(z/12)}`;
   if(!sectors.has(key))sectors.set(key,[]);
-  sectors.get(key).push({x,z,y:groundHeight(region,x,z)-.025,scale,angle:random()*Math.PI*2,shade:.78+random()*.3,slope});
+  sectors.get(key).push({x,z,y:groundHeight(region,x,z)-.025,scale,angle:random()*Math.PI*2,shade:.78+random()*.3,hue:.5+.5*Math.sin(x*.22+Math.cos(z*.17)),slope});
  }
  return sectors;
 }
@@ -60,7 +61,7 @@ export function createMeadowView(scene,region,style,colliders){
     transformed.y*=fade*shelter;
    `);
   };
-  m.customProgramCacheKey=()=>`instanced-meadow-v1-${detail}`;return m;
+  m.customProgramCacheKey=()=>`instanced-meadow-v2-${detail}`;return m;
  });
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),yaw=new T.Quaternion(),up=new T.Vector3(0,1,0),normal=new T.Vector3(),position=new T.Vector3(),scale=new T.Vector3(),color=new T.Color();
  for(const [key,placements] of meadowPlacements(region,style,colliders)){
@@ -69,7 +70,8 @@ export function createMeadowView(scene,region,style,colliders){
    const mesh=new T.InstancedMesh(geometries[layer],materials[layer],placements.length);mesh.name=`meadow-layer-${layer}`;mesh.receiveShadow=true;
    for(let i=0;i<placements.length;i++){
     const p=placements[i];rotation.setFromUnitVectors(up,normal.set(-p.slope.x,1,-p.slope.z).normalize());yaw.setFromAxisAngle(up,p.angle);rotation.multiply(yaw);
-    matrix.compose(position.set(p.x,p.y,p.z),rotation,scale.setScalar(p.scale));mesh.setMatrixAt(i,matrix);mesh.setColorAt(i,color.setRGB(p.shade,p.shade,p.shade));
+    const width=p.scale*(.8+p.hue*.35);
+    matrix.compose(position.set(p.x,p.y,p.z),rotation,scale.set(width,p.scale,width));mesh.setMatrixAt(i,matrix);mesh.setColorAt(i,color.setRGB(p.shade*(.88+p.hue*.2),p.shade,p.shade*(.86+(1-p.hue)*.12)));
    }
    mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;
    mesh.computeBoundingBox();mesh.boundingBox.expandByScalar(.3);mesh.computeBoundingSphere();mesh.boundingSphere.radius+=.3;

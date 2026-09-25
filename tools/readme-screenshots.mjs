@@ -10,12 +10,13 @@ import {Campaign} from '../game/src/campaign.js';
 import {travelFixture} from './travel-fixture.mjs';
 
 const base=process.env.SCREENSHOT_BASE_URL||'http://localhost:4173/preview/';
-const out='screenshots';await fs.mkdir(out,{recursive:true});
+const out=process.env.SCREENSHOT_OUT||'screenshots';await fs.mkdir(out,{recursive:true});
 const source=(await fs.readFile('game/src/main.js','utf8')).replace('await rig.ready;','window.captureFixture={model,world,hero,orbit,input};await rig.ready;');
-const shots=[
+const shots=process.env.SCREENSHOT_SHOTS?JSON.parse(process.env.SCREENSHOT_SHOTS):[
  {name:'hearthstead',region:0,classId:'warrior',x:0,z:13,yaw:.35,tilt:0,zoom:1.06},
  {name:'willow-run',region:0,classId:'mage',x:-47,z:8,yaw:1.1,tilt:-.08,zoom:1.08},
  {name:'saltwind-coast',region:2,classId:'ninja',x:49,z:8,yaw:-1.3,tilt:-.13,zoom:1.13},
+ ...(process.env.SCREENSHOT_ALL?[{name:'thornwood',region:1,classId:'dwarf',x:0,z:13,yaw:.35,tilt:0,zoom:1.06},{name:'court',region:3,classId:'warrior',x:0,z:13,yaw:.35,tilt:0,zoom:1.06}]:[]),
 ];
 function saveFor(shot){
  const m=new Combat(),p=new Progression(),c=new Campaign(p,m);p.restore(m);
@@ -44,6 +45,8 @@ try{
    f.orbit.yaw=f.orbit.targetYaw=s.yaw;f.orbit.tilt=f.orbit.targetTilt=s.tilt;f.orbit.zoom=f.orbit.targetZoom=s.zoom;f.orbit.distance=0;
   },shot);
   await page.waitForFunction(s=>Math.abs(window.__GAME__.pos[0]-s.x)<.01&&Math.abs(window.__GAME__.camera.yaw-s.yaw)<.001,{},shot);
+  await page.waitForFunction(()=>window.__GAME__.decor,{timeout:120000});
+  if(shot.waitEnemy)await page.waitForFunction(n=>!!document.querySelector('canvas')&&window.captureFixture.world&&[...window.captureFixture.hero.parent.children].some(o=>o.name===n),{},shot.waitEnemy);
   await page.evaluate(()=>new Promise(resolve=>{let frames=0;const next=()=>++frames===5?resolve():requestAnimationFrame(next);requestAnimationFrame(next);}));
   await page.screenshot({path:`${out}/${shot.name}.webp`,type:'webp',quality:86});
   console.log(`${shot.name}: ${JSON.stringify(await page.evaluate(()=>({region:window.__GAME__.campaign.name,classId:window.__GAME__.classId,draws:window.__GAME__.draws,tris:window.__GAME__.tris})))}`);

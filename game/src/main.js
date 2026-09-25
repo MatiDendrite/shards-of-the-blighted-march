@@ -1,6 +1,10 @@
 import * as T from 'three';
-import { ASSET } from '../lib/assetlib.js';
+import {loadActorAsset} from './actor-surfaces.js';
 import { createRig } from '../lib/rig.js';
+import { Fishing, fishingSpot } from './fishing.js';
+import { waterDistance } from './geography.js';
+import { createFishingView } from './fishing-view.js';
+import { createWildlife } from './wildlife.js';
 import { createInput } from './input.js';
 import { createWorld } from './world.js';
 import { Combat } from './combat-model.js';
@@ -15,7 +19,8 @@ import { REGIONS } from './campaign-data.js';
 import { createCampaignView } from './campaign-view.js';
 import { createTownView } from './town-view.js';
 import { createAtlasView } from './atlas-view.js';
-import { setLandscapeLighting,applyLandscapePalette } from './landscape-lighting.js';
+import { setLandscapeLighting,applyLandscapePalette,LANDSCAPE_RENDER_OPTIONS } from './landscape-lighting.js';
+import {applyVisualQuality} from './visual-quality.js';
 import {inTown,WORLD_LIMIT,EXIT,MAPS} from './world-map.js';
 import {createFrameClock} from './frame-clock.js';
 import {CameraOrbit,cameraRelative,cameraHeading} from './camera-orbit.js';
@@ -31,9 +36,9 @@ async function boot(){
   const canvas=$('#world'),renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(1);renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(44,innerWidth/innerHeight,.1,140);
-  const rig=createRig(T,renderer,scene,{camera,tier:'phone',hour:16.5,azimuth:245,post:false,cascades:1,shadowMap:1024,shadowDist:36,exposure:1.15,sunColor:0xffe6bd,sunIntensity:2.25,fill:1.3,envIntensity:.5,bounce:.4,fogStart:19,fogDensity:.022});
+  const rig=createRig(T,renderer,scene,{...LANDSCAPE_RENDER_OPTIONS,camera});
   const artReady=loadArt(renderer),assetsReady=loadCombatAssets();
-  const [world,hero,combatAssets]=await Promise.all([createWorld(scene,artReady),ASSET(new URL('../assets/wanderer.js',import.meta.url).href,{keepHierarchy:true,height:1.85,surfaces:true}),assetsReady]);
+  const [world,hero,combatAssets]=await Promise.all([createWorld(scene,artReady),loadActorAsset(new URL('../assets/wanderer.js',import.meta.url).href,{keepHierarchy:true,height:1.85}),assetsReady]);
   const snapshotObstacles=()=>Object.freeze(world.colliders.map(c=>Object.freeze({...c})));let diagnosticObstacles=snapshotObstacles();
   if(!hero.userData.joints?.leftLeg)throw new Error('The Wanderer joint hierarchy did not load.');
   mergeJoints(hero);
@@ -44,6 +49,8 @@ async function boot(){
   const model=new Combat((x,z)=>world.canStand(x,z)&&(model.shard.hp<=0||Math.hypot(x-model.shard.x,z-model.shard.z)>1.12),(x,z)=>world.canStand(x,z));
   const clearInput=input.clear;input.clear=()=>{clearInput();orbit.stop();cameraLooking=false;model.clearBufferedInput();};
   const audio=createAudio(),combatView=await createCombatView(scene,hero,model,audio,{assets:combatAssets,prepare:root=>rig.refresh(root)});
+  const wildlife=createWildlife(scene),spawnWildlife=()=>wildlife.load().then(()=>wildlife.setRegion(campaign.region,(x,z)=>world.canStand(x,z))).catch(error=>console.error('Wildlife unavailable',error));
+  const fishing=new Fishing(),fishingView=createFishingView(scene,hero,(x,z)=>world.heightAt(x,z));let fishSpotNear=false,fishScan=0,interiorShown=null;
   const store=saveStore({getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value)}),saved=store.load();
   let progress=new Progression(saved);const campaign=new Campaign(progress,model);progress.restore(model);world.setRegion(campaign.region);diagnosticObstacles=snapshotObstacles();if(campaign.region!==0)rig.setTime(world.atmosphere);
   await combatView.loadClass(progress.data.classId);combatView.setClass(progress.data.classId);
@@ -76,12 +83,29 @@ async function boot(){
   function openBag(mode){if((classView?.busy||classView?.journey))return;classView?.close();townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden)closeJournal();if(!$('#inventory').hidden){closeBag();return;}if(mode==='smith'&&!progress.nearSmith(model.player)){combatView.notice('Borin upgrades equipment at Hearthstead market. M marks his forge; southern portals lead back.');return;}if(mode==='merchant'&&!progress.nearMerchant(model.player))return;paused=true;input.clear();rpgView.open(mode);}
   function closeJournal(){if($('#journal').hidden)return;$('#journal').hidden=true;paused=false;input.clear();document.activeElement?.blur();}
   function openJournal(){if((classView?.busy||classView?.journey))return;classView?.close();townView.close();atlas.close(false);if(!started||model.dead||!$('#victory').hidden||!$('#pause').hidden)return;if(!$('#journal').hidden){closeJournal();return;}if(!$('#inventory').hidden)closeBag();paused=true;input.clear();campaignView.open();save();}
-  function regionChanged(){classView?.close(false);classView?.refresh();combatView.setClass(model.player.classId);atlas?.close(false);combatView.reset();rpgView.clearDrops();if(world.setRegion(campaign.region))rig.refresh(scene);diagnosticObstacles=snapshotObstacles();setLandscapeLighting(rig,world.atmosphere);input.clear();hitStop=0;acc=0;actualSpeed=0;inventoryStill=0;hero.rotation.set(0,Math.PI,0);hero.position.set(model.player.x,world.heightAt(model.player.x,model.player.z)+.06,model.player.z);$('#journal').hidden=true;$('#defeat').hidden=true;$('#victory').hidden=true;paused=ended=false;won=campaign.complete;save();combatView.notice(REGIONS[campaign.region].name);document.activeElement?.blur();}
+  function regionChanged(){classView?.close(false);classView?.refresh();combatView.setClass(model.player.classId);atlas?.close(false);combatView.reset();fishing.reset();fishingView.reset();rpgView.clearDrops();if(world.setRegion(campaign.region))rig.refresh(scene);diagnosticObstacles=snapshotObstacles();setLandscapeLighting(rig,world.atmosphere);world.setFound(progress.data.found);if(started)spawnWildlife();if(started)world.decorate().catch(error=>console.error('Scenery dressing failed',error));input.clear();hitStop=0;acc=0;actualSpeed=0;inventoryStill=0;hero.rotation.set(0,Math.PI,0);hero.position.set(model.player.x,world.heightAt(model.player.x,model.player.z)+.06,model.player.z);$('#journal').hidden=true;$('#defeat').hidden=true;$('#victory').hidden=true;paused=ended=false;won=campaign.complete;save();combatView.notice(REGIONS[campaign.region].name);document.activeElement?.blur();}
+  // Chests, herbs, ore and shrines in reach of E; shrines rest between blessings.
+  const shrineRest=new Map();
+  const DISCOVER_LABELS={chest:'Open the chest',herb:'Gather moonleaf',ore:'Mine the ore vein',shrine:'Pray at the shrine'};
+  // Barrels are smashed with weapons, so they never claim the E prompt.
+  const nearFind=()=>world.nearestDiscoverable(model.player,2.1,kind=>kind==='barrel');
+  function discover(){if(!started||paused||model.dead||model.player.action)return false;const t=nearFind();if(!t)return false;
+   if(t.kind==='shrine'&&(shrineRest.get(t.id)||0)>elapsed){combatView.notice('The shrine is gathering its strength again');return true;}
+   const reward=progress.discover(t,model,campaign.region);if(!reward)return false;if(t.kind==='shrine')shrineRest.set(t.id,elapsed+90);
+   world.markFound(t);audio.play({chest:'quest',herb:'equip',ore:'forge',shrine:'ward'}[t.kind]);save();return true;}
+  function smashBarrels(events){for(const e of events){const hits=[];for(const d of world.discoverables){if(d.gone||d.prop.kind!=='barrel'||progress.data.found.includes(d.prop.id))continue;const dx=d.prop.x-e.x,dz=d.prop.z-e.z,dist=Math.hypot(dx,dz);
+    if(e.type==='swing'&&!e.projectile&&e.range&&dist<e.range+.6&&Math.abs(Math.atan2(Math.sin(Math.atan2(dx,dz)-e.angle),Math.cos(Math.atan2(dx,dz)-e.angle)))<(e.arc||1)/2+.3)hits.push(d.prop);
+    else if((e.type==='classImpact'||e.type==='explosion')&&dist<(e.radius||2)+.6)hits.push(d.prop);}
+   for(const prop of hits)if(progress.discover(prop,model,campaign.region)){world.markFound(prop);audio.play('heavyHit');}}}
+  $('#interact-button').onclick=()=>{if(!paused)discover();};
+  function castLine(){if(!started||paused||model.dead||model.player.action||model.player.dodge>0)return false;if(!fishing.cast(campaign.region,model.player,model.enemies))return false;combatView.notice('Line cast · wait for the float to dive, then press E');return true;}
+  function eatFish(){if(!started||paused)return;const fish=progress.eatFish(model);if(fish){audio.play('eat');save();combatView.notice(`${fish.name} · +${fish.heal} health`);}else if(!progress.fishCount)combatView.notice('No fish yet · cast a line at a river, lake or the sea (E)');}
+  $('#fish-button').onclick=eatFish;$('#cast-button').onclick=()=>{if(paused)return;if(fishing.active)fishing.hook();else castLine();};
   function travel(region){if(!started||paused||model.dead)return;if(campaign.travel(region))regionChanged();else combatView.notice('Approach an unlocked portal and leave combat before travelling.');}
   $('#journal-button').onclick=openJournal;$('#journal-close').onclick=closeJournal;$('#gate-button').onclick=()=>{if(!paused&&campaign.nearPortal)travel(campaign.nearPortal.destination);};
   $('#bag-button').onclick=()=>openBag('inventory');$('#smith-button').onclick=()=>openBag('smith');$('#bag-close').onclick=closeBag;
   $('#potion-button').onclick=()=>{if(started&&!paused&&progress.potion(model)){save();combatView.notice('Healing draught · +65 health');}};
-  addEventListener('keydown',e=>{if(e.repeat||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;if(e.code==='KeyJ'){e.preventDefault();openJournal();}if(e.code==='KeyI'){e.preventDefault();openBag('inventory');}if(e.code==='KeyE'){e.preventDefault();if(!paused&&campaign.nearPortal)travel(campaign.nearPortal.destination);else if(!paused){if(progress.nearSmith(model.player))openBag('smith');else if(!townView.open())combatView.notice('Approach a townsfolk, blacksmith or portal to interact.');}}});
+  addEventListener('keydown',e=>{if(e.repeat||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;if(e.code==='KeyJ'){e.preventDefault();openJournal();}if(e.code==='KeyI'){e.preventDefault();openBag('inventory');}if(e.code==='KeyE'){e.preventDefault();if(!paused&&fishing.active)fishing.hook();else if(!paused&&campaign.nearPortal)travel(campaign.nearPortal.destination);else if(!paused){if(progress.nearSmith(model.player))openBag('smith');else if(!townView.open()&&!discover()&&!castLine())combatView.notice('Approach a townsfolk, blacksmith, portal or open water to interact.');}}if(e.code==='KeyG'){e.preventDefault();eatFish();}});
   addEventListener('pagehide',()=>{if(started)save();});
   addEventListener('keydown',e=>{if(e.code==='KeyK'&&!e.repeat&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)){e.preventDefault();if(!$('#class-dialog').hidden)classView.close();else classView.open();}});
   addEventListener('keydown',e=>{if(e.code==='KeyM'&&!e.repeat&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)){e.preventDefault();atlas.open();}});
@@ -93,17 +117,17 @@ async function boot(){
   $('#menu-button').onclick=()=>pause(true);$('#resume').onclick=()=>pause(false);
   addEventListener('keydown',e=>{if(e.code==='Escape')pause(!paused);});
   addEventListener('blur',()=>{if($('#class-dialog').hidden&&$('#inventory').hidden&&$('#journal').hidden&&$('#town-dialog').hidden&&$('#atlas-dialog').hidden)pause(true);});document.addEventListener('visibilitychange',()=>{if(document.hidden){if(started)save();if($('#class-dialog').hidden&&$('#inventory').hidden&&$('#journal').hidden&&$('#town-dialog').hidden&&$('#atlas-dialog').hidden)pause(true);}});
-  $('#quality').onchange=e=>{renderer.setPixelRatio(e.target.value==='high'?Math.min(devicePixelRatio,1.5):1);resize();};
+  $('#quality').onchange=e=>{applyVisualQuality(renderer,rig,e.target.value,devicePixelRatio);resize();};
   function reset(fresh=false,classId=progress.data.classId){if(!progress.beginJourney(model,{fresh,classId}))return false;for(const id of ['#pause','#defeat','#victory','#inventory','#journal','#town-dialog'])$(id).hidden=true;regionChanged();orbit.reset(true);orbit.distance=0;audio.unlock();return true;}
   function restart(){classView.open('expedition');}
   $('#reset-view').onclick=restart;$('#replay').onclick=restart;$('#retry').onclick=()=>{campaign.retry();regionChanged();};
   $('#explore').onclick=()=>{$('#victory').hidden=true;paused=false;input.clear();};
   $('#sound').onchange=e=>audio.setMuted(!e.target.checked);
-  $('#startb').onclick=()=>{audio.unlock();started=true;$('#welcome').hidden=true;$('#hud').hidden=false;input.clear();save();document.activeElement?.blur();};
+  $('#startb').onclick=()=>{audio.unlock();started=true;world.setFound(progress.data.found);spawnWildlife();world.decorate().catch(error=>console.error('Scenery dressing failed',error));$('#welcome').hidden=true;$('#hud').hidden=false;input.clear();save();document.activeElement?.blur();};
   $('#reset-view').textContent='Restart expedition · keep equipment';
   const fresh=document.createElement('button');fresh.id='new-journey';fresh.textContent='New journey · choose class';$('#pause').append(fresh);fresh.onclick=()=>classView.open('fresh');
   await rig.ready;
-  // An overcast palette: keep the rig's directional haze while removing sunset amber.
+  // The clear-afternoon palette keeps the rig's directional haze but brightens its sky.
   // The correct environment is already built. Reapply only the sky palette;
   // rebuilding the same PMREM twice queues expensive, discarded GPU work.
   applyLandscapePalette(rig);
@@ -113,6 +137,8 @@ async function boot(){
     // Held movement follows the current view immediately, including during orbit.
     const raw=input.read(),m={...raw,...cameraRelative(raw.x,raw.z,orbit.yaw)},p=model.player,actions=input.consume();
     const moving=Math.hypot(m.x,m.z)>.08;
+    // Any movement input reels in, even when the shore blocks the step.
+    if(moving&&fishing.active)fishing.cancel('moved');
     let angle=p.angle,aimPoint=null;
     if(moving)angle=Math.atan2(m.x,m.z);
     // Hover can preview a bomb, but only combat input turns toward the cursor.
@@ -121,7 +147,8 @@ async function boot(){
     if(input.isTouch){const assisted=touchAim(model,actions,m.attack,angle);angle=assisted.angle;aimPoint=assisted.point;}
     for(const action of actions){if(action==='weapon'){model.cycleWeapon();progress.sync(model);}else if(action==='potion'){if(progress.potion(model))save();}else if(action==='dodge')model.dodge(m.x,m.z);else model.requestAttack(action==='attack'?'basic':SLOT_IDS.includes(action)?skillForSlot(p.classId,action):action,angle,aimPoint);}
     const oldX=p.x,oldZ=p.z;model.update(dt,{...m,aim:angle,aimPoint});actualSpeed=Math.hypot(p.x-oldX,p.z-oldZ)/dt;hero.position.set(p.x,world.heightAt(p.x,p.z)+.06,p.z);hero.rotation.y=p.angle;
-    const revision=progress.revision,events=model.consume();progress.events(events,model);progress.tick(dt);progress.collect(p);const questCompleted=campaign.observe();if(questCompleted){campaignView.celebrate();audio.play('quest');}combatView.process(events);if(events.some(e=>e.type==='hit'))hitStop=events.some(e=>e.type==='hit'&&e.heavy)?.06:.03;
+    fishing.update(dt,p,model.enemies);const lineEvents=fishing.consume();fishingView.process(lineEvents,p);for(const e of lineEvents){if(e.type==='cast')audio.play('cast');else if(e.type==='land')audio.play('plop');if(e.type==='bite'){combatView.notice('A bite! Press E to hook it',1.2);audio.play('plop');}else if(e.type==='escape')combatView.notice('It slipped away · keep waiting',1.6);else if(e.type==='catch'){audio.play('splash');if(progress.addFish(e.fish))save();}else if(e.type==='cancel'&&e.reason==='danger')combatView.notice('An enemy approaches · you reel in your line');}
+    const revision=progress.revision,events=model.consume();progress.events(events,model);progress.tick(dt);progress.collect(p);const questCompleted=campaign.observe();if(questCompleted){campaignView.celebrate();audio.play('quest');}combatView.process(events);smashBarrels(events);if(events.some(e=>e.type==='hit'))hitStop=events.some(e=>e.type==='hit'&&e.heavy)?.06:.03;
     if(progress.messages.length){if(!questCompleted)combatView.notice(progress.messages.at(-1));progress.messages.length=0;}
     saveTimer+=dt;if(progress.revision!==revision||saveTimer>5){save();saveTimer=0;}
     if(model.dead&&!ended){ended=true;input.clear();$('#defeat p').textContent='You lost 10% of your gold. Equipment, XP, completed quests and collected rewards are safe. Return to this region’s safe ground; surviving enemies recover their health.';$('#defeat').hidden=false;save();}
@@ -140,7 +167,12 @@ async function boot(){
     const heading=cameraHeading(orbit.yaw);if($('#camera-heading').textContent!==heading)$('#camera-heading').textContent=heading;
     ring.position.set(hero.position.x,.09,hero.position.z);ring.visible=started;if(started)drapeGround(ring,world.heightAt,.09);
     if(!paused){world.dust.rotation.y=Math.sin(elapsed*.025)*.045;world.update(dt,model.player);}
-    const shake=combatView.update(started&&!paused?dt:0,camera);if(started&&!paused&&$('#shake').checked&&shake>0){const eye=orbit.shaken(Math.sin(elapsed*110)*shake,Math.cos(elapsed*95)*shake*.5,world.cameraObstacles);camera.position.set(eye.x,eye.y,eye.z);}
+    if(started&&world.interior!==interiorShown){interiorShown=world.interior;if(interiorShown){audio.play('door');combatView.notice(`${interiorShown.name} · warm, safe and out of the wind`,2.5);}}
+    {const p=model.player,d=waterDistance(campaign.region,p.x,p.z);audio.ambient({water:Math.max(0,Math.min(1,1-d/16)),wind:inTown(p.x,p.z)?.25:.6,hearth:world.interior?1:0,active:started&&!paused});}
+    const shake=combatView.update(started&&!paused?dt:0,camera);fishingView.update(started&&!paused?dt:0,model.player);wildlife.update(started&&!paused?dt:0,model.player);
+    if(started&&fishScan<=1){const t=model.dead?null:nearFind(),b=$('#interact-button'),label=t?`${DISCOVER_LABELS[t.kind]} · E`:'';b.hidden=!t;if(t&&b.textContent!==label)b.textContent=label;}
+    if(started&&--fishScan<=0){fishScan=8;fishSpotNear=!nearFind()&&!fishing.active&&!model.dead&&!campaign.nearPortal&&!!fishingSpot(campaign.region,model.player,model.enemies);}
+    {const b=$('#cast-button'),show=started&&!model.dead&&(fishing.active||fishSpotNear);b.hidden=!show;const label=fishing.phase==='bite'?'Hook it! · E':fishing.active?'Reel in · E':'Cast a line · E';if(show&&b.textContent!==label)b.textContent=label;b.classList.toggle('biting',fishing.phase==='bite');const count=String(progress.fishCount);if($('#fish-count').textContent!==count)$('#fish-count').textContent=count;}if(started&&!paused&&$('#shake').checked&&shake>0){const eye=orbit.shaken(Math.sin(elapsed*110)*shake,Math.cos(elapsed*95)*shake*.5,world.cameraObstacles);camera.position.set(eye.x,eye.y,eye.z);}
     rpgView.update(started&&!paused?dt:0,camera);
     campaignView.update(started&&!paused?dt:0);townView.update(dt,camera);
     // Reuse settled pause/dialog/end-screen backgrounds instead of redrawing
@@ -151,7 +183,7 @@ async function boot(){
     if(renderDirty||started&&inventoryStill<1.2){rig.render(camera,dt);renderDirty=false;}
     const targets=model.enemies.filter(e=>e.hp>0).map(e=>{const s=new T.Vector3(e.x,world.heightAt(e.x,e.z),e.z).project(camera);return{id:e.id,x:e.x,z:e.z,hp:e.hp,kind:e.kind,sx:(s.x*.5+.5)*innerWidth,sy:(-s.y*.5+.5)*innerHeight,visible:s.z>-1&&s.z<1&&Math.abs(s.x)<1&&Math.abs(s.y)<1};});
     const shardScreen=new T.Vector3(model.shard.x,world.heightAt(model.shard.x,model.shard.z),model.shard.z).project(camera);
-    window.__GAME__={pos:[hero.position.x,hero.position.z],fps,speed:started&&!paused&&!model.dead?actualSpeed:0,score:model.kills,over:model.dead,draws:renderer.info.render.calls,tris:renderer.info.render.triangles,started,paused,stage:4,worldSize:WORLD_LIMIT*2,inTown:inTown(model.player.x,model.player.z),exit:{...EXIT},town:MAPS[campaign.region].town,...model.telemetry(),campaign:campaign.telemetry(),maxHp:model.player.maxHp,targets,rpg:{level:progress.data.level,xp:progress.data.xp,gold:progress.data.gold,ore:progress.data.ore,potions:progress.data.potions,items:progress.data.items.map(i=>({...i})),loadout:{...progress.data.loadout},drops:progress.data.drops.map(d=>({...d})),nearSmith:progress.nearSmith(model.player),save:store.status},shard:{x:model.shard.x,z:model.shard.z,sx:(shardScreen.x*.5+.5)*innerWidth,sy:(-shardScreen.y*.5+.5)*innerHeight,blast:model.shard.blast}};
+    window.__GAME__={wildlife:wildlife.count,found:progress.data.found.length,near:nearFind()?.id||null,decor:world.decorReady,interior:world.interior?.name||null,fishing:{phase:fishing.phase,fish:[...progress.data.fish],near:fishSpotNear},pos:[hero.position.x,hero.position.z],fps,speed:started&&!paused&&!model.dead?actualSpeed:0,score:model.kills,over:model.dead,draws:renderer.info.render.calls,tris:renderer.info.render.triangles,started,paused,stage:4,worldSize:WORLD_LIMIT*2,inTown:inTown(model.player.x,model.player.z),exit:{...EXIT},town:MAPS[campaign.region].town,...model.telemetry(),campaign:campaign.telemetry(),maxHp:model.player.maxHp,targets,rpg:{level:progress.data.level,xp:progress.data.xp,gold:progress.data.gold,ore:progress.data.ore,potions:progress.data.potions,items:progress.data.items.map(i=>({...i})),loadout:{...progress.data.loadout},drops:progress.data.drops.map(d=>({...d})),nearSmith:progress.nearSmith(model.player),save:store.status},shard:{x:model.shard.x,z:model.shard.z,sx:(shardScreen.x*.5+.5)*innerWidth,sy:(-shardScreen.y*.5+.5)*innerHeight,blast:model.shard.blast}};
     // A copied, read-only diagnostic map lets input tests route around scenery.
     window.__GAME__.obstacles=diagnosticObstacles;
     window.__GAME__.camera=orbit.telemetry();

@@ -117,7 +117,7 @@ export async function createWorld(host,art){
     for(let i=0;i<300;i++){const x=(rand()-.5)*120,z=(rand()-.5)*120;points.push(x,groundHeight(region,x,z)+.4+rand()*5,z);}
     dustGeo.setAttribute('position',new T.Float32BufferAttribute(points,3));
     const dust=new T.Points(dustGeo,new T.PointsMaterial({color:style.dust,size:region===1?.05:.035,transparent:true,opacity:.6}));scene.add(dust);
-    return {region,style,decorProps:layout.props.filter(p=>p.decor),landmarkProps:layout.props.filter(p=>p.landmark),motion:[],decorated:false,root:scene,colliders,cameraObstacles,openObstacles,halls,time:0,dust,effects,geography,meadow,banks,coverChunks};
+    return {region,style,decorProps:layout.props.filter(p=>p.decor&&!DECOR[p.kind].discover),discoverProps:layout.props.filter(p=>p.decor&&DECOR[p.kind].discover),discover:[],landmarkProps:layout.props.filter(p=>p.landmark),motion:[],decorated:false,root:scene,colliders,cameraObstacles,openObstacles,halls,time:0,dust,effects,geography,meadow,banks,coverChunks};
   }
   zones[0]=build(0);host.add(zones[0].root);
   // Dressing props load after the player starts: carts, camps, ruins and
@@ -125,7 +125,9 @@ export async function createWorld(host,art){
   let decorModels=null;
   let landmarkModels=null;
   function loadLandmarks(){landmarkModels??=Promise.all(Object.entries(LANDMARK_FILES).map(async([kind,file])=>{const model=await ASSET(new URL(`../assets/${file}.js`,import.meta.url).href,{keepHierarchy:true});art.apply(model);return[kind,model];})).then(Object.fromEntries);return landmarkModels;}
-  function loadDecor(){decorModels??=Promise.all(Object.entries(DECOR).map(async([kind,d])=>{const model=await ASSET(new URL(`../assets/${d.file}.js`,import.meta.url).href);art.apply(model);return[kind,model];})).then(Object.fromEntries);return decorModels;}
+  let discoverModels=null;
+  function loadDiscover(){discoverModels??=Promise.all(Object.entries(DECOR).filter(([,d])=>d.discover).map(async([kind,d])=>{const model=await ASSET(new URL(`../assets/${d.file}.js`,import.meta.url).href,{keepHierarchy:true});art.apply(model);return[kind,model];})).then(Object.fromEntries);return discoverModels;}
+  function loadDecor(){decorModels??=Promise.all(Object.entries(DECOR).filter(([,d])=>!d.discover).map(async([kind,d])=>{const model=await ASSET(new URL(`../assets/${d.file}.js`,import.meta.url).href);art.apply(model);return[kind,model];})).then(Object.fromEntries);return decorModels;}
   async function decorate(zone){
    if(zone.decorated)return;zone.decorated=true;const models=await loadDecor(),protos={},sectors=new Map();
    for(const kind of Object.keys(models))protos[kind]=tint(models[kind].clone(),zone.style);
@@ -140,18 +142,35 @@ export async function createWorld(host,art){
     const baked=bakeStatic(holder);baked.name=`landmark-${p.kind}`;baked.traverse(o=>{if(o.isMesh){o.castShadow=p.kind!=='field';o.receiveShadow=true;}});art.finish(baked);zone.root.add(baked);
     if(moving){zone.root.add(moving);art.finish(moving);zone.motion.push({kind:p.kind,node:moving,glow:[]});moving.traverse(o=>{if(o.isMesh&&o.material.emissive)zone.motion.at(-1).glow.push(o.material);});}
     if(performance.now()-slice>12){await new Promise(r=>setTimeout(r,0));slice=performance.now();}}
+   // Discoverables: one baked body each, plus a live lid or rune on its own pivot.
+   const finds=await loadDiscover(),parts={chest:'chest-lid',shrine:'shrine-rune'};
+   for(const p of zone.discoverProps){const obj=tint(finds[p.kind].clone(),zone.style),holder=new T.Group();obj.position.set(p.x,p.y,p.z);obj.rotation.y=p.rotation;holder.add(obj);holder.updateMatrixWorld(true);
+    let pivot=null;const part=parts[p.kind]&&obj.getObjectByName(parts[p.kind]);
+    if(part){pivot=new T.Group();part.parent.matrixWorld.decompose(pivot.position,pivot.quaternion,pivot.scale);part.removeFromParent();pivot.add(part);}
+    const root=new T.Group(),baked=bakeStatic(holder);root.add(baked);if(pivot)root.add(pivot);root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});art.finish(root);zone.root.add(root);
+    zone.discover.push({prop:p,root,part,open:0,opening:false,gone:false,flash:0});
+    if(performance.now()-slice>12){await new Promise(r=>setTimeout(r,0));slice=performance.now();}}
+   applyFound(zone);
    zone.decorReady=true;
   }
+  let foundIds=new Set();
+  function applyFound(zone){for(const d of zone.discover){if(!foundIds.has(d.prop.id))continue;if(d.prop.kind==='chest'){d.open=1;if(d.part)d.part.rotation.x=-1.9;}else if(d.prop.kind!=='shrine'){d.gone=true;d.root.visible=false;}}}
   return {
     get dust(){return zones[active].dust;},get colliders(){return zones[active].colliders;},get atmosphere(){const {hour,azimuth}=LANDSCAPES[active];return {hour,azimuth};},
     // Inside a room the camera looks over the cut walls, not the missing roof.
     get cameraObstacles(){const z=zones[active];return z.halls.inside?z.openObstacles:z.cameraObstacles;},
     get interior(){return zones[active].halls.inside;},
+    get discoverables(){return zones[active].discover;},
+    setFound(ids){foundIds=new Set(ids);for(const zone of zones)if(zone)applyFound(zone);},
+    // Opens a chest, clears a gathered node or flashes a shrine in view.
+    markFound(prop){foundIds.add(prop.id);const d=zones[active].discover.find(d=>d.prop.id===prop.id);if(!d)return;if(prop.kind==='chest')d.opening=true;else if(prop.kind==='shrine')d.flash=1;else{d.gone=true;d.root.visible=false;}},
+    nearestDiscoverable(player,range=2.1,skip=()=>false){let best=null,bestD=range;for(const d of zones[active].discover){if(d.gone||skip(d.prop.kind)||d.prop.kind!=='shrine'&&foundIds.has(d.prop.id))continue;const dist=Math.hypot(d.prop.x-player.x,d.prop.z-player.z)-Math.max(DECOR[d.prop.kind].w,DECOR[d.prop.kind].d)/2;if(dist<bestD){best=d.prop;bestD=dist;}}return best;},
     decorate(){return decorate(zones[active]);},get decorReady(){return !!zones[active].decorReady;},
     setRegion(region){const created=!zones[region];if(created)zones[region]=build(region);if(region!==active){host.remove(zones[active].root);host.add(zones[region].root);}active=region;return created;},
     canStand(x,z){return canStandIn(zones[active].colliders,x,z);},
     heightAt(x,z){return groundHeight(active,x,z);},
     update(dt,player={x:0,z:11}){const zone=zones[active];zone.time+=dt;
+      for(const d of zone.discover){if(d.gone)continue;d.root.visible=Math.hypot(d.prop.x-player.x,d.prop.z-player.z)<36;if(d.opening&&d.part){d.open=Math.min(1,d.open+dt*2.2);d.part.rotation.x=-1.9*(1-(1-d.open)**3);if(d.open>=1)d.opening=false;}if(d.prop.kind==='shrine'&&d.part){d.flash=Math.max(0,d.flash-dt*.8);d.part.rotation.z=zone.time*.4;d.part.scale.setScalar(1+d.flash*.35+Math.sin(zone.time*2)*.03);}}
       for(const m of zone.motion){if(m.kind==='windmill')m.node.rotation.z+=dt*.55;else if(m.kind==='lighthouse')m.node.rotation.y+=dt*.7;else for(const mat of m.glow)mat.emissiveIntensity=1.1+Math.sin(zone.time*1.6)*.5;}zone.halls.update(zone.time,player);art.update(dt,player,groundHeight(active,player.x,player.z));zones[active].effects.update(dt);zones[active].geography.update(dt);zones[active].meadow.update(dt,player);zones[active].banks.update(dt,player);for(const c of zones[active].coverChunks)c.root.visible=Math.hypot(c.x-player.x,c.z-player.z)<42;},
   };
 }

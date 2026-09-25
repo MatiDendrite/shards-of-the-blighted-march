@@ -138,7 +138,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   noticeTimer-=dt;if(noticeTimer<=0)document.querySelector('#notice').hidden=true;
   document.querySelector('#hp-fill').style.width=`${p.hp/p.maxHp*100}%`;text('#hp-text',`${Math.ceil(p.hp)} / ${p.maxHp}`);
   document.querySelector('#stamina-fill').style.width=`${p.stamina}%`;text('#stamina-text',Math.floor(p.stamina));
-  text('#status-text',p.ward>0?`Iron Ward · ${Math.ceil(p.ward)} shield · ${Math.ceil(p.wardTime)}s`:p.smoke>0?`Smoke Veil · ${Math.ceil(p.smoke)}s · faster & guarded`:p.buff>0?`Battle Cry · ${Math.ceil(p.buff)}s · +35% damage`:inTown(p.x,p.z)?'Settlement · heal & change class (K)':`Combo ${p.combo || '—'} · ${model.kills} defeated`);
+  text('#status-text',p.blessed>0?`Shrine blessing · ${Math.ceil(p.blessed)}s · +20% damage`:p.ward>0?`Iron Ward · ${Math.ceil(p.ward)} shield · ${Math.ceil(p.wardTime)}s`:p.smoke>0?`Smoke Veil · ${Math.ceil(p.smoke)}s · faster & guarded`:p.buff>0?`Battle Cry · ${Math.ceil(p.buff)}s · +35% damage`:inTown(p.x,p.z)?'Settlement · heal & change class (K)':`Combo ${p.combo || '—'} · ${model.kills} defeated`);
   skillHud(p);
   document.querySelector('#dodge').classList.toggle('unavailable',p.stamina<25||p.dodgeCD>0);
   return shake;

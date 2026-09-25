@@ -71,7 +71,7 @@ export class Combat {
     p.queued=null;p.stamina-=d.cost;p.angle=Number.isFinite(angle)?angle:p.angle;angle=p.angle;
     if(basic){p.combo=this.time<=p.comboUntil?p.combo%3+1:1;this.attacks++;this.weaponsUsed[p.weapon]++;}
     else{p.cooldowns[kind]=d.cooldown;this.skillsUsed[kind]++;}
-    const multiplier=(p.damageMultiplier||1)*(basic&&p.combo===3?1.5:1)*(p.buff>0?1.35:1);
+    const multiplier=(p.damageMultiplier||1)*(basic&&p.combo===3?1.5:1)*(p.buff>0?1.35:1)*(p.blessed>0?1.2:1);
     p.action={...d,kind,weapon:p.weapon,age:0,angle,target:aimPoint(target),hits:new Set(),applied:false,combo:basic?p.combo:0,equipmentDamage:d.damage>0?(p.damageBonus||0)*multiplier:0,damage:(d.damage>0?d.damage+(p.damageBonus||0):0)*multiplier};
     this.emit('attack',{kind,weapon:p.weapon,combo:p.combo});return true;
   }
@@ -100,7 +100,7 @@ export class Combat {
   update(dt,input={x:0,z:0,attack:false,aim:this.player.angle}){
     this.time+=dt;const p=this.player,s=this.shard;p.aimPoint=aimPoint(input.aimPoint);
     for(const key of Object.keys(p.cooldowns))p.cooldowns[key]=Math.max(0,p.cooldowns[key]-dt);
-    p.buff=Math.max(0,p.buff-dt);p.invulnerable=Math.max(0,p.invulnerable-dt);p.dodgeCD=Math.max(0,p.dodgeCD-dt);
+    p.buff=Math.max(0,p.buff-dt);p.blessed=Math.max(0,(p.blessed||0)-dt);p.invulnerable=Math.max(0,p.invulnerable-dt);p.dodgeCD=Math.max(0,p.dodgeCD-dt);
     if(this.dead)return;
     updateClassEffects(this,dt);
     p.stamina=Math.min(100,p.stamina+dt*(p.action||p.dodge>0?4:23));

@@ -12,7 +12,10 @@ import {groundHeight} from './terrain-height.js';
 export const DECOR={
  cart:{file:'supply_cart',w:1.9,d:3.5,solid:true},stack:{file:'supply_stack',w:2.1,d:2,solid:true},woodpile:{file:'woodpile',w:2.4,d:1.7,solid:true},
  hay:{file:'hay_bales',w:2.7,d:2.4,solid:true},tent:{file:'camp_tent',w:2.6,d:3,solid:true,clear:[3.6,5.2]},colonnade:{file:'ruined_colonnade',w:5.4,d:2.2,solid:true},
- bush:{file:'berry_bush',w:1.6,d:1.6,solid:false},log:{file:'fallen_log',w:3.6,d:1,solid:true},sign:{file:'waymarker',w:.5,d:.5,solid:true},fence:{file:'rail_fence',w:4.3,d:.3,solid:true},
+ bush:{file:'berry_bush',w:1.6,d:1.6,solid:false},
+ // Discoverables are built individually so they can open, glow or vanish.
+ chest:{file:'treasure_chest',w:1.1,d:.8,solid:true,discover:true},herb:{file:'herb_patch',w:.8,d:.8,solid:false,discover:true},ore:{file:'ore_vein',w:1.7,d:1.2,solid:true,discover:true},
+ shrine:{file:'rune_shrine',w:2.2,d:2.2,solid:true,discover:true},barrel:{file:'loot_barrel',w:1.3,d:1,solid:false,discover:true},log:{file:'fallen_log',w:3.6,d:1,solid:true},sign:{file:'waymarker',w:.5,d:.5,solid:true},fence:{file:'rail_fence',w:4.3,d:.3,solid:true},
 };
 function keepouts(region){
  const k=[{x:0,z:8,r:10.5},{...ARRIVAL,r:3},{...MAPS[region].shard,r:region===3?17:10}];
@@ -68,5 +71,10 @@ export function decorLayout(region,{colliders,floors,canStandIn,rand}){
  if(rustic)for(const [cx,cz] of [[-24,24],[24,24],[-26,-8],[26,-8]])scatter('fence',3,cx,cz,8,{road:2,face:()=>Math.round(rand())*Math.PI/2});
  scatter('log',10,0,0,56,{road:2.2});scatter('colonnade',region>=2?3:1,0,-8,52,{road:3});
  scatter('bush',region<2?70:50,0,4,57,{road:1.6});
+ // Things to find: chests near ruins, camps and groves, herbs and ore in the
+ // wilds, a shrine on the outskirts and breakable barrels by camps and ruins.
+ const counters={};const find=(kind,count,cx,cz,radius,options={})=>{const before=props.length;scatter(kind,count,cx,cz,radius,options,count*40);for(const p of props.slice(before)){counters[kind]=(counters[kind]||0)+1;p.id=`${region}-${kind}-${counters[kind]}`;}};
+ for(const m of marks){if(['ruin','glade','grove'].includes(m.kind))find('chest',1,m.x,m.z,m.r+7,{road:2.5});if(m.kind==='ruin'||m.kind==='glade')find('barrel',2,m.x,m.z,m.r+5,{road:1.8});}
+ find('chest',2,0,0,54,{road:3});find('herb',9,0,4,55,{road:2});find('ore',4,0,-6,54,{road:2.5});find('shrine',1,0,8,34,{road:2.5});find('barrel',3,0,8,24,{road:1.8});
  return props;
 }

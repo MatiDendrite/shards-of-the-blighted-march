@@ -24,6 +24,7 @@ export function validSave(s){
  if(s?.classId!==undefined&&!CLASS_IDS.includes(s.classId))return false;
  if(s?.layoutVersion!==undefined&&s.layoutVersion!==2)return false;
  if(s?.geographyVersion!==undefined&&s.geographyVersion!==1)return false;
+ if(s?.found!==undefined&&!(Array.isArray(s.found)&&s.found.length<=600&&s.found.every(id=>typeof id==='string'&&/^[0-3]-[a-z]+-\d{1,3}$/.test(id))))return false;
  if(s?.fish!==undefined&&!(Array.isArray(s.fish)&&s.fish.length===FISH.length&&s.fish.every(n=>integer(n,0,FISH_LIMIT))))return false;
  const encounterVersion=s?.encounterVersion===undefined?1:s.encounterVersion;if(![1,2,ENCOUNTER_VERSION].includes(encounterVersion))return false;
  if(!s||s.version!==1||!integer(s.level,1,8)||!integer(s.xp,0,1000)||!integer(s.gold,0,1000000)||!integer(s.ore,0,100000)||!integer(s.potions,0,20)||!integer(s.serial,5,1000000)||!integer(s.run,1,100000)||!integer(s.deaths,0,100000))return false;
@@ -54,7 +55,7 @@ export class Progression{
    const migrate=(state,region)=>{if(state&&region!==3&&encounterComplete(state,region,oldVersion))state.claimed.push(...FIELD_PATROLS.filter(e=>e.id>guardianCount(region,oldVersion)).map(e=>e.id));};
    migrate(d,d.campaign?.region||0);d.campaign?.regions.forEach((state,region)=>migrate(state,region));d.encounterVersion=ENCOUNTER_VERSION;
   }
-  d.classId??='warrior';d.fish??=FISH.map(()=>0);this.fishCD=0;this.revision=0;this.messages=[];this.potionCD=0;
+  d.classId??='warrior';d.fish??=FISH.map(()=>0);d.found??=[];this.fishCD=0;this.revision=0;this.messages=[];this.potionCD=0;
  }
  touch(message){this.revision++;if(message)this.messages.push(message);}
  equipped(kind){return this.data.items.find(i=>i.id===this.data.loadout[kind]);}
@@ -85,13 +86,24 @@ export class Progression{
  beginJourney(combat,{fresh=false,classId=this.data.classId}={}){
   if(!CLASS_IDS.includes(classId))return false;
   if(fresh){this.data=new Progression().data;this.data.campaign=freshCampaign();}
-  else{this.data.run++;Object.assign(this.data,emptyEncounter());if(this.data.campaign)this.data.campaign=freshCampaign();}
+  else{this.data.run++;Object.assign(this.data,emptyEncounter(),{found:[]});if(this.data.campaign)this.data.campaign=freshCampaign();}
   this.data.classId=classId;this.messages=[];this.fullDrop=null;this.potionCD=0;
   combat.reset();combat.player.weapon=this.data.weapon;this.sync(combat,true);
   this.touch(fresh?'A new journey begins':'A new expedition · your equipment and level are kept');return true;
  }
  nextRun(combat){return this.beginJourney(combat);}
  tick(dt){this.potionCD=Math.max(0,this.potionCD-dt);this.fishCD=Math.max(0,this.fishCD-dt);}
+ // Discoveries pay out at once: nothing waits on the ground, so saves stay small.
+ discover(prop,combat,region){const d=this.data,p=combat.player,seed=[...prop.id].reduce((a,c)=>a*31+c.charCodeAt(0)>>>0,d.run*977+region);
+  if(prop.kind==='shrine'){p.hp=p.maxHp;p.stamina=100;p.blessed=30;this.touch('Shrine blessing · full health and +20% damage for 30 seconds');return{kind:'shrine'};}
+  if(d.found.includes(prop.id))return false;
+  if(prop.kind==='herb'){if(p.hp<=0)return false;d.found.push(prop.id);p.hp=Math.min(p.maxHp,p.hp+30);this.experience(4);this.touch('Moonleaf · +30 health');return{kind:'herb'};}
+  if(prop.kind==='ore'){d.found.push(prop.id);const ore=2+seed%2;d.ore=Math.min(100000,d.ore+ore);this.touch(`Ore vein · +${ore} ore for Borin's upgrades`);return{kind:'ore',ore};}
+  if(prop.kind==='barrel'){d.found.push(prop.id);const gold=6+seed%9;d.gold=Math.min(1000000,d.gold+gold);this.touch(`Smashed barrel · +${gold} gold`);return{kind:'barrel',gold};}
+  if(prop.kind==='chest'){d.found.push(prop.id);const gold=30+seed%31+region*10,ore=1+seed%2;d.gold=Math.min(1000000,d.gold+gold);d.ore=Math.min(100000,d.ore+ore);let text=`Treasure chest · +${gold} gold · +${ore} ore`;
+   if(seed%100<40){const item=this.makeItem(KINDS[seed%4],seed%3===0?'rare':'common',region);if(d.items.length<24){d.items.push(item);text+=` · ${item.rarity} ${item.kind}`;}else{d.gold+=25;text+=' · bag full, +25 gold instead';}}
+   this.touch(text);return{kind:'chest',gold,ore};}
+  return false;}
  get fishCount(){return this.data.fish.reduce((a,b)=>a+b,0);}
  addFish(fish){const i=FISH.indexOf(fish);if(i<0)return false;if(this.fishCount>=FISH_LIMIT){this.touch(`Your creel is full · ${fish.name} released`);return false;}this.data.fish[i]++;this.touch(`Caught a ${fish.name} · eat it with G to restore ${fish.heal} health`);return true;}
  // The smallest fish goes first, so a Golden Carp is saved for an emergency.

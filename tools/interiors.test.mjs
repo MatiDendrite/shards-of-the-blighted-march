@@ -10,7 +10,7 @@ import {LANDSCAPES} from '../game/src/region-layout.js';
 
 for(const region of [0,1,2,3])test(`region ${region}: two market houses open onto walkable rooms`,()=>{
  const halls=buildingSites(region).filter(s=>s.hall);assert.deepEqual(halls.map(h=>h.hall),['inn','home']);
- const {colliders,floors,props}=sceneryLayout(region);assert.equal(floors.length,2);assert.equal(props.filter(p=>p.hall).length,2);
+ const {colliders,floors,props}=sceneryLayout(region);assert.equal(floors.filter(f=>!f.landmark).length,2);assert.equal(props.filter(p=>p.hall).length,2);
  for(const site of halls){
   const round=worldToHall(site,...Object.values(hallToWorld(site,1.2,-.7)));assert(Math.abs(round.x-1.2)<1e-9&&Math.abs(round.z+.7)<1e-9);
   // Walk from the doorstep through the doorway to the rug.

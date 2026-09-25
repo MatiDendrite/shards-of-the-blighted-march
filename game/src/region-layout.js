@@ -4,6 +4,7 @@ import {geographyColliders,geographyProps,waterDistance,onCrossing,riverX} from 
 import {buildingSites,gateSites} from './settlement-layout.js';
 import {hallColliders,hallFloor} from './interiors.js';
 import {decorLayout,DECOR} from './decor.js';
+import {landmarkLayout,LANDMARK_SIZE} from './landmarks.js';
 import {groundHeight} from './terrain-height.js';
 export {WORLD_LIMIT};
 export const LANDSCAPES = [
@@ -87,12 +88,14 @@ export function sceneryLayout(region){
  }
  // Collision footprints remain the accepted X/Z layout. Visual bounds receive
  // exactly the same elevation as the placed mesh, including camera obstacles.
+ props.push(...landmarkLayout(region,{colliders,floors,canStandIn}));
  props.push(...decorLayout(region,{colliders,floors,canStandIn,rand:seeded(5150+region*97)}));
  // Every prop settles to the lowest ground under its footprint (a ring plus
  // the box corners), so no side hangs above a slope.
  // Houses and wells keep their graded settlement pads; plinths cover the edge.
  const round={stone:[.7,.7],cliff:[4.5,3],pine:[.22,.22],hornbeam:[.3,.3],bush:[.7,.7],sign:[.3,.3],standard:[.3,.3]},boxed={stall:[1.7,1.1],garden:[1.95,.45],gate:[5,.6],stone:[.6,.6],cliff:[3.6,2.4]};
  for(const [kind,d] of Object.entries(DECOR))if(!round[kind])boxed[kind]=[d.w/2,d.d/2];
+ Object.assign(boxed,LANDMARK_SIZE);
  for(const p of props)if(p.kind!=='bridge'){
   p.y=groundHeight(region,p.x,p.z);
   const ring=round[p.kind],box=boxed[p.kind],c=Math.cos(p.rotation),s=Math.sin(p.rotation),probe=(x,z)=>{x*=p.sx;z*=p.sz;p.y=Math.min(p.y,groundHeight(region,p.x+x*c+z*s,p.z-x*s+z*c));};

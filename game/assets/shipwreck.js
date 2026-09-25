@@ -4,7 +4,7 @@
 export default function generate(THREE){
  const root=new THREE.Group();
  const mat=(name,color,roughness=.9,extra={})=>Object.assign(new THREE.MeshStandardMaterial({color,roughness,...extra}),{name});
- const woodMat=mat('timber',0x6e5238),wetMat=mat('timber',0x4c3a2a),sailMat=mat('fabric',0xd8ccae,.95,{side:THREE.DoubleSide}),ropeMat=mat('fabric',0xa88d5f),ironMat=mat('metal',0x4a403a,.6,{metalness:.4}),weedMat=mat('seaweed',0x4a6236),sandMat=mat('sand',0xcdb784);
+ const woodMat=mat('timber',0x6e5238),wetMat=mat('timber',0x4c3a2a),sailMat=mat('fabric',0x8f826a,.95,{side:THREE.DoubleSide}),ropeMat=mat('fabric',0xa88d5f),ironMat=mat('metal',0x4a403a,.6,{metalness:.4}),weedMat=mat('seaweed',0x4a6236),sandMat=mat('sand',0x9f8660);
  const add=(geo,m,x,y,z,parent=root)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);parent.add(o);return o;};
  const v=(x,y,z)=>new THREE.Vector3(x,y,z),L=9,hull=new THREE.Group();hull.rotation.z=.42;hull.position.y=.2;root.add(hull);
  // Keel, stem and sternpost sweep up at both ends.

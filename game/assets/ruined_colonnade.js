@@ -3,7 +3,7 @@
 export default function generate(THREE){
  const root=new THREE.Group();
  const mat=(name,color,roughness=.95)=>Object.assign(new THREE.MeshStandardMaterial({color,roughness}),{name});
- const stoneMat=mat('stone',0xc9bfa8),weatheredMat=mat('stone',0xa39a86),mossMat=mat('moss',0x5f7d3d),ivyMat=Object.assign(new THREE.MeshStandardMaterial({color:0x4d7a36,roughness:.9,side:THREE.DoubleSide}),{name:'leaves'});
+ const stoneMat=mat('stone',0xc9bfa8),weatheredMat=mat('stone',0xa39a86),mossMat=mat('moss',0x51633a),ivyMat=Object.assign(new THREE.MeshStandardMaterial({color:0x4d7a36,roughness:.9,side:THREE.DoubleSide}),{name:'leaves'});
  const add=(geo,m,x,y,z,parent=root)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);parent.add(o);return o;};
  // Stylobate: two stepped slabs broken into blocks.
  for(const [w,d,y] of [[5.2,1.9,.12],[4.6,1.4,.34]])for(let i=0;i<4;i++){const bw=w/4-.04,block=add(new THREE.BoxGeometry(bw,.22,d),i%2?weatheredMat:stoneMat,-w/2+bw/2+.02+i*(w/4),y,0);block.rotation.y=((i*3)%4-1.5)*.012;}

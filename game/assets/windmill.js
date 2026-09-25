@@ -3,7 +3,7 @@
 export default function generate(THREE){
  const root=new THREE.Group();
  const mat=(name,color,roughness=.9,extra={})=>Object.assign(new THREE.MeshStandardMaterial({color,roughness,...extra}),{name});
- const stoneMat=mat('stone',0xcfc4ad),trimMat=mat('stone',0x9c927f),timberMat=mat('timber',0x7a5436),darkMat=mat('timber',0x4e3522),roofMat=mat('tile',0x6d5a47),sailMat=mat('fabric',0xeee3c8,.95,{side:THREE.DoubleSide}),glassMat=Object.assign(new THREE.MeshStandardMaterial({color:0xe9b86a,emissive:0xd9953a,emissiveIntensity:.5,roughness:.3}),{name:'glass'}),ironMat=mat('metal',0x3c3c3c,.5,{metalness:.5}),sackMat=mat('fabric',0xcdb98f,.95);
+ const stoneMat=mat('stone',0xcfc4ad),trimMat=mat('stone',0x9c927f),timberMat=mat('timber',0x7a5436),darkMat=mat('timber',0x4e3522),roofMat=mat('tile',0x6d5a47),sailMat=mat('fabric',0xd9ccab,.95,{side:THREE.DoubleSide}),glassMat=Object.assign(new THREE.MeshStandardMaterial({color:0xe9b86a,emissive:0xd9953a,emissiveIntensity:.5,roughness:.3}),{name:'glass'}),ironMat=mat('metal',0x3c3c3c,.5,{metalness:.5}),sackMat=mat('fabric',0xcdb98f,.95);
  const add=(geo,m,x,y,z,parent=root)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);parent.add(o);return o;};
  const towerH=7.2,baseR=2.4,topR=1.7;
  // Tapered tower: lathe profile with a plinth; stone courses as thin rings.

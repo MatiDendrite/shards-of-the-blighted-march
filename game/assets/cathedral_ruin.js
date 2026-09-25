@@ -5,7 +5,7 @@
 export default function generate(THREE){
  const root=new THREE.Group();
  const mat=(name,color,roughness=.95,extra={})=>Object.assign(new THREE.MeshStandardMaterial({color,roughness,...extra}),{name});
- const stoneMat=mat('stone',0xc4b89e),darkMat=mat('stone',0x958a76),mossMat=mat('moss',0x5d7f39),ivyMat=mat('leaves',0x4d7a36,.9,{side:THREE.DoubleSide}),floorMat=mat('paving',0xb8ab92);
+ const stoneMat=mat('masonry',0x98896f),darkMat=mat('masonry',0x7f735f),mossMat=mat('moss',0x43522d),ivyMat=mat('leaves',0x4d7a36,.9,{side:THREE.DoubleSide}),floorMat=mat('paving',0xb8ab92);
  const add=(geo,m,x,y,z,parent=root)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);parent.add(o);return o;};
  const W=11,frontZ=3.2,H=8.5;
  // Pointed-arch helper as a Shape (two circular arcs meeting at the apex).

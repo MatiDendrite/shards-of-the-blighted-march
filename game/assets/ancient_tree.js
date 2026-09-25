@@ -4,8 +4,8 @@
 export default function generate(THREE){
  const root=new THREE.Group();
  const mat=(name,color,roughness=.9,extra={})=>Object.assign(new THREE.MeshStandardMaterial({color,roughness,...extra}),{name});
- const barkMat=mat('bark',0x5a4636),darkBarkMat=mat('bark',0x3f3027),leafMat=mat('leaves',0x5f8a3e,.9,{side:THREE.DoubleSide}),leafDeepMat=mat('leaves',0x46703a,.9,{side:THREE.DoubleSide}),mossMat=mat('moss',0x5d7f39),stoneMat=mat('stone',0xa19886),ribbonMat=mat('fabric',0xb33b2e,.95,{side:THREE.DoubleSide}),ribbonGoldMat=mat('fabric',0xd8b25a,.95,{side:THREE.DoubleSide});
- const glowMat=Object.assign(new THREE.MeshStandardMaterial({color:0x1f9fc4,emissive:0x0f8fc0,emissiveIntensity:1.1,roughness:.5}),{name:'glow'}),stalkMat=mat('mushroom',0xe6e0cc,.8),candleMat=Object.assign(new THREE.MeshStandardMaterial({color:0xfff0c0,emissive:0xffb050,emissiveIntensity:1.5}),{name:'glow'});
+ const barkMat=mat('bark',0x6e5a44),darkBarkMat=mat('bark',0x54432f),leafMat=mat('leaves',0x5f8a3e,.9,{side:THREE.DoubleSide}),leafDeepMat=mat('leaves',0x46703a,.9,{side:THREE.DoubleSide}),mossMat=mat('moss',0x43522d),stoneMat=mat('stone',0xa19886),ribbonMat=mat('fabric',0xb33b2e,.95,{side:THREE.DoubleSide}),ribbonGoldMat=mat('fabric',0xd8b25a,.95,{side:THREE.DoubleSide});
+ const glowMat=Object.assign(new THREE.MeshStandardMaterial({color:0x1f9fc4,emissive:0x0f8fc0,emissiveIntensity:.75,roughness:.5}),{name:'glow'}),stalkMat=mat('mushroom',0xe6e0cc,.8),candleMat=Object.assign(new THREE.MeshStandardMaterial({color:0xfff0c0,emissive:0xffb050,emissiveIntensity:1.5}),{name:'glow'});
  const add=(geo,m,x,y,z,parent=root)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);parent.add(o);return o;};
  const v=(x,y,z)=>new THREE.Vector3(x,y,z);
  // Trunk: a tube along a gently twisting spine, flaring at the base.

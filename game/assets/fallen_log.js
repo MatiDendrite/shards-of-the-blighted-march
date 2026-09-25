@@ -3,7 +3,7 @@
 export default function generate(THREE){
  const root=new THREE.Group();
  const mat=(name,color,roughness=.9,extra={})=>Object.assign(new THREE.MeshStandardMaterial({color,roughness,...extra}),{name});
- const barkMat=mat('bark',0x5b4636),heartMat=mat('timber',0x9a7250,.85),rotMat=mat('bark',0x3a2c22),mossMat=mat('moss',0x5d7f39),capMat=mat('mushroom',0xb8452f,.6),spotMat=mat('mushroom',0xf2ead8,.7),stalkMat=mat('mushroom',0xe6dcc4,.8);
+ const barkMat=mat('bark',0x5b4636),heartMat=mat('timber',0x9a7250,.85),rotMat=mat('bark',0x3a2c22),mossMat=mat('moss',0x43522d),capMat=mat('mushroom',0xb8452f,.6),spotMat=mat('mushroom',0xf2ead8,.7),stalkMat=mat('mushroom',0xe6dcc4,.8);
  const add=(geo,m,x,y,z,parent=root)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);parent.add(o);return o;};
  const length=3.2,radius=.34;
  // Trunk: open tube lying along X with a darker inside and a split heartwood end.

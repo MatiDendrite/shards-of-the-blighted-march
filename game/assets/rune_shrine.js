@@ -3,7 +3,7 @@
 export default function generate(THREE){
  const root=new THREE.Group();
  const mat=(name,color,roughness=.95,extra={})=>Object.assign(new THREE.MeshStandardMaterial({color,roughness,...extra}),{name});
- const stoneMat=mat('stone',0xa39a88),darkMat=mat('stone',0x7a7266),mossMat=mat('moss',0x5d7f39),waxMat=mat('wax',0xf0e6cc,.8),runeMat=Object.assign(new THREE.MeshStandardMaterial({color:0x8fe6ff,emissive:0x2fb8f0,emissiveIntensity:1.4,roughness:.4}),{name:'glow'}),flameMat=Object.assign(new THREE.MeshStandardMaterial({color:0xffc070,emissive:0xff9030,emissiveIntensity:1.6}),{name:'glow'});
+ const stoneMat=mat('stone',0xa39a88),darkMat=mat('stone',0x7a7266),mossMat=mat('moss',0x43522d),waxMat=mat('wax',0xf0e6cc,.8),runeMat=Object.assign(new THREE.MeshStandardMaterial({color:0x8fe6ff,emissive:0x2fb8f0,emissiveIntensity:1.4,roughness:.4}),{name:'glow'}),flameMat=Object.assign(new THREE.MeshStandardMaterial({color:0xffc070,emissive:0xff9030,emissiveIntensity:1.6}),{name:'glow'});
  const add=(geo,m,x,y,z,parent=root)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);parent.add(o);return o;};
  add(new THREE.CylinderGeometry(1.05,1.15,.18,10),darkMat,0,.09,0);add(new THREE.CylinderGeometry(.8,.9,.16,10),stoneMat,0,.26,0);
  // Monolith: an extruded tapered slab with bevelled edges.

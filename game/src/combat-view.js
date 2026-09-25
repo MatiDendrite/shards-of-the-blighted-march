@@ -40,6 +40,7 @@ export async function loadRegionalAssets(assets){
 }
 const ENEMY_NAMES={boss:'The Fallen Warden',wolf:'Blighted Wolf',boar:'Thornback Boar',brute:'Cairn Brute',archer:'Ashen Archer'},LABEL_HEIGHT={boss:3.1,wolf:1.55,boar:1.5,brute:2.95,archer:2.1};
 const QUADRUPEDS=new Set(['wolf','boar']);
+const SPELL_SOUNDS={cry:'cry',cleave:'heavySwing',slam:'heavySwing',firebolt:'fireCast',frostnova:'frost',venom:'venom',smoke:'smoke',forgeblow:'forge',cinderbomb:'fuse',ironward:'ward'};
 
 // Three clones userData through JSON. Live joint references are animation
 // handles, not serializable model data: copying them duplicates whole subtrees.
@@ -86,10 +87,11 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  const ring=rings.pulse;
  function notice(text,duration=3.5){document.querySelector('#notice').textContent=text;document.querySelector('#notice').hidden=false;noticeTimer=duration;}
  function process(events){spells.process(events,model);for(const e of events){
-  if(e.type==='swing'){const s=e.projectile==='arcane'?ARCANE_BOLT:SKILLS[e.kind];audio.play(e.kind==='cry'?'cry':e.weapon==='axe'?'heavySwing':'swing');if(['projectile','bomb','blink'].includes(s?.effect))ring(e.x,e.z,s.color,.7);else if(['frost','smoke','ward'].includes(s?.effect))ring(e.x,e.z,s.color,s.range);else if(e.kind==='slam'||e.kind==='cry')ring(e.x,e.z,e.kind==='cry'?'#c3c992':'#d1ad70',e.kind==='cry'?5:3.5);}
-  if(e.type==='classImpact'){ring(e.x,e.z,e.color,e.radius);audio.play('hit');}
-  if(e.type==='classMove'){ring(e.from.x,e.from.z,e.color,.8);ring(e.to.x,e.to.z,e.color,.8);audio.play('dodge');}
-  if(e.type==='absorb')ring(model.player.x,model.player.z,SKILLS.ironward.color,1);
+  if(e.type==='swing'){const s=e.projectile==='arcane'?ARCANE_BOLT:SKILLS[e.kind];audio.play(SPELL_SOUNDS[e.kind]||(e.projectile==='arcane'?'arcane':e.weapon==='axe'?'heavySwing':'swing'));if(['projectile','bomb','blink'].includes(s?.effect))ring(e.x,e.z,s.color,.7);else if(['frost','smoke','ward'].includes(s?.effect))ring(e.x,e.z,s.color,s.range);else if(e.kind==='slam'||e.kind==='cry')ring(e.x,e.z,e.kind==='cry'?'#c3c992':'#d1ad70',e.kind==='cry'?5:3.5);}
+  if(e.type==='classImpact'){ring(e.x,e.z,e.color,e.radius);audio.play({firebolt:'fireBurst',cinderbomb:'explosion',venom:'venomHit',arcane:'arcaneHit'}[e.kind]||'hit');}
+  if(e.type==='classMove'){ring(e.from.x,e.from.z,e.color,.8);ring(e.to.x,e.to.z,e.color,.8);audio.play(e.kind==='blink'?'blink':'dodge');}
+  if(e.type==='enemyStrike'&&{archer:1,boar:1,brute:1}[e.kind])audio.play(e.kind==='archer'?'arrow':e.kind==='boar'?'charge':'slam');
+  if(e.type==='absorb'){ring(model.player.x,model.player.z,SKILLS.ironward.color,1);audio.play('absorb');}
   if(e.type==='classChange')notice(`${classInfo(e.classId).name} · abilities on 1 / 2 / 3`);
   if(e.type==='hit'){audio.play(e.heavy?'heavyHit':'hit');impacts.burst(e);const el=document.createElement('div');el.className='damage-number'+(e.heavy?' heavy':'');el.textContent=`${Math.round(e.amount)}${e.finisher?' · FINISHER':e.interrupted?' · INTERRUPT':''}`;labels.append(el);numbers.push({el,x:e.x,z:e.z,y:e.target==='boss'?3.45:e.target==='shard'?3.85:e.target==='wolf'||e.target==='boar'?1.95:e.target==='brute'?3.2:2.5,age:0});shake=e.heavy?.085:.04;}
   if(e.type==='hurt'){audio.play('hurt');flash=.5;shake=.13;}

@@ -2,7 +2,7 @@
 
 A single-player fantasy action RPG in your browser. Leave the safety of Hearthstead, hunt corrupted guardians, cleanse three ancient shards and confront the Fallen Warden.
 
-Choose **Warrior, Mage, Ninja or Dwarf**, each with three unique illustrated abilities. Explore four sunlit regions of settlements, forests, rivers, hills and coastline, where wolves, charging boars, stone brutes and ashen archers guard the roads. Step into the inn and houses of each market, fish from riverbanks and piers, collect equipment, upgrade it at the forge, sell spare gear and find your way with the detailed regional atlas.
+Choose **Warrior, Mage, Ninja or Dwarf**, each with three unique illustrated abilities. Explore four sunlit regions of bustling settlements, camps, ruins, forests, rivers, hills and coastline, where wolves, charging boars, stone brutes and ashen archers guard the roads. Step into the inn and houses of each market, fish from riverbanks and piers, collect equipment, upgrade it at the forge, sell spare gear and find your way with the detailed regional atlas.
 
 Combat combines aimed attacks, weapon combos, stamina management and directional dodges. Travel between regions through physical portals. Progress saves automatically in the current browser; no account or multiplayer server is needed.
 

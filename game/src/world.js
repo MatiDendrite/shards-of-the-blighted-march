@@ -7,6 +7,7 @@ import {createLandscapeEffects} from './landscape-effects.js';
 import {applyScenerySurfaces} from './art.js';
 import {cameraTemplate,placeCameraObstacle} from './camera-obstacles.js';
 import {createHallViews} from './interior-view.js';
+import {DECOR} from './decor.js';
 import {beachWeight,waterDistance,onCrossing} from './geography.js';
 import {createGeographyView} from './geography-view.js';
 import {createMeadowView} from './meadow-view.js';
@@ -65,7 +66,7 @@ export async function createWorld(host,art){
   function build(region){
     const scene=new T.Group();scene.name=`region-${region}`;
     const style=LANDSCAPES[region],layout=sceneryLayout(region),{colliders,lanterns}=layout,scenery=[...colliders,...layout.floors];
-    const cameraObstacles=layout.props.map(p=>placeCameraObstacle(cameraTemplates[p.kind],p)),openObstacles=cameraObstacles.filter((o,i)=>!layout.props[i].hall);
+    const solidProps=layout.props.filter(p=>!p.decor),cameraObstacles=solidProps.map(p=>placeCameraObstacle(cameraTemplates[p.kind],p)),openObstacles=cameraObstacles.filter((o,i)=>!solidProps[i].hall);
     if(region===0)colliders.push({x:SMITH.x,z:SMITH.z,r:.4});
     scene.add(terrainFor(region,style));
     const prototypes={gate:models[1],stone:models[2],pine:models[3],lantern:models[4],house:models[5],stall:models[6],well:models[7],hornbeam:models[8],garden:models[9],standard:models[10],bridge:models[11],cliff:models[12]};
@@ -80,7 +81,7 @@ export async function createWorld(host,art){
       const key=`${Math.floor(x/10)},${Math.floor(z/10)}`,buckets=cover?coverSectors:sectors;
       if(!buckets.has(key))buckets.set(key,new T.Group());buckets.get(key).add(obj);return obj;
     }
-    for(const p of layout.props)if(!p.hall)place(prototypes[p.kind],p.x,p.z,p.sx,p.sy,p.sz,p.rotation).position.y=p.y||0;
+    for(const p of layout.props)if(!p.hall&&!p.decor)place(prototypes[p.kind],p.x,p.z,p.sx,p.sy,p.sz,p.rotation).position.y=p.y||0;
     // Enterable houses stay out of the static bake so they can open into rooms.
     const halls=createHallViews(scene,layout.props.filter(p=>p.hall).map(p=>({x:p.x,z:p.z,scale:p.sx,rotation:p.rotation,hall:p.hall})),prototypes.house,(x,z)=>groundHeight(region,x,z));
     for(const {x,z,y,lit} of lanterns)if(lit){const light=new T.PointLight(style.light,8,8,2);light.position.set(x,y+1.9,z);scene.add(light);}
@@ -115,14 +116,28 @@ export async function createWorld(host,art){
     for(let i=0;i<300;i++){const x=(rand()-.5)*120,z=(rand()-.5)*120;points.push(x,groundHeight(region,x,z)+.4+rand()*5,z);}
     dustGeo.setAttribute('position',new T.Float32BufferAttribute(points,3));
     const dust=new T.Points(dustGeo,new T.PointsMaterial({color:style.dust,size:region===1?.05:.035,transparent:true,opacity:.6}));scene.add(dust);
-    return {root:scene,colliders,cameraObstacles,openObstacles,halls,time:0,dust,effects,geography,meadow,banks,coverChunks};
+    return {region,style,decorProps:layout.props.filter(p=>p.decor),decorated:false,root:scene,colliders,cameraObstacles,openObstacles,halls,time:0,dust,effects,geography,meadow,banks,coverChunks};
   }
   zones[0]=build(0);host.add(zones[0].root);
+  // Dressing props load after the player starts: carts, camps, ruins and
+  // bushes bake into culled 10 m sectors a few at a time between frames.
+  let decorModels=null;
+  function loadDecor(){decorModels??=Promise.all(Object.entries(DECOR).map(async([kind,d])=>{const model=await ASSET(new URL(`../assets/${d.file}.js`,import.meta.url).href);art.apply(model);return[kind,model];})).then(Object.fromEntries);return decorModels;}
+  async function decorate(zone){
+   if(zone.decorated)return;zone.decorated=true;const models=await loadDecor(),protos={},sectors=new Map();
+   for(const kind of Object.keys(models))protos[kind]=tint(models[kind].clone(),zone.style);
+   for(const p of zone.decorProps){const obj=protos[p.kind].clone();obj.position.set(p.x,groundHeight(zone.region,p.x,p.z),p.z);obj.scale.set(p.sx,p.sy,p.sz);obj.rotation.y=p.rotation;const key=`${Math.floor(p.x/10)},${Math.floor(p.z/10)}`;if(!sectors.has(key))sectors.set(key,new T.Group());sectors.get(key).add(obj);}
+   // Time-sliced: a few milliseconds of baking per frame, never one long stall.
+   let slice=performance.now();
+   for(const [key,sector] of sectors){const [x,z]=key.split(',').map(Number),root=bakeStatic(sector);root.name='decor-sector';root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});art.finish(root);zone.root.add(root);zone.coverChunks.push({root,x:x*10+5,z:z*10+5});if(performance.now()-slice>12){await new Promise(r=>setTimeout(r,0));slice=performance.now();}}
+   zone.decorReady=true;
+  }
   return {
     get dust(){return zones[active].dust;},get colliders(){return zones[active].colliders;},get atmosphere(){const {hour,azimuth}=LANDSCAPES[active];return {hour,azimuth};},
     // Inside a room the camera looks over the cut walls, not the missing roof.
     get cameraObstacles(){const z=zones[active];return z.halls.inside?z.openObstacles:z.cameraObstacles;},
     get interior(){return zones[active].halls.inside;},
+    decorate(){return decorate(zones[active]);},get decorReady(){return !!zones[active].decorReady;},
     setRegion(region){const created=!zones[region];if(created)zones[region]=build(region);if(region!==active){host.remove(zones[active].root);host.add(zones[region].root);}active=region;return created;},
     canStand(x,z){return canStandIn(zones[active].colliders,x,z);},
     heightAt(x,z){return groundHeight(active,x,z);},

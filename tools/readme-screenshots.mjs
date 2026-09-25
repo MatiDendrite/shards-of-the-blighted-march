@@ -45,6 +45,7 @@ try{
    f.orbit.yaw=f.orbit.targetYaw=s.yaw;f.orbit.tilt=f.orbit.targetTilt=s.tilt;f.orbit.zoom=f.orbit.targetZoom=s.zoom;f.orbit.distance=0;
   },shot);
   await page.waitForFunction(s=>Math.abs(window.__GAME__.pos[0]-s.x)<.01&&Math.abs(window.__GAME__.camera.yaw-s.yaw)<.001,{},shot);
+  await page.waitForFunction(()=>window.__GAME__.decor,{timeout:120000});
   if(shot.waitEnemy)await page.waitForFunction(n=>!!document.querySelector('canvas')&&window.captureFixture.world&&[...window.captureFixture.hero.parent.children].some(o=>o.name===n),{},shot.waitEnemy);
   await page.evaluate(()=>new Promise(resolve=>{let frames=0;const next=()=>++frames===5?resolve():requestAnimationFrame(next);requestAnimationFrame(next);}));
   await page.screenshot({path:`${out}/${shot.name}.webp`,type:'webp',quality:86});

@@ -3,6 +3,7 @@ import {WORLD_LIMIT,TOWN,EXIT,NPCS,MAPS,inTown,landmarks,roads,distanceToRoad} f
 import {geographyColliders,geographyProps,waterDistance,onCrossing,riverX} from './geography.js';
 import {buildingSites,gateSites} from './settlement-layout.js';
 import {hallColliders,hallFloor} from './interiors.js';
+import {decorLayout} from './decor.js';
 import {groundHeight} from './terrain-height.js';
 export {WORLD_LIMIT};
 export const LANDSCAPES = [
@@ -92,11 +93,25 @@ export function sceneryLayout(region){
   if(footprint){const c=Math.cos(p.rotation),s=Math.sin(p.rotation);for(let i=0;i<8;i++){const a=i*Math.PI/4,x=Math.cos(a)*footprint[0]*p.sx,z=Math.sin(a)*footprint[1]*p.sz;p.y=Math.min(p.y,groundHeight(region,p.x+x*c+z*s,p.z-x*s+z*c));}p.y-=.025;}
  }
  for(const p of lanterns)p.y=groundHeight(region,p.x,p.z);
+ props.push(...decorLayout(region,{colliders,floors,canStandIn,rand:seeded(5150+region*97)}));
  return {props,colliders,lanterns,floors};
 }
+// A 4 m grid over each collider list; rebuilt when the list grows. Scenery
+// scattering and per-frame movement then test a handful of shapes, not all.
+const COLLIDER_INDEX=new WeakMap(),CELL=4,cellKey=(cx,cz)=>(cx+512)*1024+cz+512;
+function colliderIndex(colliders){
+ let index=COLLIDER_INDEX.get(colliders);if(index&&index.length===colliders.length)return index.cells;
+ const cells=new Map();
+ for(const c of colliders){const hw=c.r?c.r+.3:c.w/2+.28,hd=c.r?c.r+.3:c.d/2+.28;
+  for(let cx=Math.floor((c.x-hw)/CELL);cx<=Math.floor((c.x+hw)/CELL);cx++)for(let cz=Math.floor((c.z-hd)/CELL);cz<=Math.floor((c.z+hd)/CELL);cz++){const k=cellKey(cx,cz);let list=cells.get(k);if(!list)cells.set(k,list=[]);list.push(c);}}
+ COLLIDER_INDEX.set(colliders,{length:colliders.length,cells});return cells;
+}
+const hits=(c,x,z)=>c.r?Math.hypot(x-c.x,z-c.z)<c.r+.3:Math.abs(x-c.x)<c.w/2+.28&&Math.abs(z-c.z)<c.d/2+.28;
 export function canStandIn(colliders,x,z){
  if(Math.abs(x)>WORLD_LIMIT||Math.abs(z)>WORLD_LIMIT)return false;
- return !colliders.some(c=>c.r?Math.hypot(x-c.x,z-c.z)<c.r+.3:Math.abs(x-c.x)<c.w/2+.28&&Math.abs(z-c.z)<c.d/2+.28);
+ if(colliders.length<32)return !colliders.some(c=>hits(c,x,z));
+ const list=colliderIndex(colliders).get(cellKey(Math.floor(x/CELL),Math.floor(z/CELL)));
+ return !list||!list.some(c=>hits(c,x,z));
 }
 export function pavingLayout(region){
  const tiles=[],used=new Set(),rand=seeded(7504+region);

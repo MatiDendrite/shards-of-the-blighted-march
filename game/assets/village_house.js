@@ -22,10 +22,11 @@ export default function generate(T){
  const slope=Math.atan2(2.6,3.1);
  for(const side of [-1,1]){const under=box(roof,side*1.55,4.76,0,4.05,.1,5.65);under.rotation.z=-side*slope;}
  // Six-sided shingle outlines expose clipped, uneven lower corners. Three
- // shared profiles add variation without hundreds of unique geometries.
+ // shared profiles add variation without hundreds of unique geometries; each
+ // slate's lower edge lifts a little so every course casts a shadow line.
  const shingles=Array.from({length:3},(_,i)=>{const s=new T.Shape(),cut=.035+i*.018;s.moveTo(-.285,-.28);s.lineTo(.285-cut,-.28);s.lineTo(.285,-.28+cut);s.lineTo(.285,.28-cut);s.lineTo(.285-cut,.28);s.lineTo(-.285,.28);s.closePath();const geo=new T.ExtrudeGeometry(s,{depth:.065,bevelEnabled:false});geo.rotateX(-Math.PI/2);return geo;});
  for(const side of [-1,1])for(let row=0;row<8;row++)for(let col=0;col<11;col++){
-   const t=(row+.5)/8,o=new T.Mesh(shingles[(row+col)%3],roof);o.position.set(side*t*3.1,6.17-t*2.6+((row+col)%3)*.008,(col-5)*.5+(row%2)*.1);o.quaternion.setFromAxisAngle(new T.Vector3(0,0,1),-side*slope);if(side<0)o.quaternion.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI));g.add(o);
+   const t=(row+.5)/8,o=new T.Mesh(shingles[(row+col)%3],roof);o.position.set(side*t*3.1,6.17-t*2.6+((row+col)%3)*.008,(col-5)*.5+(row%2)*.1);o.quaternion.setFromAxisAngle(new T.Vector3(0,0,1),-side*slope);if(side<0)o.quaternion.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI));o.quaternion.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,0,1),.07+((row*3+col)%4)*.012));g.add(o);
  }
  for(const z of [-2.62,2.62])for(const side of [-1,1]){const o=box(wood,side*1.55,4.88,z,4.14,.16,.18);o.rotation.z=-side*slope;}
  box(wood,0,6.2,0,.18,.2,5.6);box(stone,1.6,5.25,-.6,.7,2.3,.7);box(stone,1.6,6.45,-.6,.85,.16,.85);

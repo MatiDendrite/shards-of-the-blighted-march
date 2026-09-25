@@ -11,6 +11,6 @@ export function applyLandscapePalette(rig){
 // direct rendering on the default profile; material detail is available to all.
 export const LANDSCAPE_RENDER_OPTIONS=Object.freeze({
  tier:'phone',hour:16.5,azimuth:245,post:false,cascades:1,shadowMap:1024,shadowDist:36,
- exposure:1.1,sunColor:0xfff0d6,sunIntensity:2.9,fill:1.18,fillChroma:1.25,
+ exposure:1.05,sunColor:0xfff0d6,sunIntensity:2.9,fill:1.15,fillChroma:1.1,
  envIntensity:.72,bounce:.52,fogStart:32,fogDensity:.009,
 });

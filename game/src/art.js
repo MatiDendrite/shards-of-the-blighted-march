@@ -27,9 +27,9 @@ export async function loadArt(renderer){
    if(name==='needles'||name==='leaves'){m.map=name==='leaves'?leaves:fir;m.color.setHex(name==='leaves'?0xe1e4cf:0xd0d5bd);m.alphaTest=.42;m.side=T.DoubleSide;m.normalMap=null;m.roughnessMap=null;m.roughness=1;}
    else if(['timber','plaster','tile','stone','paving'].includes(name)){
     const maps=details(name==='paving'?'stone':name);m.map=name==='timber'?timber:name==='plaster'?plaster:name==='stone'?stone:maps.map;
-    if(name==='stone'||name==='paving')m.color.setHex(name==='stone'?0xc0c3b4:0xb3b5ad);
-    else m.color.setHex(name==='timber'?0xb7a28d:name==='plaster'?0xfff6e8:0x737976);
-    m.normalMap=maps.normalMap;m.normalScale.setScalar(name==='plaster'?.32:name==='timber'||name==='tile'?.5:.75);
+    if(name==='stone'||name==='paving')m.color.setHex(name==='stone'?0xc0c3b4:0xa4a59c);
+    else m.color.setHex(name==='timber'?0xb7a28d:name==='plaster'?0xf1e7d5:0x606769);
+    m.normalMap=maps.normalMap;m.normalScale.setScalar(name==='plaster'?.45:name==='timber'||name==='tile'?.5:.75);
     m.roughnessMap=maps.roughnessMap;m.roughness=1;m.metalness=0;m.bumpMap=null;m.bumpScale=0;
    }
    else{m.map=floor;m.color.setHex(0xf2efdf);m.normalScale?.setScalar(.35);m.roughness=.95;m.bumpMap=m.map;m.bumpScale=.045;}

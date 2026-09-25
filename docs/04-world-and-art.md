@@ -121,3 +121,15 @@ Each region gained a set piece: a working windmill among wheat fields in Hearths
 The wilds hide things to find: treasure chests whose lids swing open for gold, ore and sometimes gear; moonleaf herbs that heal; ore veins for the smith; rune shrines that restore the hero and grant a 30-second blessing of +20% damage; and barrels that break under weapon swings. Rewards are paid at once rather than dropped, because saves cap ground loot per region; finds are recorded in the save and reset with a new expedition.
 
 Wildlife and townsfolk add motion without affecting play: deer graze and bolt when approached, finches take flight, hens potter between houses, butterflies drift over meadows, villagers stroll the lanes and fish leap near the hero. Every region also holds a palisaded bandit camp with four guards, and outside the Warden's court a Dread Champion walks the outer road. These foes are optional: they pay gold, experience and, for the champion, rare gear on the spot, never count towards quest guardians, stay out of the save, and return some minutes after they fall once the hero is away.
+
+## Weathered surfaces on props and landmarks
+
+Decor, landmarks and discoverables used to keep flat colours on everything except timber, plaster, stone and roof tile. Now each coded material name maps to a procedural surface when the model loads (`game/src/prop-surfaces.js`). Bark gets deep vertical fissures, straw long stalks, moss soft clumps, soil clods and grit, and canvas, rope and metal reuse the library's weave and brushed recipes. The cathedral is laid in dressed ashlar: courses of offset blocks with recessed mortar and a different tone per block. UVs are planar in object space, so blocks, weave and grain keep one real-world size on every part. The maps only modulate each part's own colour. Each recipe and colour keeps one shared material, so static batching and draw counts are unchanged. Emissive markers, glass and berries stay clean on purpose so they still read at a glance.
+
+The models themselves were refined too:
+- Wheat now grows in tufts of five tapered blades with slim ears and per-tuft colour variation.
+- Village roof slates lift at their lower edge, so every course casts a shadow line.
+- Moss, bark, sails and sand drifts were toned towards natural, weathered values.
+- A slightly lower exposure and a more neutral sky fill keep pale surfaces from blowing out to a flat blue-white.
+
+Live-play profiling with decor, wildlife and camps loaded puts game logic at about 2 ms per frame. The rest is draw submission, spread across many small batches with no single hotspot. The phone gate is unchanged: 144 peak draws, 1.5 MB, ready in 18 s.

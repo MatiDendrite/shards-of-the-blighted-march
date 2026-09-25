@@ -20,7 +20,7 @@ export async function loadArt(renderer){
   // continue. Do not leave all seven uploads for the first visible draw.
   renderer.initTexture?.(texture);return texture;
  }));
- const details=createSurfaceDetails(renderer),time={value:0},focus={value:new T.Vector2(0,11)},finished=new WeakSet();
+ const details=createSurfaceDetails(renderer),time={value:0},focus={value:new T.Vector2(0,11)},hero={value:new T.Vector3(0,1,11)},finished=new WeakSet();
  function apply(root){const materials=new Map();root.traverse(o=>{
   if(!o.isMesh)return;const original=o.material,name=original.name;if(!['ground','stone','paving','needles','leaves','timber','plaster','tile'].includes(name))return;
   if(!materials.has(original)){const m=original.clone();
@@ -43,13 +43,21 @@ export async function loadArt(renderer){
  });return root;}
  function finish(root){root.traverse(o=>{if(!o.isMesh)return;const m=o.material;
   if(finished.has(m))return;
-  const ground=m.name==='ground',cover=['foliage','petals'].includes(m.name),wind=['leaves','foliage','banner'].includes(m.name);if(!ground&&!wind&&!cover)return;finished.add(m);
+  const ground=m.name==='ground',cover=['foliage','petals'].includes(m.name),wind=['leaves','foliage','banner'].includes(m.name),canopy=['leaves','needles'].includes(m.name);if(!ground&&!wind&&!cover&&!canopy)return;finished.add(m);
   // Install after tinting/baking: Material.clone does not copy shader callbacks.
   m.onBeforeCompile=shader=>{
    if(ground)patchGroundSurface(shader,meadow,stone);
    if(wind){shader.uniforms.uLandscapeTime=time;shader.vertexShader='uniform float uLandscapeTime;\n'+shader.vertexShader;const amount=m.name==='leaves'?'.045':m.name==='banner'?'.028':'.08',height=m.name==='foliage'?'position.y-groundBase':'position.y';shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>\nfloat breeze = sin(uLandscapeTime * 1.5 + position.x * .8 + position.z * .55); transformed.x += breeze * ${amount} * min(1.0, max(0.0, ${height})); transformed.z += cos(uLandscapeTime + position.x * .5) * ${amount} * .3 * min(1.0, max(0.0, ${height}));`);}
+   // Canopy cut-out: leaves between the camera and the hero dissolve in a
+   // screen-fixed stipple, so crowns never hide the fight. Shadows are unchanged.
+   if(canopy){shader.uniforms.uCanopyHero=hero;shader.vertexShader='varying vec3 vCanopyWorld;\n'+shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvCanopyWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader='uniform vec3 uCanopyHero; varying vec3 vCanopyWorld;\n'+shader.fragmentShader.replace('void main() {',`void main() {
+ vec3 canopyHead = uCanopyHero + vec3(0.0, 1.2, 0.0), canopyRay = cameraPosition - canopyHead;
+ float canopyT = clamp(dot(vCanopyWorld - canopyHead, canopyRay) / dot(canopyRay, canopyRay), 0.0, 1.0);
+ float canopyCut = (1.0 - smoothstep(1.3, 2.4, distance(vCanopyWorld, canopyHead + canopyRay * canopyT))) * step(0.02, canopyT) * step(uCanopyHero.y + 0.8, vCanopyWorld.y);
+ if (canopyCut > 0.0 && fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453) < canopyCut * 0.82) discard;`);}
    if(cover){shader.uniforms.uGrassFocus=focus;shader.vertexShader='attribute float groundBase; uniform vec2 uGrassFocus;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','transformed.y = groundBase + (transformed.y-groundBase)*(1.0-smoothstep(24.0,34.0,distance(position.xz,uGrassFocus)));\n#include <project_vertex>');}
-  };m.customProgramCacheKey=()=>`landscape-relief-v3-${m.name}`;m.needsUpdate=true;
+  };m.customProgramCacheKey=()=>`landscape-relief-v4-${m.name}`;m.needsUpdate=true;
  });}
- return{apply,finish,update(dt,player){time.value+=Math.min(dt,.1);if(player)focus.value.set(player.x,player.z);}};
+ return{apply,finish,update(dt,player,y=0){time.value+=Math.min(dt,.1);if(player){focus.value.set(player.x,player.z);hero.value.set(player.x,y,player.z);}}};
 }

@@ -141,6 +141,6 @@ export async function createWorld(host,art){
     setRegion(region){const created=!zones[region];if(created)zones[region]=build(region);if(region!==active){host.remove(zones[active].root);host.add(zones[region].root);}active=region;return created;},
     canStand(x,z){return canStandIn(zones[active].colliders,x,z);},
     heightAt(x,z){return groundHeight(active,x,z);},
-    update(dt,player={x:0,z:11}){const zone=zones[active];zone.time+=dt;zone.halls.update(zone.time,player);art.update(dt,player);zones[active].effects.update(dt);zones[active].geography.update(dt);zones[active].meadow.update(dt,player);zones[active].banks.update(dt,player);for(const c of zones[active].coverChunks)c.root.visible=Math.hypot(c.x-player.x,c.z-player.z)<42;},
+    update(dt,player={x:0,z:11}){const zone=zones[active];zone.time+=dt;zone.halls.update(zone.time,player);art.update(dt,player,groundHeight(active,player.x,player.z));zones[active].effects.update(dt);zones[active].geography.update(dt);zones[active].meadow.update(dt,player);zones[active].banks.update(dt,player);for(const c of zones[active].coverChunks)c.root.visible=Math.hypot(c.x-player.x,c.z-player.z)<42;},
   };
 }

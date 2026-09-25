@@ -22,6 +22,25 @@ import {HERO_GRIP,equipHeroWeapon} from './hero-equipment.js';
 
 export {mergeJoints};
 
+// Region-specific beasts load after the world is playable: Hearthstead fields
+// only wolves and raiders, so none of this sits on the start-up path.
+export async function loadRegionalAssets(assets){
+ const [boar,brute,archer]=await Promise.all([loadActorAsset(new URL('../assets/thornback_boar.js',import.meta.url).href,{keepHierarchy:true,surfaces:true}),loadActorAsset(new URL('../assets/cairn_brute.js',import.meta.url).href,{keepHierarchy:true,surfaces:true}),loadNpcActor('raider')]);
+ for(const actor of [boar,brute]){mergeJoints(actor);actor.traverse(o=>{delete o.userData.joints;});}
+ // Ash-grey hood and cloak with a rust accent set the archer apart from raiders.
+ const recolor=new Map();archer.traverse(o=>{if(!o.isMesh)return;if(!recolor.has(o.material)){const m=o.material.clone(),hsl={};m.color.getHSL(hsl);m.color.setHSL(hsl.h<.12||hsl.h>.9?.04:hsl.h,hsl.s*.45,Math.min(.62,hsl.l*1.12+.04));recolor.set(o.material,m);}o.material=recolor.get(o.material);});
+ archer.name='ashen-archer';
+ const wood=new T.MeshStandardMaterial({color:0x6b4a2e,roughness:.7}),string=new T.MeshStandardMaterial({color:0xe6dfcf,roughness:.6}),leather=new T.MeshStandardMaterial({color:0x5a3a28,roughness:.9}),fletch=new T.MeshStandardMaterial({color:0xc04a2e,roughness:.8});
+ const bow=new T.Group();bow.name='enemy-bow';const limb=new T.Mesh(new T.TorusGeometry(.62,.022,5,20,2.1).rotateZ(Math.PI/2-1.05),wood);limb.position.x=-.42;bow.add(limb);
+ const cord=new T.Mesh(new T.CylinderGeometry(.004,.004,1.08,3),string);cord.position.x=-.1;bow.add(cord);
+ const hand=archer.getObjectByName('leftForearm')||archer.getObjectByName('rightForearm');bow.position.set(0,-.33,.06);bow.rotation.set(0,Math.PI/2,0);hand.add(bow);
+ const quiver=new T.Group();quiver.name='enemy-quiver';quiver.add(new T.Mesh(new T.CylinderGeometry(.07,.06,.5,8),leather));for(let i=0;i<4;i++){const shaft=new T.Mesh(new T.CylinderGeometry(.006,.006,.3,3),wood);shaft.position.set(Math.sin(i*1.6)*.03,.34,Math.cos(i*1.6)*.03);quiver.add(shaft);const f=new T.Mesh(new T.ConeGeometry(.018,.07,3),fletch);f.position.set(shaft.position.x,.46,shaft.position.z);quiver.add(f);}
+ const torso=archer.getObjectByName('torso')||archer;quiver.position.set(.12,.2,-.2);quiver.rotation.z=-.4;torso.add(quiver);
+ Object.assign(assets,{boar,brute,archer});return assets;
+}
+const ENEMY_NAMES={boss:'The Fallen Warden',wolf:'Blighted Wolf',boar:'Thornback Boar',brute:'Cairn Brute',archer:'Ashen Archer'},LABEL_HEIGHT={boss:3.1,wolf:1.55,boar:1.5,brute:2.95,archer:2.1};
+const QUADRUPEDS=new Set(['wolf','boar']);
+
 // Three clones userData through JSON. Live joint references are animation
 // handles, not serializable model data: copying them duplicates whole subtrees.
 export function cloneActor(root){
@@ -37,7 +56,7 @@ export async function loadCombatAssets(){
  assets.raider=await loadNpcActor('raider');return assets;
 }
 export async function createCombatView(scene,hero,model,audio,options={}){
- const assets=options.assets||await loadCombatAssets(),prepare=options.prepare||(()=>{});
+ const assets=options.assets||await loadCombatAssets(),prepare=options.prepare||(()=>{});if(!assets.boar)loadRegionalAssets(assets).catch(error=>console.warn('Regional enemies unavailable',error));
  // Inventory armour retains the neutral player model, not the raider's costume.
  const armorPortrait=cloneActor(hero);armorPortrait.position.set(0,0,0);armorPortrait.rotation.set(0,0,0);
  // Serialized Object3D declarations are not portrait animation state.
@@ -54,13 +73,13 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  function createEnemy(e){
   const root=assets[e.kind].clone(true);root.name=`enemy-${e.id}`;root.rotation.set(0,0,0);
   const nodes={},materials=new Map();root.traverse(o=>{if(o.isGroup&&o.name)nodes[o.name]=o;if(o.isMesh){if(!materials.has(o.material)){const m=o.material.clone();m.userData.restEmissive=m.emissive.clone();materials.set(o.material,m);}o.material=materials.get(o.material);}});
-  if(e.kind!=='wolf')attachEnemyAxe(root,assets.axe,e.kind);
+  if(e.kind==='raider'||e.kind==='boss')attachEnemyAxe(root,assets.axe,e.kind);
   const d=enemyAttack({...e,attackKind:'sweep'}),sweep=new T.RingGeometry(0,d.range+.28,48,8,-Math.PI/2-d.arc/2,d.arc),slam=e.kind==='boss'?new T.RingGeometry(0,enemyAttack({...e,attackKind:'slam'}).range+.28,64,10):null;
   const telegraph=new T.Mesh(sweep,new T.MeshBasicMaterial({color:0xe0a949,side:T.DoubleSide,transparent:true,opacity:.32,depthWrite:false}));telegraph.name=`warning-${e.id}`;telegraph.rotation.x=-Math.PI/2;telegraph.visible=false;scene.add(telegraph);scene.add(root);
-  const name=e.kind==='boss'?'The Fallen Warden':e.kind==='wolf'?'Blighted Wolf':'Hollow Raider';
+  const name=ENEMY_NAMES[e.kind]||'Hollow Raider';
   const edgeGeometry=new T.RingGeometry(d.range+.20,d.range+.28,48,1,-Math.PI/2-d.arc/2,d.arc),slamEdge=e.kind==='boss'?new T.RingGeometry(4.7,4.78,64):null;
   const edge=new T.Mesh(edgeGeometry,new T.MeshBasicMaterial({color:d.color,transparent:true,opacity:.8,side:T.DoubleSide,depthWrite:false}));edge.rotation.x=-Math.PI/2;edge.visible=false;scene.add(edge);
-  const label=makeLabel(name),flashMaterials=new Set();root.traverse(o=>{if(o.isMesh&&o.material.emissive)flashMaterials.add(o.material);});prepare(root);prepare(telegraph);prepare(edge);const view={root,nodes,telegraph,edge,edgeGeometry,slamEdge,name,label,flashMaterials,flashing:false,sweep,slam,deathAge:0,secondary:createActorSecondaryMotion(root),animate:e.kind==='wolf'?null:createEnemyMotion(root,e.kind)};views.set(e.id,view);return view;
+  const label=makeLabel(name),flashMaterials=new Set();root.traverse(o=>{if(o.isMesh&&o.material.emissive)flashMaterials.add(o.material);});prepare(root);prepare(telegraph);prepare(edge);const view={root,nodes,telegraph,edge,edgeGeometry,slamEdge,name,label,flashMaterials,flashing:false,sweep,slam,deathAge:0,secondary:createActorSecondaryMotion(root),animate:QUADRUPEDS.has(e.kind)?null:createEnemyMotion(root,e.kind)};views.set(e.id,view);return view;
  }
  weaponMount.name='heroWeaponMount';
  function equip(){if(weapon===model.player.weapon)return;weapon=model.player.weapon;equipHeroWeapon(weaponMount,assets[weapon],weapon);document.querySelector('#weapon-name').textContent=WEAPONS[weapon].name;document.querySelector('#weapon-button span').textContent=WEAPONS[weapon].name;}
@@ -72,7 +91,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   if(e.type==='classMove'){ring(e.from.x,e.from.z,e.color,.8);ring(e.to.x,e.to.z,e.color,.8);audio.play('dodge');}
   if(e.type==='absorb')ring(model.player.x,model.player.z,SKILLS.ironward.color,1);
   if(e.type==='classChange')notice(`${classInfo(e.classId).name} · abilities on 1 / 2 / 3`);
-  if(e.type==='hit'){audio.play(e.heavy?'heavyHit':'hit');impacts.burst(e);const el=document.createElement('div');el.className='damage-number'+(e.heavy?' heavy':'');el.textContent=`${Math.round(e.amount)}${e.finisher?' · FINISHER':e.interrupted?' · INTERRUPT':''}`;labels.append(el);numbers.push({el,x:e.x,z:e.z,y:e.target==='boss'?3.45:e.target==='shard'?3.85:e.target==='wolf'?1.95:2.5,age:0});shake=e.heavy?.085:.04;}
+  if(e.type==='hit'){audio.play(e.heavy?'heavyHit':'hit');impacts.burst(e);const el=document.createElement('div');el.className='damage-number'+(e.heavy?' heavy':'');el.textContent=`${Math.round(e.amount)}${e.finisher?' · FINISHER':e.interrupted?' · INTERRUPT':''}`;labels.append(el);numbers.push({el,x:e.x,z:e.z,y:e.target==='boss'?3.45:e.target==='shard'?3.85:e.target==='wolf'||e.target==='boar'?1.95:e.target==='brute'?3.2:2.5,age:0});shake=e.heavy?.085:.04;}
   if(e.type==='hurt'){audio.play('hurt');flash=.5;shake=.13;}
   if(e.type==='dodge'){audio.play('dodge');ring(model.player.x,model.player.z,0xc1d6c5,.65);}
   if(e.type==='equip')audio.play('equip');
@@ -88,21 +107,21 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  function update(dt,camera){
   equip();const p=model.player;impacts.update(dt);hudBounds=hudPanels.map(el=>el.getBoundingClientRect()).filter(r=>r.width&&r.height);
   actors.animate(p,model.time);classEffects.update(model);spells.update(dt,model,camera);
-  for(const e of model.enemies){const near=(e.x-p.x)**2+(e.z-p.z)**2<44**2;let v=views.get(e.id);if(!v){if(e.hp<=0||!near)continue;v=createEnemy(e);}v.root.position.set(e.x,heightAt(e.x,e.z)+.06,e.z);v.root.rotation.set(0,e.angle,0);
+  for(const e of model.enemies){const near=(e.x-p.x)**2+(e.z-p.z)**2<44**2;let v=views.get(e.id);if(!v){if(e.hp<=0||!near||!assets[e.kind])continue;v=createEnemy(e);}v.root.position.set(e.x,heightAt(e.x,e.z)+.06,e.z);v.root.rotation.set(0,e.angle,0);
     if(e.hp<=0){v.deathAge+=dt;v.root.rotation.z=Math.min(Math.PI/2,v.deathAge*3);v.root.position.y=heightAt(e.x,e.z)+.06-Math.max(0,v.deathAge-1)*.5;v.root.visible=v.deathAge<2.8;v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
     v.root.visible=near;if(!near){v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
     const flashing=e.flash>0;if(flashing!==v.flashing){for(const m of v.flashMaterials){if(flashing)m.emissive.setHex(0x392e20);else m.emissive.copy(m.userData.restEmissive);}v.flashing=flashing;}
     v.root.rotation.z=e.flash>0?Math.sin(e.flash/.18*Math.PI)*.075:0;
     const d=enemyAttack(e),charge=windupProgress(e),swing=e.phase==='idle'?Math.sin(e.walk)*.48:0;
     v.secondary(model.time+e.id*.37,{gait:Math.abs(swing)/.48,windup:e.phase==='windup'?charge:0,recovery:e.phase==='recovery'?Math.max(0,1-(d.recovery-e.timer)/.4):0});
-    if(e.kind==='wolf'){for(const [name,sign] of [['leftFront',1],['rightFront',-1],['leftRear',-1],['rightRear',1]])if(v.nodes[name])v.nodes[name].rotation.x=swing*sign;v.nodes.head.rotation.x=e.phase==='windup'?-.23:0;v.root.position.y+=e.phase==='windup'?-.1:e.phase==='recovery'?Math.sin(Math.min(1,(.9-e.timer)/.3)*Math.PI)*.23:0;}
+    if(QUADRUPEDS.has(e.kind)){for(const [name,sign] of [['leftFront',1],['rightFront',-1],['leftRear',-1],['rightRear',1]])if(v.nodes[name])v.nodes[name].rotation.x=swing*sign;v.nodes.head.rotation.x=e.phase==='windup'?-.23:0;v.root.position.y+=e.phase==='windup'?-.1:e.phase==='recovery'?Math.sin(Math.min(1,(.9-e.timer)/.3)*Math.PI)*.23:0;}
     else v.animate(model.time+e.id*.37,{swing,charge,follow:e.phase==='recovery'?Math.max(0,1-(d.recovery-e.timer)/.4):0,phase:e.phase,attackKind:e.attackKind});
     if(e.kind==='boss'){v.telegraph.geometry=e.attackKind==='slam'?v.slam:v.sweep;v.telegraph.material.color.setHex(e.attackKind==='slam'?0xb889f0:0xe0a949);}
     v.telegraph.visible=v.edge.visible=e.phase==='windup';v.telegraph.position.set(e.x,.11,e.z);v.telegraph.rotation.z=e.angle;v.telegraph.material.opacity=.12+charge*.30;
     v.edge.geometry=e.kind==='boss'&&e.attackKind==='slam'?v.slamEdge:v.edgeGeometry;v.edge.material.color.setHex(d.color);v.edge.position.set(e.x,.115,e.z);v.edge.rotation.z=e.angle;v.edge.material.opacity=.55+charge*.4;
     if(v.telegraph.visible){drapeGround(v.telegraph,heightAt,.11);drapeGround(v.edge,heightAt,.115);}
     const title=e.phase==='windup'?`${d.name} · ${Math.max(0,e.timer).toFixed(1)}s`:`${v.name}${e.poison>0?' · Poisoned':e.slow>0?' · Chilled':''}`;if(v.label.el.firstChild.textContent!==title)v.label.el.firstChild.textContent=title;
-    positionLabel(v.label,e.x,e.kind==='boss'?3.1:e.kind==='wolf'?1.55:2.1,e.z,camera);v.label.fill.style.width=`${e.hp/e.maxHp*100}%`;
+    positionLabel(v.label,e.x,LABEL_HEIGHT[e.kind]||2.1,e.z,camera);v.label.fill.style.width=`${e.hp/e.maxHp*100}%`;
     // The dedicated boss HUD already shows health and cast timing. A second
     // world-space name overlaps it when the Warden is north of the player.
     if(e.kind==='boss')v.label.el.hidden=true;

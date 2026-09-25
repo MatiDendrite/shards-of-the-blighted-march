@@ -1,6 +1,6 @@
 // Deterministic combat rules, independent of rendering and browser input.
 import {MAPS,inTown} from './world-map.js';
-import {FIELD_PATROLS,guardianCount} from './campaign-data.js';
+import {FIELD_PATROLS,guardianCount,guardianKind} from './campaign-data.js';
 import {CLASS_IDS,classInfo,SKILLS,ARCANE_BOLT} from './class-data.js';
 import {activateClassSkill,classHit,updateClassEffects,clearPath} from './class-combat.js';
 export {SKILLS} from './class-data.js';
@@ -12,11 +12,12 @@ export const WEAPONS = {
 };
 export const basicAttack=p=>p.classId==='mage'?ARCANE_BOLT:WEAPONS[p.weapon];
 const aimPoint=point=>point&&Number.isFinite(point.x)&&Number.isFinite(point.z)?{x:point.x,z:point.z}:null;
-const ENEMIES={wolf:{hp:58,speed:2.45,range:1.4,damage:12,windup:.65,recovery:.9,radius:.48},raider:{hp:100,speed:1.65,range:1.9,damage:20,windup:.9,recovery:1.05,radius:.42},boss:{hp:1080,radius:.7}};
+const ENEMIES={wolf:{hp:58,speed:2.45,range:1.4,damage:12,windup:.65,recovery:.9,radius:.48},raider:{hp:100,speed:1.65,range:1.9,damage:20,windup:.9,recovery:1.05,radius:.42},boar:{hp:92,speed:2.15,range:2.9,damage:18,windup:.95,recovery:1.25,radius:.55},brute:{hp:215,speed:1.05,range:2.6,damage:28,windup:1.35,recovery:1.45,radius:.72},archer:{hp:72,speed:1.55,range:8.5,damage:15,windup:1.1,recovery:1.35,radius:.4},boss:{hp:1080,radius:.7}};
 // Rendering and damage share these numbers: the warning is the actual danger zone.
 export function enemyAttack(e){
  if(e.kind==='boss')return e.attackKind==='slam'?{name:'Ground Slam',hint:'Leave the circle',range:4.5,arc:Math.PI*2,windup:1.6,recovery:1.5,damage:60,color:0xb889f0}:{name:'Oathbreaker Sweep',hint:'Dodge behind him',range:3.2,arc:2.3,windup:1.05,recovery:1.1,damage:42,color:0xe0a949};
- const d=ENEMIES[e.kind];return {...d,name:e.kind==='wolf'?'Lunge':'Axe Sweep',hint:'Step out of the marked ground',arc:e.kind==='wolf'?1:1.8,color:0xe0a949};
+ const d=ENEMIES[e.kind],style={wolf:['Lunge',1],boar:['Tusk Charge',.8],brute:['Cairn Slam',Math.PI*2],archer:['Ashen Arrow',.14]}[e.kind]||['Axe Sweep',1.8];
+ return {...d,name:style[0],hint:e.kind==='archer'?'Sidestep the marked line':'Step out of the marked ground',arc:style[1],color:e.kind==='archer'?0xf08a54:0xe0a949};
 }
 export const windupProgress=e=>Math.max(0,Math.min(1,1-e.timer/enemyAttack(e).windup));
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
@@ -36,7 +37,7 @@ export class Combat {
     this.player.region=region;
     Object.assign(this.shard,MAPS[region].shard);
     if(region===3){this.shard.hp=0;this.shard.exploded=true;this.spawn('boss',this.shard.x,this.shard.z);}
-    else{this.spawn(region===2?'raider':'wolf',-35,7);this.spawn(region>0?'raider':'wolf',35,9);this.spawn('raider',this.shard.x-4,this.shard.z+3);this.spawn('raider',this.shard.x+4,this.shard.z+1);for(const e of FIELD_PATROLS)this.spawn(e.kind,e.x,e.z,e.id,true);}
+    else{this.spawn(region===2?'raider':'wolf',-35,7);this.spawn(region>0?'raider':'wolf',35,9);this.spawn('raider',this.shard.x-4,this.shard.z+3);this.spawn('raider',this.shard.x+4,this.shard.z+1);for(const e of FIELD_PATROLS)this.spawn(guardianKind(e.kind,region,e.id),e.x,e.z,e.id,true);}
   }
   get dead(){return this.player.hp<=0;}
   get requiredKills(){return guardianCount(this.region);}
@@ -127,13 +128,14 @@ export class Combat {
       if(e.kind==='boss'){this.updateBoss(e,dt);continue;}
       const d=enemyAttack(e);d.speed*=e.slow>0?e.slowFactor:1;
       if(e.stagger>0){e.stagger-=dt;e.phase='idle';continue;}
-      if(e.phase==='windup'){e.timer-=dt;if(e.timer<=0){e.phase='recovery';e.timer=d.recovery;if(inArc(e,{...p,radius:.28},d.range,d.arc,e.angle)&&clearPath(this,e,p))this.hurtPlayer(d.damage*(1+this.region*.15));this.emit('enemyStrike',{id:e.id});}continue;}
+      if(e.phase==='windup'){e.timer-=dt;if(e.timer<=0){e.phase='recovery';e.timer=d.recovery;if(inArc(e,{...p,radius:.28},d.range,d.arc,e.angle)&&clearPath(this,e,p))this.hurtPlayer(d.damage*(1+this.region*.15));this.emit('enemyStrike',{id:e.id,kind:e.kind,x:e.x,z:e.z,angle:e.angle,range:d.range});if(e.kind==='boar'){const reach=Math.max(0,Math.min(d.range-.4,dist(e,p)-.7));this.move(e,Math.sin(e.angle)*reach,Math.cos(e.angle)*reach);}}continue;}
       if(e.phase==='recovery'){e.timer-=dt;if(e.timer<=0)e.phase='idle';continue;}
       const distance=dist(e,p),aggro=!inTown(p.x,p.z)&&distance<10&&Math.hypot(e.x-e.homeX,e.z-e.homeZ)<14;
       const patrol=e.patrol?{x:e.homeX+Math.sin(this.time*.19+e.id)*1.3,z:e.homeZ+Math.cos(this.time*.19+e.id)*.9}:{x:e.homeX,z:e.homeZ};
-      const target=aggro?p:this.canStand(patrol.x,patrol.z)&&!inTown(patrol.x,patrol.z)?patrol:{x:e.homeX,z:e.homeZ};
-      if(aggro&&distance<d.range+.06){e.phase='windup';e.timer=d.windup;e.angle=bearing(e,p);this.emit('enemyWindup',{id:e.id});continue;}
-      if(dist(e,target)>.2){const a=bearing(e,target);e.angle+=angleDelta(a,e.angle)*Math.min(1,dt*8);const x=Math.sin(a)*d.speed*dt,z=Math.cos(a)*d.speed*dt,oldX=e.x,oldZ=e.z;this.move(e,x,z);if(Math.hypot(e.x-oldX,e.z-oldZ)<dt*.1){const turn=a+(e.id%2?1:-1)*1.2;this.move(e,Math.sin(turn)*d.speed*dt,Math.cos(turn)*d.speed*dt);}e.walk+=dt*d.speed*3;}
+      const target=aggro&&e.kind==='archer'&&distance<4.2?{x:e.x*2-p.x,z:e.z*2-p.z}:aggro?p:this.canStand(patrol.x,patrol.z)&&!inTown(patrol.x,patrol.z)?patrol:{x:e.homeX,z:e.homeZ};
+      // Archers loose only along a clear line and back away from close pursuit.
+      if(aggro&&distance<d.range+.06&&(e.kind!=='archer'||clearPath(this,e,p)&&(distance>3.4||e.cornered))){e.phase='windup';e.timer=d.windup;e.angle=bearing(e,p);this.emit('enemyWindup',{id:e.id});continue;}
+      if(dist(e,target)>.2){const a=bearing(e,target);e.angle+=angleDelta(a,e.angle)*Math.min(1,dt*8);const x=Math.sin(a)*d.speed*dt,z=Math.cos(a)*d.speed*dt,oldX=e.x,oldZ=e.z;this.move(e,x,z);if(e.kind==='archer')e.cornered=target!==p&&aggro&&Math.hypot(e.x-oldX,e.z-oldZ)<dt*.2;if(Math.hypot(e.x-oldX,e.z-oldZ)<dt*.1){const turn=a+(e.id%2?1:-1)*1.2;this.move(e,Math.sin(turn)*d.speed*dt,Math.cos(turn)*d.speed*dt);}e.walk+=dt*d.speed*3;}
       for(const other of this.enemies){if(other===e||other.hp<=0)continue;const sep=dist(e,other);if(sep<.75&&sep>.001)this.move(e,(e.x-other.x)/sep*dt*.55,(e.z-other.z)/sep*dt*.55);}
     }
     if(s.blast>0){s.blast-=dt;if(s.blast<=0){s.exploded=true;if(dist(p,s)<4.2)this.hurtPlayer(38);for(const e of this.enemies)if(e.hp>0&&dist(e,s)<4.2)this.damageEnemy(e,85,1);this.emit('explosion',{x:s.x,z:s.z});}}

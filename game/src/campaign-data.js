@@ -21,4 +21,7 @@ export const FIELD_PATROLS=[
  {id:21,kind:'wolf',x:43,z:-4},{id:22,kind:'raider',x:30,z:-15},
  {id:23,kind:'raider',x:26,z:-43},{id:24,kind:'wolf',x:15,z:43},
 ];
+// Later regions field new beasts on the same IDs, so saved kills stay valid.
+const REGIONAL_KINDS=[{},{9:'boar',12:'boar',15:'boar',24:'boar',18:'brute',22:'brute'},{11:'archer',14:'archer',19:'archer',23:'archer',18:'brute',22:'brute',10:'boar',13:'boar'},{}];
+export const guardianKind=(kind,region,id)=>REGIONAL_KINDS[region]?.[id]||kind;
 export const encounterComplete = (encounter,region,version=ENCOUNTER_VERSION)=>encounter.world.exploded&&encounter.claimed.length===guardianCount(region,version);

@@ -23,6 +23,21 @@ export function createEnemyMotion(root,kind){
   node('rightArm').rotation.x=windup?-1.1-charge*1.25:recovery?-.35-follow*.4:boss?-.13:0;
   node('rightArm').rotation.z=windup&&!slam?-.35*charge:0;
   node('torso').rotation.y=windup?-.22*charge:follow*.22;
+  if(kind==='brute'){
+   // Both fists climb overhead, then drop into the slam.
+   const lift=windup?-.5-charge*2.1:recovery?-.15-follow*.3:-.18-Math.abs(swing)*.2;
+   node('leftArm').rotation.x=lift;node('rightArm').rotation.x=lift;node('leftArm').rotation.z=windup?.25*charge:.08;node('rightArm').rotation.z=windup?-.25*charge:-.08;
+   node('torso').rotation.x=windup?-.12*charge:recovery?.18*follow:.04;node('torso').rotation.y=0;node('head').rotation.x=windup?-.1*charge:.05;
+   return;
+  }
+  if(kind==='archer'){
+   // Bow arm reaches forward while the string hand draws back to the cheek.
+   node('leftArm').rotation.x=windup?-1.45:recovery?-1.1+follow*.6:-.35-swing*.2;node('leftArm').rotation.z=windup?.12:.05;
+   node('rightArm').rotation.x=windup?-1.25-charge*.15:recovery?-.6:-.1+swing*.2;node('rightArm').rotation.z=windup?.55*charge:0;
+   if(node('rightForearm'))node('rightForearm').rotation.x=windup?-1.2*charge:0;
+   node('torso').rotation.y=windup?.35:0;node('torso').rotation.x=.03;node('head').rotation.y=windup?-.3:0;
+   return;
+  }
   if(boss){
    node('leftArm').rotation.x=windup&&slam?-.3-charge*1.25:-.30+follow*.12;
    node('leftArm').rotation.z=.12+(windup&&!slam?charge*.20:0);

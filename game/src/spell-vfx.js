@@ -182,6 +182,9 @@ export function createSpellEffects(scene,heightAt=()=>0){
   else if(e.type==='hit'&&e.weapon==='poison')venomSplash(e.x,e.z);
   else if(e.type==='dodge'){const p=model.player;for(let i=0;i<6;i++)puff(p.x+between(-.3,.3),lift(p.x,p.z,.1),p.z+between(-.3,.3),0x8b7b66,{vy:.3,size:.45,grow:1.2,life:.55,alpha:.3});}
   else if(e.type==='explosion'){flash(e.x,lift(e.x,e.z,1.2),e.z,0xc79bff,3.4,.3);wall(e.x,e.z,4.2,0xb688ff,{height:2,life:.7});debris(e.x,e.z,20,5,.12);burst(e.x,lift(e.x,e.z,1),e.z,0xd4b3ff,30,6,{size:.1,lifeScale:1.8});}
+  else if(e.type==='enemyStrike'&&e.kind==='archer'){const dx=Math.sin(e.angle),dz=Math.cos(e.angle),y=lift(e.x,e.z,1.35);for(const [size,hex,bright] of [[.16,0xff9a55,1.6],[.07,0xfff0d0,2]])spark(e.x+dx*.6,y,e.z+dz*.6,hex,{vx:dx*22,vz:dz*22,size,stretch:.09,life:e.range/22,bright});for(let i=0;i<10;i++){const t=i/10*e.range;puff(e.x+dx*t,lift(e.x+dx*t,e.z+dz*t,1.3),e.z+dz*t,0x6b625a,{size:.18,grow:1,life:.35+t*.03,alpha:.25,vy:.2});}}
+  else if(e.type==='enemyStrike'&&e.kind==='boar'){for(let i=0;i<10;i++){const b=-e.angle+between(-.5,.5);puff(e.x,lift(e.x,e.z,.15),e.z,0x8d7a60,{vx:-Math.sin(e.angle)*between(.5,2),vy:between(.2,.6),vz:-Math.cos(e.angle)*between(.5,2),size:between(.4,.7),grow:1.2,life:.7,alpha:.4});}debris(e.x,e.z,5,2,.05);}
+  else if(e.type==='enemyStrike'&&e.kind==='brute'){wall(e.x,e.z,e.range,0xb58aed,{height:.7,life:.45,opacity:.5});debris(e.x,e.z,14,4,.1);flash(e.x,lift(e.x,e.z,.4),e.z,0xc9a6ff,2,.18);}
   else if(e.type==='bossStrike'&&e.slam){wall(e.x,e.z,4.5,0xb58aed,{height:.9,life:.5});debris(e.x,e.z,14,4.5,.1);}
  }}
 
@@ -205,7 +208,7 @@ export function createSpellEffects(scene,heightAt=()=>0){
     if(p.smoke>0)emit('smoke',16,dt,()=>{const a=rand()*TAU,r=between(.3,.8);puff(p.x+Math.sin(a)*r,lift(p.x,p.z,between(.2,1.3)),p.z+Math.cos(a)*r,0x8ea6a9,{vx:Math.sin(a)*.3,vy:between(.1,.4),size:between(.6,.95),grow:.8,life:between(.8,1.2),alpha:.32});});
     if(p.ward>0)emit('ward',10,dt,()=>{const a=rand()*TAU,h=between(-.8,.8);spark(p.x+Math.sin(a)*.95*Math.sqrt(1-h*h*.6),lift(p.x,p.z,.85+h),p.z+Math.cos(a)*.95*Math.sqrt(1-h*h*.6),0xffe2a6,{vy:.4,size:.07,life:.45});});
    }
-   for(const e of model.enemies){if(e.hp<=0||(e.x-p.x)**2+(e.z-p.z)**2>28*28)continue;const height=e.kind==='boss'?2.2:e.kind==='wolf'?.9:1.5;
+   for(const e of model.enemies){if(e.hp<=0||(e.x-p.x)**2+(e.z-p.z)**2>28*28)continue;const height=e.kind==='boss'||e.kind==='brute'?2.2:e.kind==='wolf'||e.kind==='boar'?.9:1.5;
     if(e.poison>0)emit('poison'+e.id,7,dt,()=>spark(e.x+between(-.3,.3),lift(e.x,e.z,between(.3,height)),e.z+between(-.3,.3),0x86e27a,{vy:between(.4,.9),size:between(.06,.12),life:between(.5,.8),bright:1.3}));
     if(e.slow>0)emit('slow'+e.id,6,dt,()=>spark(e.x+between(-.35,.35),lift(e.x,e.z,between(.2,height)),e.z+between(-.35,.35),0xc9f2ff,{vy:between(-.5,-.1),size:.06,life:.6,spin:3,bright:1.4}));}
   }

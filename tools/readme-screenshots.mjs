@@ -10,12 +10,13 @@ import {Campaign} from '../game/src/campaign.js';
 import {travelFixture} from './travel-fixture.mjs';
 
 const base=process.env.SCREENSHOT_BASE_URL||'http://localhost:4173/preview/';
-const out='screenshots';await fs.mkdir(out,{recursive:true});
+const out=process.env.SCREENSHOT_OUT||'screenshots';await fs.mkdir(out,{recursive:true});
 const source=(await fs.readFile('game/src/main.js','utf8')).replace('await rig.ready;','window.captureFixture={model,world,hero,orbit,input};await rig.ready;');
 const shots=[
  {name:'hearthstead',region:0,classId:'warrior',x:0,z:13,yaw:.35,tilt:0,zoom:1.06},
  {name:'willow-run',region:0,classId:'mage',x:-47,z:8,yaw:1.1,tilt:-.08,zoom:1.08},
  {name:'saltwind-coast',region:2,classId:'ninja',x:49,z:8,yaw:-1.3,tilt:-.13,zoom:1.13},
+ ...(process.env.SCREENSHOT_ALL?[{name:'thornwood',region:1,classId:'dwarf',x:0,z:13,yaw:.35,tilt:0,zoom:1.06},{name:'court',region:3,classId:'warrior',x:0,z:13,yaw:.35,tilt:0,zoom:1.06}]:[]),
 ];
 function saveFor(shot){
  const m=new Combat(),p=new Progression(),c=new Campaign(p,m);p.restore(m);

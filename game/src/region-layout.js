@@ -5,10 +5,10 @@ import {buildingSites,gateSites} from './settlement-layout.js';
 import {groundHeight} from './terrain-height.js';
 export {WORLD_LIMIT};
 export const LANDSCAPES = [
- {ground:0xffffff,stone:0xfff5e3,needles:0xffffff,leaves:0xffffff,grass:0x6c794b,light:0xffac52,dust:0xc1c5a0,hour:16.5,azimuth:245,cover:16000},
- {ground:0xb5c4a5,stone:0xbac4ad,needles:0xa1bc95,leaves:0xafc99c,grass:0x617744,light:0xcce49c,dust:0xc7e58f,hour:16,azimuth:205,cover:12000},
- {ground:0xb4a18a,stone:0xc4aa92,needles:0x7b6552,grass:0xaca077,light:0xffb474,dust:0xc7aa8f,hour:17.6,azimuth:285,cover:2300},
- {ground:0x83848d,stone:0xbab7cb,needles:0x9096b3,grass:0x737a6c,light:0xb2baff,dust:0xbeb7e4,hour:17.9,azimuth:225,cover:3600},
+ {ground:0xffffff,stone:0xe6d6bb,paving:0xf4dcb4,needles:0xffffff,leaves:0xffffff,grass:0x86a24c,light:0xffac52,dust:0xc9ccaa,hour:15,azimuth:245,cover:16000},
+ {ground:0xb5c4a5,stone:0xcfc9ae,paving:0xeadfbc,needles:0xa1bc95,leaves:0xafc99c,grass:0x719b46,light:0xd8eca4,dust:0xcfe99a,hour:14.6,azimuth:205,cover:12000},
+ {ground:0xb4a18a,stone:0xc4aa92,paving:0xf2d4ae,needles:0x7b6552,grass:0xb8ac72,light:0xffb474,dust:0xd2b898,hour:15.4,azimuth:285,cover:2300},
+ {ground:0xb4a88e,stone:0xcdbb9e,paving:0xecd3b0,needles:0x98a78a,grass:0x86965c,light:0xffc98a,dust:0xd6cdb8,hour:15.8,azimuth:225,cover:3600},
 ];
 export function seeded(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
 export function sceneryLayout(region){

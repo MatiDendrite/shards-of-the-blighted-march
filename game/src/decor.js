@@ -6,6 +6,7 @@ import {waterDistance,onCrossing} from './geography.js';
 import {FIELD_PATROLS} from './campaign-data.js';
 import {buildingSites} from './settlement-layout.js';
 import {hallDoor} from './interiors.js';
+import {groundHeight} from './terrain-height.js';
 
 // Footprints in metres (local x width, z depth) and whether the prop blocks.
 export const DECOR={
@@ -39,6 +40,9 @@ export function decorLayout(region,{colliders,floors,canStandIn,rand}){
   const pts=corners(x,z,w,d,rotation,.35);
   for(const [px,pz] of pts){const r=distanceToRoad(region,px,pz);if(r<road||waterDistance(region,px,pz)<2.2||onCrossing(region,px,pz,2)||!free(px,pz))return false;}
   if(distanceToRoad(region,x,z)>roadMax)return false;
+  // Only fairly level ground: the prop is later sunk to its lowest corner, so
+  // a steep site would either float one side or bury the other.
+  const heights=pts.map(([px,pz])=>groundHeight(region,px,pz));if(Math.max(...heights)-Math.min(...heights)>({bush:.5,tent:.6,colonnade:.8}[kind]??.4))return false;
   props.push({kind,x,z,sx:scale,sy:scale,sz:scale,rotation,decor:true});placed.push({x,z,reach});
   if(def.solid){if(kind==='tent'){colliders.push(boxCollider(x,z-.4*scale,def.w*scale,def.d*scale*.85,rotation),{x:x+Math.sin(rotation)*1.2,z:z+Math.cos(rotation)*1.6,r:.55,decor:true});}else colliders.push(boxCollider(x,z,def.w*scale,def.d*scale,rotation));}
   return true;
@@ -56,8 +60,8 @@ export function decorLayout(region,{colliders,floors,canStandIn,rand}){
  for(const [x,z,rot] of [[-21,10.6,Math.PI/2],[21,5.4,-Math.PI/2],[2.4,-13,0],[-2.4,30,Math.PI]])put('sign',x,z,rot,{road:1.2,roadMax:3.2});
  // Wilderness: camps in the meadows, ruins, farm fences, felled trunks, bushes.
  for(const m of marks){
-  if(m.kind==='glade'&&scatter('tent',1,m.x,m.z,m.r+3,{face:(x,z)=>Math.atan2(m.x-x,m.z-z)})){scatter('stack',1,m.x,m.z,m.r+5);scatter('cart',1,m.x,m.z,m.r+6,{road:1.6});}
-  if(m.kind==='ruin')scatter('colonnade',region>=2?2:1,m.x,m.z,m.r+2);
+  if(m.kind==='glade'&&scatter('tent',1,m.x,m.z,m.r+5,{face:(x,z)=>Math.atan2(m.x-x,m.z-z)},120)){scatter('stack',1,m.x,m.z,m.r+5);scatter('cart',1,m.x,m.z,m.r+6,{road:1.6});}
+  if(m.kind==='ruin')scatter('colonnade',region>=2?2:1,m.x,m.z,m.r+4,{},120);
   if(m.kind==='grove'&&rustic)scatter('hay',2,m.x,m.z,m.r+4);
  }
  for(const [x,z] of [[-10,43],[10,43],[-44,-4],[44,-4]])put('sign',x,z,rand()*Math.PI*2,{road:1.2,roadMax:3.5});

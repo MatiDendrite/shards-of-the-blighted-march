@@ -126,7 +126,7 @@ export async function createWorld(host,art){
   async function decorate(zone){
    if(zone.decorated)return;zone.decorated=true;const models=await loadDecor(),protos={},sectors=new Map();
    for(const kind of Object.keys(models))protos[kind]=tint(models[kind].clone(),zone.style);
-   for(const p of zone.decorProps){const obj=protos[p.kind].clone();obj.position.set(p.x,groundHeight(zone.region,p.x,p.z),p.z);obj.scale.set(p.sx,p.sy,p.sz);obj.rotation.y=p.rotation;const key=`${Math.floor(p.x/10)},${Math.floor(p.z/10)}`;if(!sectors.has(key))sectors.set(key,new T.Group());sectors.get(key).add(obj);}
+   for(const p of zone.decorProps){const obj=protos[p.kind].clone();obj.position.set(p.x,p.y,p.z);obj.scale.set(p.sx,p.sy,p.sz);obj.rotation.y=p.rotation;const key=`${Math.floor(p.x/10)},${Math.floor(p.z/10)}`;if(!sectors.has(key))sectors.set(key,new T.Group());sectors.get(key).add(obj);}
    // Time-sliced: a few milliseconds of baking per frame, never one long stall.
    let slice=performance.now();
    for(const [key,sector] of sectors){const [x,z]=key.split(',').map(Number),root=bakeStatic(sector);root.name='decor-sector';root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});art.finish(root);zone.root.add(root);zone.coverChunks.push({root,x:x*10+5,z:z*10+5});if(performance.now()-slice>12){await new Promise(r=>setTimeout(r,0));slice=performance.now();}}

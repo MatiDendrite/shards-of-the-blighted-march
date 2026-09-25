@@ -2,6 +2,7 @@
 import {WORLD_LIMIT,TOWN,EXIT,NPCS,MAPS,inTown,landmarks,roads,distanceToRoad} from './world-map.js';
 import {geographyColliders,geographyProps,waterDistance,onCrossing,riverX} from './geography.js';
 import {buildingSites,gateSites} from './settlement-layout.js';
+import {hallColliders,hallFloor} from './interiors.js';
 import {groundHeight} from './terrain-height.js';
 export {WORLD_LIMIT};
 export const LANDSCAPES = [
@@ -35,7 +36,10 @@ export function sceneryLayout(region){
   }
  };
  // A real central settlement, with open cardinal streets and exterior-only houses.
- for(const p of buildingSites(region))building(p.kind,p.x,p.z,p.scale,p.rotation);
+ // Market houses with interiors keep doorways; their floors only repel scenery.
+ const floors=[];
+ const clear=(x,z)=>canStandIn(colliders,x,z)&&canStandIn(floors,x,z);
+ for(const p of buildingSites(region)){if(p.hall){props.push({kind:'house',x:p.x,z:p.z,sx:p.scale,sy:p.scale,sz:p.scale,rotation:p.rotation,hall:p.hall});colliders.push(...hallColliders(p));floors.push(hallFloor(p));}else building(p.kind,p.x,p.z,p.scale,p.rotation);}
  for(const n of NPCS)colliders.push({x:n.x,z:n.z,r:.35});
  // The northern exit is separate from the settlement gates.
  for(const p of gateSites(region))gate(p.x,p.z,p.rotation);
@@ -62,12 +66,12 @@ export function sceneryLayout(region){
  // Human-scale courtyard edges. Keep entrances and the four roads unobstructed.
  for(const side of [-1,1]){
   for(const [x,z,k] of [[7.3,15.4,.72],[17,-9,.85],[17,27,.75]]){
-   const px=x*side;if(canStandIn(colliders,px,z)){add('hornbeam',px,z,k);colliders.push({x:px,z,r:.32*k});}
+   const px=x*side;if(clear(px,z)){add('hornbeam',px,z,k);colliders.push({x:px,z,r:.32*k});}
   }
   for(const [x,z] of [[6,-1.8],[6,23]]){
-   const px=x*side;if([-1.95,0,1.95].every(dx=>canStandIn(colliders,px+dx,z))){add('garden',px,z);colliders.push({x:px,z,w:3.9,d:.9});}
+   const px=x*side;if([-1.95,0,1.95].every(dx=>clear(px+dx,z))){add('garden',px,z);colliders.push({x:px,z,w:3.9,d:.9});}
   }
-  for(const z of [-11,27]){const x=side*3.7;if(canStandIn(colliders,x-.37,z)){add('standard',x,z);colliders.push({x:x-.37,z,r:.36});}}
+  for(const z of [-11,27]){const x=side*3.7;if(clear(x-.37,z)){add('standard',x,z);colliders.push({x:x-.37,z,r:.36});}}
  }
  const protectedPoints=landmarks(region);
  const count=[390,500,130,200][region];
@@ -88,7 +92,7 @@ export function sceneryLayout(region){
   if(footprint){const c=Math.cos(p.rotation),s=Math.sin(p.rotation);for(let i=0;i<8;i++){const a=i*Math.PI/4,x=Math.cos(a)*footprint[0]*p.sx,z=Math.sin(a)*footprint[1]*p.sz;p.y=Math.min(p.y,groundHeight(region,p.x+x*c+z*s,p.z-x*s+z*c));}p.y-=.025;}
  }
  for(const p of lanterns)p.y=groundHeight(region,p.x,p.z);
- return {props,colliders,lanterns};
+ return {props,colliders,lanterns,floors};
 }
 export function canStandIn(colliders,x,z){
  if(Math.abs(x)>WORLD_LIMIT||Math.abs(z)>WORLD_LIMIT)return false;

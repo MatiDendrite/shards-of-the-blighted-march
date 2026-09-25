@@ -6,6 +6,7 @@ import { inTown, distanceToRoad, MAPS } from './world-map.js';
 import {createLandscapeEffects} from './landscape-effects.js';
 import {applyScenerySurfaces} from './art.js';
 import {cameraTemplate,placeCameraObstacle} from './camera-obstacles.js';
+import {createHallViews} from './interior-view.js';
 import {beachWeight,waterDistance,onCrossing} from './geography.js';
 import {createGeographyView} from './geography-view.js';
 import {createMeadowView} from './meadow-view.js';
@@ -63,8 +64,8 @@ export async function createWorld(host,art){
   }
   function build(region){
     const scene=new T.Group();scene.name=`region-${region}`;
-    const style=LANDSCAPES[region],layout=sceneryLayout(region),{colliders,lanterns}=layout;
-    const cameraObstacles=layout.props.map(p=>placeCameraObstacle(cameraTemplates[p.kind],p));
+    const style=LANDSCAPES[region],layout=sceneryLayout(region),{colliders,lanterns}=layout,scenery=[...colliders,...layout.floors];
+    const cameraObstacles=layout.props.map(p=>placeCameraObstacle(cameraTemplates[p.kind],p)),openObstacles=cameraObstacles.filter((o,i)=>!layout.props[i].hall);
     if(region===0)colliders.push({x:SMITH.x,z:SMITH.z,r:.4});
     scene.add(terrainFor(region,style));
     const prototypes={gate:models[1],stone:models[2],pine:models[3],lantern:models[4],house:models[5],stall:models[6],well:models[7],hornbeam:models[8],garden:models[9],standard:models[10],bridge:models[11],cliff:models[12]};
@@ -79,13 +80,15 @@ export async function createWorld(host,art){
       const key=`${Math.floor(x/10)},${Math.floor(z/10)}`,buckets=cover?coverSectors:sectors;
       if(!buckets.has(key))buckets.set(key,new T.Group());buckets.get(key).add(obj);return obj;
     }
-    for(const p of layout.props)place(prototypes[p.kind],p.x,p.z,p.sx,p.sy,p.sz,p.rotation).position.y=p.y||0;
+    for(const p of layout.props)if(!p.hall)place(prototypes[p.kind],p.x,p.z,p.sx,p.sy,p.sz,p.rotation).position.y=p.y||0;
+    // Enterable houses stay out of the static bake so they can open into rooms.
+    const halls=createHallViews(scene,layout.props.filter(p=>p.hall).map(p=>({x:p.x,z:p.z,scale:p.sx,rotation:p.rotation,hall:p.hall})),prototypes.house,(x,z)=>groundHeight(region,x,z));
     for(const {x,z,y,lit} of lanterns)if(lit){const light=new T.PointLight(style.light,8,8,2);light.position.set(x,y+1.9,z);scene.add(light);}
     const rand=seeded(9404+region*331),grassmat=Object.assign(new T.MeshStandardMaterial({color:style.grass,roughness:1,side:T.DoubleSide,vertexColors:true}),{name:'foliage'});
     for(let i=0;i<Math.floor(style.cover/37);i++){
       const x=(rand()-.5)*120,z=(rand()-.5)*120;
       const onRoad=Math.hypot(x,z-8)<10||distanceToRoad(region,x,z)<1.6||(region===3&&Math.hypot(x-MAPS[3].shard.x,z-MAPS[3].shard.z)<12);
-      if(onRoad||beachWeight(region,x,z)>.2||onCrossing(region,x,z,1)||!canStandIn(colliders,x,z))continue;
+      if(onRoad||beachWeight(region,x,z)>.2||onCrossing(region,x,z,1)||!canStandIn(scenery,x,z))continue;
       // Organic patches with breathing space, rather than an even dotted carpet.
       if(region<2&&Math.sin(x*.37+Math.cos(z*.29))*Math.cos(z*.41)<-.35&&rand()>.2)continue;
       if(inTown(x,z)&&rand()>.28)continue;
@@ -97,14 +100,14 @@ export async function createWorld(host,art){
     const flower=new T.Group();
     for(let i=0;i<7;i++){const x=Math.sin(i*2.399)*.27,z=Math.cos(i*2.399)*.27,h=.2+(i%3)*.09;const stem=new T.Mesh(new T.CylinderGeometry(.008,.012,h,3),grassmat);stem.position.set(x,h/2,z);flower.add(stem);for(let j=0;j<4;j++){const petal=new T.Mesh(new T.CircleGeometry(.047,5),flowerMats[i%2]);petal.rotation.x=-Math.PI/2;petal.position.set(x+Math.sin(j*1.57)*.033,h,z+Math.cos(j*1.57)*.033);flower.add(petal);}}
     const blooms=bakeStatic(flower);
-    for(let i=0;i<(region<2?650:180);i++){const x=(rand()-.5)*112,z=(rand()-.5)*112;if(beachWeight(region,x,z)>.2||onCrossing(region,x,z,1)||distanceToRoad(region,x,z)<1.9||Math.hypot(x,z-8)<10||!canStandIn(colliders,x,z)||(region===3&&Math.hypot(x,z+38)<13))continue;if(Math.sin(x*.32)*Math.cos(z*.28)<.35)continue;const k=.8+rand()*.5;place(blooms,x,z,k,k,k,0,true);}
+    for(let i=0;i<(region<2?650:180);i++){const x=(rand()-.5)*112,z=(rand()-.5)*112;if(beachWeight(region,x,z)>.2||onCrossing(region,x,z,1)||distanceToRoad(region,x,z)<1.9||Math.hypot(x,z-8)<10||!canStandIn(scenery,x,z)||(region===3&&Math.hypot(x,z+38)<13))continue;if(Math.sin(x*.32)*Math.cos(z*.28)<.35)continue;const k=.8+rand()*.5;place(blooms,x,z,k,k,k,0,true);}
     for(const sector of sectors.values())scene.add(bakeStatic(sector));
     for(const [key,sector] of coverSectors){const [x,z]=key.split(',').map(Number),root=bakeStatic(sector);coverChunks.push({root,x:x*10+5,z:z*10+5});root.visible=Math.hypot(x*10+5,z*10+5-11)<42;scene.add(root);}
     // Distance fading shrinks plants into their own hill, not the old y=0 plane.
     scene.traverse(o=>{if(o.isMesh&&['foliage','petals'].includes(o.material.name)){const p=o.geometry.attributes.position,base=new Float32Array(p.count);for(let i=0;i<p.count;i++)base[i]=groundHeight(region,p.getX(i),p.getZ(i));o.geometry.setAttribute('groundBase',new T.BufferAttribute(base,1));}});
     art.finish(scene);
     // Instanced geometry must stay outside bakeStatic, which expands instances.
-    const meadow=createMeadowView(scene,region,style,colliders);
+    const meadow=createMeadowView(scene,region,style,scenery);
     const banks=createBankDressing(scene,region,colliders);
     const effects=createLandscapeEffects(scene,layout.props,region);
     const geography=createGeographyView(scene,region);
@@ -112,15 +115,17 @@ export async function createWorld(host,art){
     for(let i=0;i<300;i++){const x=(rand()-.5)*120,z=(rand()-.5)*120;points.push(x,groundHeight(region,x,z)+.4+rand()*5,z);}
     dustGeo.setAttribute('position',new T.Float32BufferAttribute(points,3));
     const dust=new T.Points(dustGeo,new T.PointsMaterial({color:style.dust,size:region===1?.05:.035,transparent:true,opacity:.6}));scene.add(dust);
-    return {root:scene,colliders,cameraObstacles,dust,effects,geography,meadow,banks,coverChunks};
+    return {root:scene,colliders,cameraObstacles,openObstacles,halls,time:0,dust,effects,geography,meadow,banks,coverChunks};
   }
   zones[0]=build(0);host.add(zones[0].root);
   return {
     get dust(){return zones[active].dust;},get colliders(){return zones[active].colliders;},get atmosphere(){const {hour,azimuth}=LANDSCAPES[active];return {hour,azimuth};},
-    get cameraObstacles(){return zones[active].cameraObstacles;},
+    // Inside a room the camera looks over the cut walls, not the missing roof.
+    get cameraObstacles(){const z=zones[active];return z.halls.inside?z.openObstacles:z.cameraObstacles;},
+    get interior(){return zones[active].halls.inside;},
     setRegion(region){const created=!zones[region];if(created)zones[region]=build(region);if(region!==active){host.remove(zones[active].root);host.add(zones[region].root);}active=region;return created;},
     canStand(x,z){return canStandIn(zones[active].colliders,x,z);},
     heightAt(x,z){return groundHeight(active,x,z);},
-    update(dt,player={x:0,z:11}){art.update(dt,player);zones[active].effects.update(dt);zones[active].geography.update(dt);zones[active].meadow.update(dt,player);zones[active].banks.update(dt,player);for(const c of zones[active].coverChunks)c.root.visible=Math.hypot(c.x-player.x,c.z-player.z)<42;},
+    update(dt,player={x:0,z:11}){const zone=zones[active];zone.time+=dt;zone.halls.update(zone.time,player);art.update(dt,player);zones[active].effects.update(dt);zones[active].geography.update(dt);zones[active].meadow.update(dt,player);zones[active].banks.update(dt,player);for(const c of zones[active].coverChunks)c.root.visible=Math.hypot(c.x-player.x,c.z-player.z)<42;},
   };
 }

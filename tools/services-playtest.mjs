@@ -9,7 +9,7 @@ import {Campaign} from '../game/src/campaign.js';
 import {travelFixture} from './travel-fixture.mjs';
 const out='_artifacts/services';await fs.mkdir(out,{recursive:true});
 const m=new Combat(),p=new Progression(),c=new Campaign(p,m);p.restore(m);
-for(let r=0;r<4;r++){if(r)assert(travelFixture(c,r));m.damageShard(999);for(let i=0;i<100;i++)m.update(1/60);for(const e of m.enemies)m.damageEnemy(e,e.maxHp);p.events(m.consume(),m);c.observe();}
+for(let r=0;r<4;r++){if(r)assert(travelFixture(c,r));m.damageShard(999);for(let i=0;i<100;i++)m.update(1/60);for(const e of m.guardians)m.damageEnemy(e,e.maxHp);p.events(m.consume(),m);c.observe();}
 assert(travelFixture(c,0));const spare=p.makeItem('sword','rare',1);p.data.items.push(spare,p.makeItem('armor','uncommon'));const fixture=p.snapshot(m);assert(validSave(fixture));
 const main=(await fs.readFile('game/src/main.js','utf8')).replace('await rig.ready;','window.serviceFixture={model,hero,orbit,input,scene};await rig.ready;');
 const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});

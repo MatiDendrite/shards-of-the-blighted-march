@@ -5,6 +5,7 @@ import { LANDSCAPES, seeded, sceneryLayout, pavingLayout, canStandIn } from './r
 import { inTown, distanceToRoad, MAPS } from './world-map.js';
 import {createLandscapeEffects} from './landscape-effects.js';
 import {applyScenerySurfaces} from './art.js';
+import {applyPropSurfaces} from './prop-surfaces.js';
 import {cameraTemplate,placeCameraObstacle} from './camera-obstacles.js';
 import {createHallViews} from './interior-view.js';
 import {DECOR} from './decor.js';
@@ -124,10 +125,10 @@ export async function createWorld(host,art){
   // bushes bake into culled 10 m sectors a few at a time between frames.
   let decorModels=null;
   let landmarkModels=null;
-  function loadLandmarks(){landmarkModels??=Promise.all(Object.entries(LANDMARK_FILES).map(async([kind,file])=>{const model=await ASSET(new URL(`../assets/${file}.js`,import.meta.url).href,{keepHierarchy:true});art.apply(model);return[kind,model];})).then(Object.fromEntries);return landmarkModels;}
+  function loadLandmarks(){landmarkModels??=Promise.all(Object.entries(LANDMARK_FILES).map(async([kind,file])=>{const model=await ASSET(new URL(`../assets/${file}.js`,import.meta.url).href,{keepHierarchy:true});art.apply(model);applyPropSurfaces(model);return[kind,model];})).then(Object.fromEntries);return landmarkModels;}
   let discoverModels=null;
-  function loadDiscover(){discoverModels??=Promise.all(Object.entries(DECOR).filter(([,d])=>d.discover).map(async([kind,d])=>{const model=await ASSET(new URL(`../assets/${d.file}.js`,import.meta.url).href,{keepHierarchy:true});art.apply(model);return[kind,model];})).then(Object.fromEntries);return discoverModels;}
-  function loadDecor(){decorModels??=Promise.all(Object.entries(DECOR).filter(([,d])=>!d.discover).map(async([kind,d])=>{const model=await ASSET(new URL(`../assets/${d.file}.js`,import.meta.url).href);art.apply(model);return[kind,model];})).then(Object.fromEntries);return decorModels;}
+  function loadDiscover(){discoverModels??=Promise.all(Object.entries(DECOR).filter(([,d])=>d.discover).map(async([kind,d])=>{const model=await ASSET(new URL(`../assets/${d.file}.js`,import.meta.url).href,{keepHierarchy:true});art.apply(model);applyPropSurfaces(model);return[kind,model];})).then(Object.fromEntries);return discoverModels;}
+  function loadDecor(){decorModels??=Promise.all(Object.entries(DECOR).filter(([,d])=>!d.discover).map(async([kind,d])=>{const model=await ASSET(new URL(`../assets/${d.file}.js`,import.meta.url).href);art.apply(model);applyPropSurfaces(model);return[kind,model];})).then(Object.fromEntries);return decorModels;}
   async function decorate(zone){
    if(zone.decorated)return;zone.decorated=true;const models=await loadDecor(),protos={},sectors=new Map();
    for(const kind of Object.keys(models))protos[kind]=tint(models[kind].clone(),zone.style);

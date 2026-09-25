@@ -10,6 +10,7 @@ import {SKILLS,classInfo,ARCANE_BOLT} from './class-data.js';
 import {createSkillHud} from './class-view.js';
 import {createClassActors} from './class-actors.js';
 import {createClassEffects} from './class-effects.js';
+import {createSpellEffects} from './spell-vfx.js';
 import {groundHeight} from './terrain-height.js';
 import {drapeGround} from './ground-projection.js';
 import {loadActorAsset} from './actor-surfaces.js';
@@ -43,7 +44,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  armorPortrait.traverse(o=>{delete o.userData.joints;});
  const heightAt=(x,z)=>groundHeight(model.region,x,z),impacts=createCombatEffects(scene,heightAt),rings=createCombatRings(scene,prepare,heightAt),text=createTextWriter();
  const weaponMount=new T.Group();weaponMount.name='heroWeaponMount';weaponMount.position.set(HERO_GRIP.x,HERO_GRIP.y,HERO_GRIP.z);weaponMount.rotation.x=Math.PI/2;hero.userData.joints.rightForearm.add(weaponMount);
- const actors=createClassActors(hero,weaponMount,{mergeJoints,cloneActor,prepare}),skillHud=createSkillHud(),classEffects=createClassEffects(scene);
+ const actors=createClassActors(hero,weaponMount,{mergeJoints,cloneActor,prepare}),skillHud=createSkillHud(),classEffects=createClassEffects(scene),spells=createSpellEffects(scene,heightAt);
  let weapon='';const views=new Map(),labels=document.querySelector('#enemy-labels'),numbers=[];
  const shard=assets.shard;shard.position.set(model.shard.x,.05,model.shard.z);scene.add(shard);
  const shardLight=new T.PointLight(0x9972e0,9,10,2);shardLight.position.set(model.shard.x,1.8,model.shard.z);scene.add(shardLight);
@@ -65,8 +66,8 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  function equip(){if(weapon===model.player.weapon)return;weapon=model.player.weapon;equipHeroWeapon(weaponMount,assets[weapon],weapon);document.querySelector('#weapon-name').textContent=WEAPONS[weapon].name;document.querySelector('#weapon-button span').textContent=WEAPONS[weapon].name;}
  const ring=rings.pulse;
  function notice(text,duration=3.5){document.querySelector('#notice').textContent=text;document.querySelector('#notice').hidden=false;noticeTimer=duration;}
- function process(events){for(const e of events){
-  if(e.type==='swing'){const s=e.projectile==='arcane'?ARCANE_BOLT:SKILLS[e.kind];audio.play(e.kind==='cry'?'cry':e.weapon==='axe'?'heavySwing':'swing');if(['projectile','bomb','blink'].includes(s?.effect))ring(e.x,e.z,s.color,.7);else if(['frost','smoke','ward'].includes(s?.effect))ring(e.x,e.z,s.color,s.range);else if(e.kind==='slam'||e.kind==='cry')ring(e.x,e.z,e.kind==='cry'?'#c3c992':'#d1ad70',e.kind==='cry'?5:3.5);else rings.swing(e);}
+ function process(events){spells.process(events,model);for(const e of events){
+  if(e.type==='swing'){const s=e.projectile==='arcane'?ARCANE_BOLT:SKILLS[e.kind];audio.play(e.kind==='cry'?'cry':e.weapon==='axe'?'heavySwing':'swing');if(['projectile','bomb','blink'].includes(s?.effect))ring(e.x,e.z,s.color,.7);else if(['frost','smoke','ward'].includes(s?.effect))ring(e.x,e.z,s.color,s.range);else if(e.kind==='slam'||e.kind==='cry')ring(e.x,e.z,e.kind==='cry'?'#c3c992':'#d1ad70',e.kind==='cry'?5:3.5);}
   if(e.type==='classImpact'){ring(e.x,e.z,e.color,e.radius);audio.play('hit');}
   if(e.type==='classMove'){ring(e.from.x,e.from.z,e.color,.8);ring(e.to.x,e.to.z,e.color,.8);audio.play('dodge');}
   if(e.type==='absorb')ring(model.player.x,model.player.z,SKILLS.ironward.color,1);
@@ -86,7 +87,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
  function positionLabel(label,x,y,z,camera){projected.set(x,heightAt(x,z)+y,z).project(camera);const sx=(projected.x*.5+.5)*innerWidth,sy=(-projected.y*.5+.5)*innerHeight;const behindHud=label.fill&&hudBounds.some(r=>sx+45>r.left&&sx-45<r.right&&sy>r.top&&sy-32<r.bottom);const visible=projected.z>-1&&projected.z<1&&Math.abs(projected.x)<1.2&&Math.abs(projected.y)<1.2&&!behindHud;label.el.hidden=!visible;if(visible){label.el.style.left=`${sx}px`;label.el.style.top=`${sy}px`;}}
  function update(dt,camera){
   equip();const p=model.player;impacts.update(dt);hudBounds=hudPanels.map(el=>el.getBoundingClientRect()).filter(r=>r.width&&r.height);
-  actors.animate(p,model.time);classEffects.update(model);
+  actors.animate(p,model.time);classEffects.update(model);spells.update(dt,model,camera);
   for(const e of model.enemies){const near=(e.x-p.x)**2+(e.z-p.z)**2<44**2;let v=views.get(e.id);if(!v){if(e.hp<=0||!near)continue;v=createEnemy(e);}v.root.position.set(e.x,heightAt(e.x,e.z)+.06,e.z);v.root.rotation.set(0,e.angle,0);
     if(e.hp<=0){v.deathAge+=dt;v.root.rotation.z=Math.min(Math.PI/2,v.deathAge*3);v.root.position.y=heightAt(e.x,e.z)+.06-Math.max(0,v.deathAge-1)*.5;v.root.visible=v.deathAge<2.8;v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
     v.root.visible=near;if(!near){v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
@@ -122,5 +123,5 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   return shake;
  }
  function reset(){impacts.clear();rings.clear();for(const v of views.values()){scene.remove(v.root,v.telegraph,v.edge);v.label.el.remove();v.sweep.dispose();v.slam?.dispose();v.edgeGeometry.dispose();v.slamEdge?.dispose();v.telegraph.material.dispose();v.edge.material.dispose();v.flashMaterials.forEach(m=>m.dispose());}views.clear();for(const n of numbers)n.el.remove();numbers.length=0;noticeTimer=flash=shake=0;document.querySelector('#notice').hidden=true;}
- return{update,process,reset:()=>{reset();classEffects.clear();actors.resetMotion();},notice,loadClass:actors.load,setClass:actors.activate,characterPortrait:actors.portrait,portraitModels:{sword:assets.sword,axe:assets.axe,spear:assets.spear,armor:armorPortrait}};
+ return{update,process,reset:()=>{reset();classEffects.clear();spells.clear();actors.resetMotion();},notice,loadClass:actors.load,setClass:actors.activate,characterPortrait:actors.portrait,portraitModels:{sword:assets.sword,axe:assets.axe,spear:assets.spear,armor:armorPortrait}};
 }

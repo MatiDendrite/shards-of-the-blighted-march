@@ -51,7 +51,7 @@ function projectileImpact(combat,shot,target){
  if(skill.splash)splash(combat,shot,skill.splash,shot.damage,feedback);
  else if(target?.id==='shard')combat.damageShard(damage,feedback);
  else if(target){combat.damageEnemy(target,damage,.15,feedback);if(skill.poison&&target.hp>0){target.poison=4;target.poisonTick=1;target.poisonDamage=6*(combat.player.damageMultiplier||1);}}
- combat.emit('classImpact',{x:shot.x,z:shot.z,color:skill.color,radius:skill.splash||.45});
+ combat.emit('classImpact',{kind:shot.kind,x:shot.x,z:shot.z,color:skill.color,radius:skill.splash||.45});
 }
 export function updateClassEffects(combat,dt){
  const p=combat.player;

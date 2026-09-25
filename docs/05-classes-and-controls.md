@@ -54,3 +54,9 @@ Verification covers planted-foot drift, forward/backward/sideways movement, dire
 - [Motion checks](../tools/hero-motion.test.mjs), [pose comparisons](../tools/motion-review.mjs) and [keyboard/touch movement checks](../tools/motion-playtest.mjs).
 
 [Back to development stages](README.md)
+
+## Spell and impact effects
+
+Once poses matched each ability, a dedicated [spell effect layer](../game/src/spell-vfx.js) gave every ability a readable visual signature. Melee swings leave sweeping crescent trails tinted by weapon or class, with combo finishers drawn wider and warmer. Firebolts carry a flame trail and burst into fire, embers and smoke. Frost Nova raises a ring of faceted ice spikes. Blink leaves a violet streak between its two endpoints, Smoke Veil surrounds the Ninja with drifting puffs and Cinder Bombs spark on their fuse before a fiery blast. Iron Ward became a rim-lit shell that flares when it absorbs a hit, while poisoned and chilled enemies emit small status particles.
+
+The layer only reads combat events and state; it never decides hits, ranges or timing, and tests confirm that running every ability with and without it produces the same outcome. Its particle textures are generated at start-up, so nothing extra is downloaded. All particles share two draw calls, plus one for flashes, which render without depth testing so a large burst glows over the ground instead of being sliced by it. Pools have fixed capacities, and every effect mesh hides itself when idle, so a quiet scene costs nothing. Fixed-moment review strips render each class's basic attack and three abilities through the real combat view.

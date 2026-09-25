@@ -69,7 +69,7 @@ for(let region=0;region<4;region++){
   if(p.hp<p.maxHp*.45)progress.potion(model);
   if(p.hp<38)retreat=true;if(retreat&&p.hp>p.maxHp*.94)retreat=false;
   if(retreat){if(Math.hypot(p.x,p.z-11)>2){const v=walk({x:0,z:11});simulate(v.x,v.z);}else simulate();continue;}
-  const targets=[...model.enemies.filter(e=>e.hp>0),...(model.shard.hp>0?[model.shard]:[])].sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z));
+  const targets=[...model.guardians.filter(e=>e.hp>0),...(model.shard.hp>0?[model.shard]:[])].sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z));
   const target=targets[0];if(!target){simulate();continue;}
   const dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz),aim=Math.atan2(dx,dz);
   if(target.kind==='boss'&&target.phase==='windup'&&inArc(target,{...p,radius:.28},enemyAttack(target).range,enemyAttack(target).arc,target.angle)){

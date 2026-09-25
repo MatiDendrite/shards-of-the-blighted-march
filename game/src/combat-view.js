@@ -19,6 +19,7 @@ import {loadNpcActor} from './npc-actors.js';
 import {mergeJoints} from './actor-batching.js';
 import {attachEnemyAxe,createEnemyMotion} from './enemy-motion.js';
 import {HERO_GRIP,equipHeroWeapon} from './hero-equipment.js';
+import {ELITE_NAME} from './camps.js';
 
 export {mergeJoints};
 
@@ -77,7 +78,9 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   if(e.kind==='raider'||e.kind==='boss')attachEnemyAxe(root,assets.axe,e.kind);
   const d=enemyAttack({...e,attackKind:'sweep'}),sweep=new T.RingGeometry(0,d.range+.28,48,8,-Math.PI/2-d.arc/2,d.arc),slam=e.kind==='boss'?new T.RingGeometry(0,enemyAttack({...e,attackKind:'slam'}).range+.28,64,10):null;
   const telegraph=new T.Mesh(sweep,new T.MeshBasicMaterial({color:0xe0a949,side:T.DoubleSide,transparent:true,opacity:.32,depthWrite:false}));telegraph.name=`warning-${e.id}`;telegraph.rotation.x=-Math.PI/2;telegraph.visible=false;scene.add(telegraph);scene.add(root);
-  const name=ENEMY_NAMES[e.kind]||'Hollow Raider';
+  const name=e.elite?ELITE_NAME:ENEMY_NAMES[e.kind]||'Hollow Raider';
+  // The elite: larger, with a smouldering gold sheen on every surface.
+  if(e.elite){root.scale.setScalar(1.35);for(const m of materials.values())if(m.emissive){m.emissive.setHex(0x3a2408);m.userData.restEmissive=m.emissive.clone();}}
   const edgeGeometry=new T.RingGeometry(d.range+.20,d.range+.28,48,1,-Math.PI/2-d.arc/2,d.arc),slamEdge=e.kind==='boss'?new T.RingGeometry(4.7,4.78,64):null;
   const edge=new T.Mesh(edgeGeometry,new T.MeshBasicMaterial({color:d.color,transparent:true,opacity:.8,side:T.DoubleSide,depthWrite:false}));edge.rotation.x=-Math.PI/2;edge.visible=false;scene.add(edge);
   const label=makeLabel(name),flashMaterials=new Set();root.traverse(o=>{if(o.isMesh&&o.material.emissive)flashMaterials.add(o.material);});prepare(root);prepare(telegraph);prepare(edge);const view={root,nodes,telegraph,edge,edgeGeometry,slamEdge,name,label,flashMaterials,flashing:false,sweep,slam,deathAge:0,secondary:createActorSecondaryMotion(root),animate:QUADRUPEDS.has(e.kind)?null:createEnemyMotion(root,e.kind)};views.set(e.id,view);return view;
@@ -110,6 +113,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
   equip();const p=model.player;impacts.update(dt);hudBounds=hudPanels.map(el=>el.getBoundingClientRect()).filter(r=>r.width&&r.height);
   actors.animate(p,model.time);classEffects.update(model);spells.update(dt,model,camera);
   for(const e of model.enemies){const near=(e.x-p.x)**2+(e.z-p.z)**2<44**2;let v=views.get(e.id);if(!v){if(e.hp<=0||!near||!assets[e.kind])continue;v=createEnemy(e);}v.root.position.set(e.x,heightAt(e.x,e.z)+.06,e.z);v.root.rotation.set(0,e.angle,0);
+    if(e.hp>0&&v.deathAge>0){v.deathAge=0;v.root.rotation.set(0,e.angle,0);v.root.visible=true;}
     if(e.hp<=0){v.deathAge+=dt;v.root.rotation.z=Math.min(Math.PI/2,v.deathAge*3);v.root.position.y=heightAt(e.x,e.z)+.06-Math.max(0,v.deathAge-1)*.5;v.root.visible=v.deathAge<2.8;v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
     v.root.visible=near;if(!near){v.label.el.hidden=true;v.telegraph.visible=v.edge.visible=false;continue;}
     const flashing=e.flash>0;if(flashing!==v.flashing){for(const m of v.flashMaterials){if(flashing)m.emissive.setHex(0x392e20);else m.emissive.copy(m.userData.restEmissive);}v.flashing=flashing;}
@@ -123,7 +127,7 @@ export async function createCombatView(scene,hero,model,audio,options={}){
     v.edge.geometry=e.kind==='boss'&&e.attackKind==='slam'?v.slamEdge:v.edgeGeometry;v.edge.material.color.setHex(d.color);v.edge.position.set(e.x,.115,e.z);v.edge.rotation.z=e.angle;v.edge.material.opacity=.55+charge*.4;
     if(v.telegraph.visible){drapeGround(v.telegraph,heightAt,.11);drapeGround(v.edge,heightAt,.115);}
     const title=e.phase==='windup'?`${d.name} · ${Math.max(0,e.timer).toFixed(1)}s`:`${v.name}${e.poison>0?' · Poisoned':e.slow>0?' · Chilled':''}`;if(v.label.el.firstChild.textContent!==title)v.label.el.firstChild.textContent=title;
-    positionLabel(v.label,e.x,LABEL_HEIGHT[e.kind]||2.1,e.z,camera);v.label.fill.style.width=`${e.hp/e.maxHp*100}%`;
+    positionLabel(v.label,e.x,(LABEL_HEIGHT[e.kind]||2.1)*(e.elite?1.35:1),e.z,camera);v.label.fill.style.width=`${e.hp/e.maxHp*100}%`;
     // The dedicated boss HUD already shows health and cast timing. A second
     // world-space name overlaps it when the Warden is north of the player.
     if(e.kind==='boss')v.label.el.hidden=true;

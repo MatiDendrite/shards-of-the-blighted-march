@@ -7,12 +7,13 @@ import {FIELD_PATROLS} from './campaign-data.js';
 import {buildingSites} from './settlement-layout.js';
 import {hallDoor} from './interiors.js';
 import {groundHeight} from './terrain-height.js';
+import {CAMPS} from './camps.js';
 
 // Footprints in metres (local x width, z depth) and whether the prop blocks.
 export const DECOR={
  cart:{file:'supply_cart',w:1.9,d:3.5,solid:true},stack:{file:'supply_stack',w:2.1,d:2,solid:true},woodpile:{file:'woodpile',w:2.4,d:1.7,solid:true},
  hay:{file:'hay_bales',w:2.7,d:2.4,solid:true},tent:{file:'camp_tent',w:2.6,d:3,solid:true,clear:[3.6,5.2]},colonnade:{file:'ruined_colonnade',w:5.4,d:2.2,solid:true},
- bush:{file:'berry_bush',w:1.6,d:1.6,solid:false},
+ bush:{file:'berry_bush',w:1.6,d:1.6,solid:false},palisade:{file:'palisade',w:3.1,d:.5,solid:true},
  // Discoverables are built individually so they can open, glow or vanish.
  chest:{file:'treasure_chest',w:1.1,d:.8,solid:true,discover:true},herb:{file:'herb_patch',w:.8,d:.8,solid:false,discover:true},ore:{file:'ore_vein',w:1.7,d:1.2,solid:true,discover:true},
  shrine:{file:'rune_shrine',w:2.2,d:2.2,solid:true,discover:true},barrel:{file:'loot_barrel',w:1.3,d:1,solid:false,discover:true},log:{file:'fallen_log',w:3.6,d:1,solid:true},sign:{file:'waymarker',w:.5,d:.5,solid:true},fence:{file:'rail_fence',w:4.3,d:.3,solid:true},
@@ -33,13 +34,13 @@ const boxCollider=(x,z,w,d,rotation)=>{const c=Math.abs(Math.cos(rotation)),s=Ma
 export function decorLayout(region,{colliders,floors,canStandIn,rand}){
  const props=[],blocked=keepouts(region),placed=[];
  const free=(x,z)=>canStandIn(colliders,x,z)&&canStandIn(floors,x,z);
- function put(kind,x,z,rotation=0,{road=2.4,roadMax=Infinity,scale=1}={}){
+ function put(kind,x,z,rotation=0,options={}){const {road=2.4,roadMax=Infinity,scale=1}=options;
   const def=DECOR[kind],[cw,cd]=def.clear||[def.w,def.d],w=cw*scale,d=cd*scale,reach=Math.hypot(w,d)/2;
   if(Math.abs(x)>WORLD_LIMIT-3-reach||Math.abs(z)>WORLD_LIMIT-3-reach)return false;
   if(blocked.some(k=>Math.hypot(x-k.x,z-k.z)<k.r+reach*.6))return false;
   // Settlement lanes stay clear even where a road bends away from them.
   if(kind!=='sign'&&(Math.abs(x)<3.4+reach&&z>-18&&z<34||Math.abs(z-8.5)<3.4+reach&&Math.abs(x)<26))return false;
-  if(placed.some(p=>Math.hypot(x-p.x,z-p.z)<p.reach+reach+.4))return false;
+  if(!options.tight&&placed.some(p=>Math.hypot(x-p.x,z-p.z)<p.reach+reach+.4))return false;
   const pts=corners(x,z,w,d,rotation,.35);
   for(const [px,pz] of pts){const r=distanceToRoad(region,px,pz);if(r<road||waterDistance(region,px,pz)<2.2||onCrossing(region,px,pz,2)||!free(px,pz))return false;}
   if(distanceToRoad(region,x,z)>roadMax)return false;
@@ -53,6 +54,12 @@ export function decorLayout(region,{colliders,floors,canStandIn,rand}){
  // Try candidates around a centre until `count` land; deterministic via rand.
  function scatter(kind,count,cx,cz,radius,options={},tries=count*14){let n=0;for(let i=0;i<tries&&n<count;i++){const a=rand()*Math.PI*2,r=Math.sqrt(rand())*radius;if(put(kind,cx+Math.cos(a)*r,cz+Math.sin(a)*r,options.face?options.face(cx+Math.cos(a)*r,cz+Math.sin(a)*r):rand()*Math.PI*2,{...options,scale:(options.scale||1)*(.9+rand()*.2)}))n++;}return n;}
  const rustic=region<2,marks=landmarks(region);
+ // Bandit camp first: a palisade ring open to the south, a tent at the back
+ // and stolen stock; its guards are spawned by the combat model.
+ {const camp=CAMPS[region];for(let i=2;i<8;i++){const a=(i-.5)/8*Math.PI*2;put('palisade',camp.x+Math.sin(a)*7,camp.z+Math.cos(a)*7,a,{road:1.4,tight:true});}
+  put('tent',camp.x,camp.z-3.2,0,{road:1.4,tight:true});put('stack',camp.x+3.6,camp.z-1,.4,{road:1.4,tight:true});put('cart',camp.x-9,camp.z+2,1.2,{road:1.4,tight:true});
+  // The camp yard stays clear for its guards: later scenery keeps out.
+  floors.push({x:camp.x,z:camp.z,w:12,d:12,landmark:true});}
  // Market town: stock beside houses and stalls, carts on the side streets,
  // firewood at the outer houses, waymarkers at every town exit.
  // Offsets are in each house's own frame (front +Z): beside the gables and behind.
@@ -73,7 +80,7 @@ export function decorLayout(region,{colliders,floors,canStandIn,rand}){
  scatter('bush',region<2?70:50,0,4,57,{road:1.6});
  // Things to find: chests near ruins, camps and groves, herbs and ore in the
  // wilds, a shrine on the outskirts and breakable barrels by camps and ruins.
- const counters={};const find=(kind,count,cx,cz,radius,options={})=>{const before=props.length;scatter(kind,count,cx,cz,radius,options,count*40);for(const p of props.slice(before)){counters[kind]=(counters[kind]||0)+1;p.id=`${region}-${kind}-${counters[kind]}`;}};
+ const counters={};const find=(kind,count,cx,cz,radius,options={})=>{const before=props.length;scatter(kind,count,cx,cz,radius,options,Math.max(120,count*40));for(const p of props.slice(before)){counters[kind]=(counters[kind]||0)+1;p.id=`${region}-${kind}-${counters[kind]}`;}};
  for(const m of marks){if(['ruin','glade','grove'].includes(m.kind))find('chest',1,m.x,m.z,m.r+7,{road:2.5});if(m.kind==='ruin'||m.kind==='glade')find('barrel',2,m.x,m.z,m.r+5,{road:1.8});}
  find('chest',2,0,0,54,{road:3});find('herb',9,0,4,55,{road:2});find('ore',4,0,-6,54,{road:2.5});find('shrine',1,0,8,34,{road:2.5});find('barrel',3,0,8,24,{road:1.8});
  return props;

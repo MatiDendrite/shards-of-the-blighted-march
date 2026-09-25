@@ -68,6 +68,11 @@ export class Progression{
  events(events,combat){const d=this.data;for(const e of events){
   // Extra patrols supply XP, gold and smithing ore. Equipment stays on the
   // original guards and shard, keeping a full expedition within the 24-slot bag.
+  // Camp bandits and the elite pay out at once and are never claimed.
+  if(e.type==='kill'&&e.optional){const enemy=combat.enemies.find(n=>n.id===e.id);if(!enemy)continue;const seed=(e.id*131+d.run*17+Math.floor(combat.time))>>>0;
+   if(enemy.elite){const gold=120+combat.region*30;d.gold=Math.min(1000000,d.gold+gold);d.ore=Math.min(100000,d.ore+4);this.experience(120);const item=this.makeItem(KINDS[seed%4],'rare',combat.region);let text=`Dread Champion defeated · +${gold} gold · +4 ore`;if(d.items.length<24){d.items.push(item);text+=` · rare ${item.kind}`;}else{d.gold+=60;text+=' · bag full, +60 gold';}this.touch(text);}
+   else{const gold=6+seed%7;d.gold=Math.min(1000000,d.gold+gold);this.experience(enemy.kind==='brute'?30:enemy.kind==='wolf'?10:18);this.touch(`Bandit routed · +${gold} gold`);}
+   continue;}
   if(e.type==='kill'&&!d.claimed.includes(e.id)){const enemy=combat.enemies.find(n=>n.id===e.id);if(!enemy)continue;d.claimed.push(e.id);const boss=enemy.kind==='boss',wolf=enemy.kind==='wolf',xp=boss?160:enemy.kind==='brute'?40:enemy.patrol?(wolf?12:22):wolf?25:45;this.experience(xp);const seed=e.id+d.run+combat.region;const item=boss?this.makeItem('armor','rare',combat.region):!wolf&&!enemy.patrol?this.makeItem(KINDS[((e.id*17+d.run*23)%11)%4],seed%3===0?'rare':'uncommon',combat.region):null;d.drops.push({id:`${d.run}-${combat.region}-${e.id}`,x:enemy.x,z:enemy.z,gold:boss?100:enemy.patrol?(wolf?7:14):wolf?12:24,ore:boss?4:wolf?0:1,item});this.touch(`+${xp} XP · loot dropped`);}
   if(e.type==='explosion'&&!d.shardReward){d.shardReward=true;this.experience(80);d.drops.push({id:`${d.run}-${combat.region}-shard`,x:combat.shard.x,z:combat.shard.z,gold:60,ore:3,item:this.makeItem(combat.player.weapon,'rare',combat.region)});this.touch('Shard cleansed · a rare weapon for your current fighting style dropped');}
   if(e.type==='death'){const lost=Math.floor(d.gold*.1);d.gold-=lost;d.deaths++;this.touch(`You lost ${lost} gold. Equipment and XP are safe.`);}

@@ -21,7 +21,7 @@ export function journeyGuide(campaign){
   return campaign.region<3?mark('travel',`Road open · ${REGIONS[campaign.region+1].short}`,EXIT,'Reach the northern portal and press E. The southern portal returns to the previous region.'):mark('complete','The March is free',null,'All four quests complete. Explore, return through the southern portal, or restart from the pause menu.');
  }
  if(p.hp<p.maxHp*.35)return mark('recover','Recover before the next fight',{x:0,z:11},d.potions>0?'Q / Heal: drink a draught, or return to the settlement.':'The central settlement restores health. Mara sells draughts.');
- const enemies=m.enemies.filter(e=>e.hp>0),near=nearest(p,enemies);
+ const enemies=m.guardians.filter(e=>e.hp>0),near=nearest(p,enemies);
  if(campaign.region===3)return mark('boss','Defeat the Fallen Warden',near,'Gold sweep: dodge behind. Violet slam: leave the circle. Strike during recovery.');
  // Clear the scattered field guards first if they are closer, then follow the shard.
  if(near&&(m.shard.exploded||distance(p,near)<distance(p,m.shard)))return mark('guardian',m.shard.exploded?'Track the remaining guardians':'Clear the hunting fields',near,`${m.requiredKills-m.kills} guardians remain in this quest, including shard reinforcements. Gold warnings show where attacks land.`);
@@ -31,9 +31,9 @@ export function journeyGuide(campaign){
 export function questSteps(campaign){
  const m=campaign.combat,d=campaign.progress.data,done=campaign.data.cleared[campaign.region];
  const steps=campaign.region===3?[{text:'Defeat the Fallen Warden',done}]:[
-  {text:'Clear the hunting fields, side roads and southern pasture',done:m.enemies.filter(e=>e.id<=2||e.patrol).every(e=>e.hp<=0)},
+  {text:'Clear the hunting fields, side roads and southern pasture',done:m.guardians.filter(e=>e.id<=2||e.patrol).every(e=>e.hp<=0)},
   {text:`Cleanse the ${REGIONS[campaign.region].shard}`,done:m.shard.exploded},
-  {text:`Defeat all guardians · ${m.kills} / ${m.requiredKills}`,done:m.enemies.length===m.requiredKills&&m.enemies.every(e=>e.hp<=0)},
+  {text:`Defeat all guardians · ${m.kills} / ${m.requiredKills}`,done:m.complete||m.guardians.length===m.requiredKills&&m.guardians.every(e=>e.hp<=0)},
  ];
  return [...steps,{text:'Collect the spoils and inspect your gear',done:done&&d.drops.length===0}];
 }

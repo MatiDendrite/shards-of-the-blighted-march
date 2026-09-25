@@ -1,6 +1,7 @@
 // Deterministic combat rules, independent of rendering and browser input.
 import {MAPS,inTown} from './world-map.js';
 import {FIELD_PATROLS,guardianCount,guardianKind} from './campaign-data.js';
+import {CAMPS,CAMP_IDS,ELITE_ID,ELITE_ROUTE,hasElite} from './camps.js';
 import {CLASS_IDS,classInfo,SKILLS,ARCANE_BOLT} from './class-data.js';
 import {activateClassSkill,classHit,updateClassEffects,clearPath} from './class-combat.js';
 export {SKILLS} from './class-data.js';
@@ -38,10 +39,15 @@ export class Combat {
     Object.assign(this.shard,MAPS[region].shard);
     if(region===3){this.shard.hp=0;this.shard.exploded=true;this.spawn('boss',this.shard.x,this.shard.z);}
     else{this.spawn(region===2?'raider':'wolf',-35,7);this.spawn(region>0?'raider':'wolf',35,9);this.spawn('raider',this.shard.x-4,this.shard.z+3);this.spawn('raider',this.shard.x+4,this.shard.z+1);for(const e of FIELD_PATROLS)this.spawn(guardianKind(e.kind,region,e.id),e.x,e.z,e.id,true);}
+    // Optional foes: a bandit camp and a roaming elite. They keep the default id counter untouched.
+    const next=this.nextId,camp=CAMPS[region];camp.guards.forEach(([kind,dx,dz],i)=>{const e=this.spawn(kind,camp.x+dx,camp.z+dz,CAMP_IDS[i]);if(e)e.optional=true;});
+    if(hasElite(region)){const [x,z]=ELITE_ROUTE[0],e=this.spawn('raider',x,z,ELITE_ID,true);if(e){Object.assign(e,{optional:true,elite:true,wp:0});e.hp=e.maxHp=Math.round(e.maxHp*4.5);}}
+    this.nextId=next;
   }
   get dead(){return this.player.hp<=0;}
   get requiredKills(){return guardianCount(this.region);}
-  get complete(){return this.shard.exploded&&this.enemies.length===this.requiredKills&&this.enemies.every(e=>e.hp<=0);}
+  get guardians(){return this.enemies.filter(e=>!e.optional);}
+  get complete(){const g=this.guardians;return this.shard.exploded&&g.length===this.requiredKills&&g.every(e=>e.hp<=0);}
   get phase(){const a=this.player.action;if(!a)return'idle';return a.age<a.windup?'windup':a.age<a.windup+a.active?'active':'recovery';}
   spawn(kind,x,z,id=this.nextId+1,patrol=false){if(this.enemies.length>=32||this.enemies.some(e=>e.id===id))return;this.nextId=Math.max(this.nextId,id);const d=ENEMIES[kind],hp=Math.round(d.hp*(kind==='boss'?1:1+this.region*.18)),enemy={id,kind,patrol,x,z,homeX:x,homeZ:z,angle:Math.PI,hp,maxHp:hp,radius:d.radius,phase:'idle',timer:0,stagger:0,flash:0,walk:0,attackCount:0,enraged:false};this.enemies.push(enemy);return enemy;}
   emit(type,data={}){this.events.push({type,...data});}
@@ -80,7 +86,7 @@ export class Combat {
     p.action=null;p.queued=null;p.stamina-=25;p.dodge=DODGE_DURATION;p.dodgeAge=0;p.dodgeCD=.65;p.invulnerable=.24;this.dodges++;this.emit('dodge');return true;
   }
   hurtPlayer(amount){const p=this.player;if(this.dead||p.invulnerable>0)return false;amount=Math.max(1,amount-(p.armor||0))*(p.smoke>0?.5:1);const absorbed=Math.min(p.ward,amount);p.ward-=absorbed;amount-=absorbed;p.hp=Math.max(0,p.hp-amount);p.invulnerable=.28;this.damageTaken+=amount;if(absorbed)this.emit('absorb',{amount:absorbed});if(amount)this.emit('hurt',{amount});if(this.dead){p.action=null;p.queued=null;p.dodge=0;this.projectiles.length=this.bombs.length=0;this.emit('death');}return true;}
-  damageEnemy(e,amount,stagger=.22,feedback={}){if(e.hp<=0)return;const interrupted=e.kind!=='boss'&&e.phase==='windup';e.hp=Math.max(0,e.hp-amount);e.stagger=stagger;e.flash=.18;this.hits++;this.emit('hit',{id:e.id,x:e.x,z:e.z,amount,target:e.kind,interrupted,...feedback});if(e.hp<=0){e.phase='dead';this.kills++;this.emit('kill',{id:e.id});}}
+  damageEnemy(e,amount,stagger=.22,feedback={}){if(e.hp<=0)return;const interrupted=e.kind!=='boss'&&e.phase==='windup';e.hp=Math.max(0,e.hp-amount);e.stagger=stagger;e.flash=.18;this.hits++;this.emit('hit',{id:e.id,x:e.x,z:e.z,amount,target:e.kind,interrupted,...feedback});if(e.hp<=0){e.phase='dead';if(e.optional)e.respawnAt=this.time+(e.elite?240:150);else this.kills++;this.emit('kill',{id:e.id,optional:!!e.optional,elite:!!e.elite,x:e.x,z:e.z});}}
   damageShard(amount,feedback={}){const s=this.shard;if(s.hp<=0)return;s.hp=Math.max(0,s.hp-amount);this.hits++;this.emit('hit',{id:'shard',x:s.x,z:s.z,amount,target:'shard',...feedback});
     const stage=s.hp<=0?3:s.hp<=s.maxHp/3?2:s.hp<=s.maxHp*2/3?1:0;
     while(s.stage<Math.min(stage,2)){s.stage++;for(const side of [-1,1])this.spawn(s.stage===1?'wolf':'raider',s.x+side*2,s.z+1.5,3+s.stage*2+(side===1?1:0));this.emit('wave',{wave:s.stage});}
@@ -124,14 +130,17 @@ export class Combat {
       if(a.age>=a.windup+a.active+a.recovery){p.action=null;p.comboUntil=this.time+.85;}
     }
     for(const e of this.enemies){
-      e.flash=Math.max(0,e.flash-dt);if(e.hp<=0)continue;
+      e.flash=Math.max(0,e.flash-dt);if(e.hp<=0){if(e.optional&&this.time>(e.respawnAt??Infinity)&&dist(e,p)>35)Object.assign(e,{hp:e.maxHp,phase:'idle',timer:0,stagger:0,poison:0,slow:0,x:e.homeX,z:e.homeZ,respawnAt:null});continue;}
       if(e.kind==='boss'){this.updateBoss(e,dt);continue;}
-      const d=enemyAttack(e);d.speed*=e.slow>0?e.slowFactor:1;
+      const d=enemyAttack(e);d.speed*=(e.slow>0?e.slowFactor:1)*(e.elite?1.1:1);
+      // The elite walks its circuit whenever it is not chasing the hero.
+      if(e.elite&&!e.chasingHero&&Math.hypot(e.x-e.homeX,e.z-e.homeZ)<1.5){e.wp=(e.wp+1)%ELITE_ROUTE.length;[e.homeX,e.homeZ]=ELITE_ROUTE[e.wp];}
       if(e.stagger>0){e.stagger-=dt;e.phase='idle';continue;}
-      if(e.phase==='windup'){e.timer-=dt;if(e.timer<=0){e.phase='recovery';e.timer=d.recovery;if(inArc(e,{...p,radius:.28},d.range,d.arc,e.angle)&&clearPath(this,e,p))this.hurtPlayer(d.damage*(1+this.region*.15));this.emit('enemyStrike',{id:e.id,kind:e.kind,x:e.x,z:e.z,angle:e.angle,range:d.range});if(e.kind==='boar'){const reach=Math.max(0,Math.min(d.range-.4,dist(e,p)-.7));this.move(e,Math.sin(e.angle)*reach,Math.cos(e.angle)*reach);}}continue;}
+      if(e.phase==='windup'){e.timer-=dt;if(e.timer<=0){e.phase='recovery';e.timer=d.recovery;if(inArc(e,{...p,radius:.28},d.range,d.arc,e.angle)&&clearPath(this,e,p))this.hurtPlayer(d.damage*(1+this.region*.15)*(e.elite?1.7:1));this.emit('enemyStrike',{id:e.id,kind:e.kind,x:e.x,z:e.z,angle:e.angle,range:d.range});if(e.kind==='boar'){const reach=Math.max(0,Math.min(d.range-.4,dist(e,p)-.7));this.move(e,Math.sin(e.angle)*reach,Math.cos(e.angle)*reach);}}continue;}
       if(e.phase==='recovery'){e.timer-=dt;if(e.timer<=0)e.phase='idle';continue;}
       const distance=dist(e,p),aggro=!inTown(p.x,p.z)&&distance<10&&Math.hypot(e.x-e.homeX,e.z-e.homeZ)<14;
       const patrol=e.patrol?{x:e.homeX+Math.sin(this.time*.19+e.id)*1.3,z:e.homeZ+Math.cos(this.time*.19+e.id)*.9}:{x:e.homeX,z:e.homeZ};
+      e.chasingHero=aggro;
       const target=aggro&&e.kind==='archer'&&distance<4.2?{x:e.x*2-p.x,z:e.z*2-p.z}:aggro?p:this.canStand(patrol.x,patrol.z)&&!inTown(patrol.x,patrol.z)?patrol:{x:e.homeX,z:e.homeZ};
       // Archers loose only along a clear line and back away from close pursuit.
       if(aggro&&distance<d.range+.06&&(e.kind!=='archer'||clearPath(this,e,p)&&(distance>3.4||e.cornered))){e.phase='windup';e.timer=d.windup;e.angle=bearing(e,p);this.emit('enemyWindup',{id:e.id});continue;}
@@ -140,5 +149,5 @@ export class Combat {
     }
     if(s.blast>0){s.blast-=dt;if(s.blast<=0){s.exploded=true;if(dist(p,s)<4.2)this.hurtPlayer(38);for(const e of this.enemies)if(e.hp>0&&dist(e,s)<4.2)this.damageEnemy(e,85,1);this.emit('explosion',{x:s.x,z:s.z});}}
   }
-  telemetry(){const p=this.player;return{hp:p.hp,stamina:p.stamina,weapon:p.weapon,attackPhase:this.phase,combo:p.combo,attacks:this.attacks,hits:this.hits,kills:this.kills,requiredKills:this.requiredKills,dodges:this.dodges,dodgeRemaining:p.dodge,dodgeAge:p.dodgeAge,damageTaken:this.damageTaken,skillsUsed:{...this.skillsUsed},weaponsUsed:{...this.weaponsUsed},cooldowns:{...p.cooldowns},buff:p.buff,shardHp:this.shard.hp,shardsDestroyed:this.region===3?0:this.shard.exploded?1:0,complete:this.complete,alive:this.enemies.filter(e=>e.hp>0).length,enemies:this.enemies.filter(e=>e.hp>0).map(e=>({id:e.id,kind:e.kind,x:e.x,z:e.z,hp:e.hp,phase:e.phase,attackKind:e.attackKind,enraged:e.enraged,timer:e.timer}))};}
+  telemetry(){const p=this.player;return{hp:p.hp,stamina:p.stamina,weapon:p.weapon,attackPhase:this.phase,combo:p.combo,attacks:this.attacks,hits:this.hits,kills:this.kills,requiredKills:this.requiredKills,dodges:this.dodges,dodgeRemaining:p.dodge,dodgeAge:p.dodgeAge,damageTaken:this.damageTaken,skillsUsed:{...this.skillsUsed},weaponsUsed:{...this.weaponsUsed},cooldowns:{...p.cooldowns},buff:p.buff,shardHp:this.shard.hp,shardsDestroyed:this.region===3?0:this.shard.exploded?1:0,complete:this.complete,alive:this.enemies.filter(e=>e.hp>0).length,enemies:this.guardians.filter(e=>e.hp>0).map(e=>({id:e.id,kind:e.kind,x:e.x,z:e.z,hp:e.hp,phase:e.phase,attackKind:e.attackKind,enraged:e.enraged,timer:e.timer}))};}
 }

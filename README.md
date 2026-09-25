@@ -1,8 +1,8 @@
 # Shards of the Blighted March
 
-A single-player dark fantasy action RPG in your browser. Leave the safety of Hearthstead, hunt corrupted guardians, cleanse three ancient shards and confront the Fallen Warden.
+A single-player fantasy action RPG in your browser. Leave the safety of Hearthstead, hunt corrupted guardians, cleanse three ancient shards and confront the Fallen Warden.
 
-Choose **Warrior, Mage, Ninja or Dwarf**, each with three unique illustrated abilities. Explore four regions of settlements, forests, rivers, hills and coastline. Collect equipment, upgrade it at the forge, sell spare gear and find your way with the detailed regional atlas.
+Choose **Warrior, Mage, Ninja or Dwarf**, each with three unique illustrated abilities. Explore four sunlit regions of settlements, forests, rivers, hills and coastline, where wolves, charging boars, stone brutes and ashen archers guard the roads. Step into the inn and houses of each market, fish from riverbanks and piers, collect equipment, upgrade it at the forge, sell spare gear and find your way with the detailed regional atlas.
 
 Combat combines aimed attacks, weapon combos, stamina management and directional dodges. Travel between regions through physical portals. Progress saves automatically in the current browser; no account or multiplayer server is needed.
 
@@ -40,7 +40,8 @@ To play on a phone on the same trusted network, open `http://<computer-LAN-IP>:4
 | Aim / attack | Mouse / hold left click or F |
 | Dodge / skills | Space / 1, 2, 3 |
 | Switch weapon / heal | R / Q |
-| Interact / use a portal | E |
+| Interact / use a portal / fish near water | E |
+| Eat a caught fish | G |
 | Inventory / atlas / journal | I / M / J |
 | Choose or inspect a class | K |
 | Orbit / zoom / reset camera | Right-drag / mouse wheel / C |

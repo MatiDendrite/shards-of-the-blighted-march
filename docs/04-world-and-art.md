@@ -93,3 +93,11 @@ Checks cover role-specific geometry, heights, material colour preservation, inde
 - [Town cast constructor](../game/assets/marchfolk.js), [NPC loading and motion](../game/src/npc-actors.js), [enemy poses and grips](../game/src/enemy-motion.js), [cast checks](../tools/cast-detail.test.mjs) and [cast comparisons](../tools/cast-review.mjs).
 
 [Back to development stages](README.md)
+
+## A brighter borderland
+
+A later art pass replaced the dusk-blue palette with a clear afternoon. The aerial haze became a light sky blue instead of dark teal, regional hours moved from evening to mid-afternoon, and sunlight became warmer. Grass tints were made livelier and market paving received warm sandstone tones, so distance stays readable and the settlements feel inviting rather than gloomy.
+
+## Enterable market houses
+
+The two houses facing each market square became the Lantern Inn and Hearth House. Their collision keeps a real doorway, and stepping through it hides the exterior to reveal a cutaway room: floorboards and a rug, knee-high walls, a stone hearth with a flickering fire and furniture suited to each building. The static parts of each room are baked by material and a single hearth light follows the occupied room, so interiors add only a few draw calls. Their floors are excluded from grass, flower and scenery placement, and a nearby market stall moved slightly to leave space in front of one door.
